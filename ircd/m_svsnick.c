@@ -132,7 +132,8 @@ int ms_svsnick(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
   if (strlen(arg) > IRCD_MIN(NICKLEN, feature_int(FEAT_NICKLEN)))
     arg[IRCD_MIN(NICKLEN, feature_int(FEAT_NICKLEN))] = '\0';
 
-  strcpy(nick, arg);
+  ircd_strncpy(nick, arg, sizeof(nick) - 1);
+  nick[sizeof(nick) - 1] = '\0';
 
   /*
    * If do_nick_name() returns a null name then reject it.

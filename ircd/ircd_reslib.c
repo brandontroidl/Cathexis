@@ -683,18 +683,18 @@ irc_decode_bitstring(const char **cpp, char *dn, const char *eom)
                 return(-1);
 
         cp++;
-        dn += sprintf(dn, "\\[x");
+        dn += snprintf(dn, eom - dn, "\\[x");
         for (b = blen; b > 7; b -= 8, cp++)
-                dn += sprintf(dn, "%02x", *cp & 0xff);
+                dn += snprintf(dn, eom - dn, "%02x", *cp & 0xff);
         if (b > 4) {
                 tc = *cp++;
-                dn += sprintf(dn, "%02x", tc & (0xff << (8 - b)));
+                dn += snprintf(dn, eom - dn, "%02x", tc & (0xff << (8 - b)));
         } else if (b > 0) {
                 tc = *cp++;
-               dn += sprintf(dn, "%1x",
+               dn += snprintf(dn, eom - dn, "%1x",
                                ((tc >> 4) & 0x0f) & (0x0f << (4 - b)));
         }
-        dn += sprintf(dn, "/%d]", blen);
+        dn += snprintf(dn, eom - dn, "/%d]", blen);
 
         *cpp = cp;
         return(dn - beg);

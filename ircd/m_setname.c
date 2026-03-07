@@ -9,6 +9,15 @@
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 1, or (at your option)
  * any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 /** @file
  * @brief IRCv3 SETNAME command handler - client and server.
@@ -23,16 +32,17 @@
 #include "ircd_log.h"
 #include "ircd_reply.h"
 #include "ircd_string.h"
-#include "ircd_tags.h"
 #include "msg.h"
 #include "numeric.h"
 #include "numnicks.h"
 #include "send.h"
 #include "s_user.h"
 
+/* #include <assert.h> -- Now using assert in ircd_log.h */
 #include <string.h>
 
-/** Validate a realname: reject CR and LF characters.
+/** Validate a realname string.
+ * Rejects CR (0x0D) and LF (0x0A) to prevent IRC message injection.
  * @param[in] name Proposed realname.
  * @return 1 if valid, 0 if invalid.
  */
@@ -49,37 +59,39 @@ valid_realname(const char *name)
   return 1;
 }
 
-/** Send SETNAME notifications to common channels and propagate.
+/** Send SETNAME notifications to common channels and propagate to servers.
  * @param[in] sptr Client whose realname changed.
  * @param[in] cptr Connection the change came from.
  */
 static void
 setname_propagate(struct Client *sptr, struct Client *cptr)
 {
-  struct TagSet tags;
+  /* Notify channel members who have the setname capability enabled */
+  sendcmdto_common_channels_capab_butone(sptr, CMD_SETNAME, sptr,
+                                         CAP_SETNAME, 0,
+                                         ":%s", cli_info(sptr));
 
-  tagset_init(&tags);
-  make_server_time_tag(&tags);
-  make_account_tag(&tags, sptr);
-
-  sendtagcmdto_common_channels_capab_butone(&tags, sptr, CMD_SETNAME, sptr,
-                                            CAP_SETNAME, CAP_NONE,
-                                            ":%s", cli_info(sptr));
-
+  /* Echo back to the source if local and capable */
   if (MyConnect(sptr) && CapActive(sptr, CAP_SETNAME))
-    sendtagcmdto_one(&tags, sptr, CMD_SETNAME, sptr,
-                     ":%s", cli_info(sptr));
+    sendcmdto_one(sptr, CMD_SETNAME, sptr, ":%s", cli_info(sptr));
 
-  tagset_clear(&tags);
-
+  /* Propagate to all peer servers except the source */
   sendcmdto_serv_butone(sptr, CMD_SETNAME, cptr, ":%s", cli_info(sptr));
 }
 
-/** Handle SETNAME from a local client.
+/** Handle a SETNAME command from a local client.
+ *
+ * Requires the setname IRCv3 capability to be negotiated.
+ * Validates the realname for length and forbidden characters.
+ *
+ * parv[0] = sender prefix
+ * parv[1] = new realname
+ *
  * @param[in] cptr Client that sent us the message.
- * @param[in] sptr Original source of message (== cptr for local).
+ * @param[in] sptr Original source of message (== cptr for local clients).
  * @param[in] parc Number of arguments.
  * @param[in] parv Argument vector.
+ * @return 0 on success or error.
  */
 int m_setname(struct Client *cptr, struct Client *sptr, int parc, char *parv[])
 {
@@ -87,42 +99,49 @@ int m_setname(struct Client *cptr, struct Client *sptr, int parc, char *parv[])
 
   assert(cptr == sptr);
 
-  /* IRCv3: require the setname capability */
+  /* IRCv3: require the setname capability to be negotiated */
   if (!CapActive(sptr, CAP_SETNAME))
     return 0;
 
-  if (parc < 2 || EmptyString(parv[1])) {
-    sendcmdto_one(&me, CMD_STDRPL_FAIL, sptr,
-                  "SETNAME NEED_MORE_PARAMS :Missing parameters");
-    return 0;
-  }
+  if (parc < 2 || EmptyString(parv[1]))
+    return need_more_params(sptr, "SETNAME");
 
   newname = parv[1];
 
+  /* Reject embedded CR/LF (prevents IRC message injection) */
   if (!valid_realname(newname)) {
-    sendcmdto_one(&me, CMD_STDRPL_FAIL, sptr,
-                  "SETNAME INVALID_REALNAME :Realname contains invalid characters");
+    send_reply(sptr, ERR_NEEDMOREPARAMS, "SETNAME");
     return 0;
   }
 
+  /* Enforce length limit */
   if (strlen(newname) > REALLEN) {
-    sendcmdto_one(&me, CMD_STDRPL_FAIL, sptr,
-                  "SETNAME INVALID_REALNAME :Realname too long");
+    send_reply(sptr, ERR_NEEDMOREPARAMS, "SETNAME");
     return 0;
   }
 
+  /* Apply the change using bounded copy */
   ircd_strncpy(cli_info(sptr), newname, REALLEN);
 
+  /* Notify channels and propagate to servers */
   setname_propagate(sptr, cptr);
 
   return 0;
 }
 
-/** Handle SETNAME from a peer server.
- * @param[in] cptr Server that sent us the message.
- * @param[in] sptr Original source (remote user).
+/** Handle a SETNAME command from a peer server.
+ *
+ * Trusts the peer server (already authenticated).
+ * Does NOT send error replies back across the network.
+ *
+ * parv[0] = sender prefix (numnick)
+ * parv[1] = new realname
+ *
+ * @param[in] cptr Server link that sent us the message.
+ * @param[in] sptr Original source client (remote user).
  * @param[in] parc Number of arguments.
  * @param[in] parv Argument vector.
+ * @return 0 on success.
  */
 int ms_setname(struct Client *cptr, struct Client *sptr, int parc, char *parv[])
 {
@@ -131,8 +150,10 @@ int ms_setname(struct Client *cptr, struct Client *sptr, int parc, char *parv[])
   if (parc < 2 || EmptyString(parv[1]))
     return protocol_violation(cptr, "SETNAME with no parameter from %C", sptr);
 
+  /* Trust peer but truncate for safety */
   ircd_strncpy(cli_info(sptr), parv[1], REALLEN);
 
+  /* Notify local channel members and propagate to other servers */
   setname_propagate(sptr, cptr);
 
   return 0;

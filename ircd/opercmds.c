@@ -69,10 +69,10 @@ char *militime(char* sec, char* usec)
 
   gettimeofday(&tv, NULL);
   if (sec && usec)
-    sprintf(timebuf, "%ld",
+    ircd_snprintf(0, timebuf, sizeof(timebuf), "%ld",
         (tv.tv_sec - atoi(sec)) * 1000 + (tv.tv_usec - atoi(usec)) / 1000);
   else
-    sprintf(timebuf, "%ld %ld", (long int)tv.tv_sec, (long int)tv.tv_usec);
+    ircd_snprintf(0, timebuf, sizeof(timebuf), "%ld %ld", (long int)tv.tv_sec, (long int)tv.tv_usec);
   return timebuf;
 }
 
@@ -106,13 +106,13 @@ char *militime_float(char* start)
     if ((p = strchr(start, '.')))
     {
       p++;
-      sprintf(timebuf, "%ld",
+      ircd_snprintf(0, timebuf, sizeof(timebuf), "%ld",
           (tv.tv_sec - atoi(start)) * 1000 + (tv.tv_usec - atoi(p)) / 1000);
     }
     else
       strcpy(timebuf, "0");
   }
   else
-    sprintf(timebuf, "%ld.%ld", (long int)tv.tv_sec, (long int)tv.tv_usec);
+    ircd_snprintf(0, timebuf, sizeof(timebuf), "%ld.%ld", (long int)tv.tv_sec, (long int)tv.tv_usec);
   return timebuf;
 }

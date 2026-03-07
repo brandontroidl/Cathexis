@@ -20,7 +20,6 @@
  */
 /** @file
  * @brief Interface and public definitions for capabilities extension
- * @version $Id: capab.h 1349 2005-04-05 01:46:05Z entrope $
  */
 
 #ifndef INCLUDED_client_h
@@ -35,10 +34,11 @@
 #define CAPLIST	\
 	_CAP(USERPFX, 0, "undernet.org/userpfx")
 
-/** Client capabilities */
+/** Client capabilities - IRCv3 */
 enum Capab {
 #define _CAP(cap, flags, name, feat)	CAP_ ## cap
   _CAP(NONE, CAPFL_HIDDEN|CAPFL_PROHIBIT, "none", 0),
+  /* IRCv3.1 capabilities */
   _CAP(NAMESX, 0, "multi-prefix", 0),
   _CAP(UHNAMES, 0, "userhost-in-names", 0),
   _CAP(EXTJOIN, 0, "extended-join", 0),
@@ -48,6 +48,18 @@ enum Capab {
 #ifdef USE_SSL
   _CAP(TLS, 0, "tls", 0),
 #endif
+  /* IRCv3.2+ capabilities */
+  _CAP(CAPNOTIFY, 0, "cap-notify", 0),
+  _CAP(SERVERTIME, 0, "server-time", 0),
+  _CAP(ACCOUNTTAG, 0, "account-tag", 0),
+  _CAP(MSGTAGS, 0, "message-tags", 0),
+  _CAP(ECHOMSG, 0, "echo-message", 0),
+  _CAP(INVITENOTIFY, 0, "invite-notify", 0),
+  _CAP(CHGHOST, 0, "chghost", 0),
+  _CAP(SETNAME, 0, "setname", 0),
+  _CAP(BATCH, 0, "batch", 0),
+  _CAP(LABELEDRESP, 0, "labeled-response", 0),
+  _CAP(STDREPLIES, 0, "standard-replies", 0),
 /*  CAPLIST, */
 #undef _CAP
   _CAP_LAST_CAP
@@ -58,6 +70,10 @@ DECLARE_FLAGSET(CapSet, _CAP_LAST_CAP);
 #define CapHas(cs, cap)	FlagHas(cs, cap)
 #define CapSet(cs, cap)	FlagSet(cs, cap)
 #define CapClr(cs, cap)	FlagClr(cs, cap)
+
+/** CAP 302 version tracking */
+#define CAP_VERSION_NONE  0
+#define CAP_VERSION_302   302
 
 extern void client_check_caps(struct Client *client, struct Client *replyto);
 

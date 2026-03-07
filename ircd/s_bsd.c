@@ -601,7 +601,7 @@ void add_connection(struct Listener* listener, int fd) {
    * valid to put into error messages...
    */
   ircd_ntoa_r(cli_sock_ip(new_client), &addr.addr);
-  strcpy(cli_sockhost(new_client), cli_sock_ip(new_client));
+  ircd_strncpy(cli_sockhost(new_client), cli_sock_ip(new_client), HOSTLEN);
   memcpy(&cli_ip(new_client), &addr.addr, sizeof(cli_ip(new_client)));
   cli_port(new_client) = addr.port;
 

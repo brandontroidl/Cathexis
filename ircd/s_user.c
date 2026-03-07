@@ -741,7 +741,7 @@ int set_nick_name(struct Client* cptr, struct Client* sptr,
     /*
      * Set new nick name.
      */
-    strcpy(cli_name(new_client), nick);
+    ircd_strncpy(cli_name(new_client), nick, HOSTLEN);
     cli_user(new_client) = make_user(new_client);
     cli_user(new_client)->server = sptr;
     SetRemoteNumNick(new_client, parv[parc - 2]);
@@ -856,7 +856,7 @@ int set_nick_name(struct Client* cptr, struct Client* sptr,
 
     if ((cli_name(sptr))[0])
       hRemClient(sptr);
-    strcpy(cli_name(sptr), nick);
+    ircd_strncpy(cli_name(sptr), nick, HOSTLEN);
     hAddClient(sptr);
 
     /* Notify change nick local/remote user */
@@ -864,7 +864,7 @@ int set_nick_name(struct Client* cptr, struct Client* sptr,
   }
   else {
     /* Local client setting NICK the first time */
-    strcpy(cli_name(sptr), nick);
+    ircd_strncpy(cli_name(sptr), nick, HOSTLEN);
     hAddClient(sptr);
     return auth_set_nick(cli_auth(sptr), nick);
   }

@@ -220,7 +220,7 @@ static void do_whois(struct Client* sptr, struct Client *acptr, int parc)
          *(buf + len++) = '!';
        if (len)
           *(buf + len) = '\0';
-       strcpy(buf + len, chptr->chname);
+       ircd_strncpy(buf + len, chptr->chname, sizeof(buf) - len - 1);
        len += strlen(chptr->chname);
        strcat(buf + len, " ");
        len++;

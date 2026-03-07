@@ -124,7 +124,7 @@ char *date(time_t clock)
   if (minswest < 0)
     minswest = -minswest;
 
-  sprintf(buf, "%s %s %d %d -- %02d:%02d %c%02d:%02d",
+  ircd_snprintf(0, buf, sizeof(buf), "%s %s %d %d -- %02d:%02d %c%02d:%02d",
       weekdays[lt->tm_wday], months[lt->tm_mon], lt->tm_mday,
       1900 + lt->tm_year, lt->tm_hour, lt->tm_min,
       plus, minswest / 60, minswest % 60);
@@ -461,10 +461,10 @@ int exit_client(struct Client *cptr,
   if (IsServer(victim))
   {
     if (feature_bool(FEAT_HIS_NETSPLIT))
-      strcpy(comment1, "*.net *.split");
+      ircd_strncpy(comment1, "*.net *.split", sizeof(comment1) - 1);
     else
     {
-      strcpy(comment1, cli_name(cli_serv(victim)->up));
+      ircd_strncpy(comment1, cli_name(cli_serv(victim)->up), sizeof(comment1) - 1);
       strcat(comment1, " ");
       strcat(comment1, cli_name(victim));
     }

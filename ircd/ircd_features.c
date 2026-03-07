@@ -800,6 +800,19 @@ static struct FeatureDesc {
   F_B(CAP_tls, 0, 1, 0),
 #endif
 
+  /* IRCv3.2+ CAP features */
+  F_B(CAP_cap_notify, 0, 1, 0),
+  F_B(CAP_server_time, 0, 1, 0),
+  F_B(CAP_account_tag, 0, 1, 0),
+  F_B(CAP_message_tags, 0, 1, 0),
+  F_B(CAP_echo_message, 0, 1, 0),
+  F_B(CAP_invite_notify, 0, 1, 0),
+  F_B(CAP_chghost, 0, 1, 0),
+  F_B(CAP_setname, 0, 1, 0),
+  F_B(CAP_batch, 0, 1, 0),
+  F_B(CAP_labeled_response, 0, 1, 0),
+  F_B(CAP_standard_replies, 0, 1, 0),
+
   F_B(UPING_ENABLE, FEAT_READ, 1, 0),
   F_I(UPING_PORT, FEAT_READ, UDP_PORT, 0),
 

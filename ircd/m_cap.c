@@ -65,6 +65,18 @@ static struct capabilities {
 #ifdef USE_SSL
   _CAP(TLS, 0, "tls", FEAT_CAP_tls),
 #endif
+  /* IRCv3.2+ capabilities */
+  _CAP(CAPNOTIFY, 0, "cap-notify", FEAT_CAP_cap_notify),
+  _CAP(SERVERTIME, 0, "server-time", FEAT_CAP_server_time),
+  _CAP(ACCOUNTTAG, 0, "account-tag", FEAT_CAP_account_tag),
+  _CAP(MSGTAGS, 0, "message-tags", FEAT_CAP_message_tags),
+  _CAP(ECHOMSG, 0, "echo-message", FEAT_CAP_echo_message),
+  _CAP(INVITENOTIFY, 0, "invite-notify", FEAT_CAP_invite_notify),
+  _CAP(CHGHOST, 0, "chghost", FEAT_CAP_chghost),
+  _CAP(SETNAME, 0, "setname", FEAT_CAP_setname),
+  _CAP(BATCH, 0, "batch", FEAT_CAP_batch),
+  _CAP(LABELEDRESP, 0, "labeled-response", FEAT_CAP_labeled_response),
+  _CAP(STDREPLIES, 0, "standard-replies", FEAT_CAP_standard_replies),
 /*  CAPLIST */
 #undef _CAP
 };

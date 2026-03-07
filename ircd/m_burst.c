@@ -465,7 +465,7 @@ int ms_burst(struct Client *cptr, struct Client *sptr, int parc, char *parv[])
             }
 
 	    newban = make_ban(ban); /* create new ban */
-            strcpy(newban->who, "*");
+            ircd_strncpy(newban->who, "*", NICKLEN);
 	    newban->when = TStime();
 	    newban->flags |= BAN_BURSTED;
 	    newban->next = 0;

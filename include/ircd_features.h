@@ -317,6 +317,18 @@ enum Feature {
   FEAT_CAP_tls,
 #endif
 
+  /* IRCv3.2+ CAP features */
+  FEAT_CAP_cap_notify,
+  FEAT_CAP_server_time,
+  FEAT_CAP_account_tag,
+  FEAT_CAP_message_tags,
+  FEAT_CAP_echo_message,
+  FEAT_CAP_invite_notify,
+  FEAT_CAP_chghost,
+  FEAT_CAP_setname,
+  FEAT_CAP_batch,
+  FEAT_CAP_labeled_response,
+  FEAT_CAP_standard_replies,
   FEAT_UPING_ENABLE,
   FEAT_UPING_PORT,
 

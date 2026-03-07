@@ -251,6 +251,11 @@ int ssl_verify_callback(int preverify_ok, X509_STORE_CTX *cert)
     return preverify_ok;
   }
 
+  /* Default: accept but log if verification would have failed */
+  if (!preverify_ok && err != 0) {
+    Debug((DEBUG_NOTICE, "SSL: accepting unverified cert (error %d) - "
+           "enable FEAT_SSL_VERIFYCERT for production", err));
+  }
   return 1;
 }
 

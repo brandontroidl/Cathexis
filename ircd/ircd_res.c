@@ -241,7 +241,7 @@ add_local_domain(char* hname, size_t size)
       if ((strlen(irc_domain) + len + 2) < size)
       {
         hname[len++] = '.';
-        strcpy(hname + len, irc_domain);
+        ircd_strncpy(hname + len, irc_domain, sizeof(hname) - len - 1);
       }
     }
   }

@@ -212,7 +212,7 @@ void checkUsers(struct Client *sptr, struct Channel *chptr, int flags) {
       }
       else
       {
-         strcpy(ustat, "   ");
+         ircd_strncpy(ustat, "   ", sizeof(ustat) - 1);
       }
 
       if (chptr && IsZombie(lp))
@@ -352,7 +352,7 @@ void checkChannel(struct Client *sptr, struct Channel *chptr)
 
    /* Channel Modes */
 
-   strcpy(outbuf, " Channel mode(s):: ");
+   ircd_strncpy(outbuf, " Channel mode(s):: ", sizeof(outbuf) - 1);
 
    modebuf[0] = '\0';
    parabuf[0] = '\0';
@@ -528,7 +528,7 @@ void checkClient(struct Client *sptr, struct Client *acptr)
     */
 
    if (strlen(umode_str(acptr)) < 1)
-      strcpy(outbuf, "       Umode(s):: <none>");
+      ircd_strncpy(outbuf, "       Umode(s):: <none>", sizeof(outbuf) - 1);
    else
       ircd_snprintf(0, outbuf, sizeof(outbuf), "       Umode(s):: +%s", umode_str(acptr));
 
@@ -556,13 +556,13 @@ void checkClient(struct Client *sptr, struct Client *acptr)
       int mlen = strlen(me.cli_name) + len + strlen(sptr->cli_name);
       *chntext = '\0';
 
-      strcpy(chntext, "     Channel(s):: ");
+      ircd_strncpy(chntext, "     Channel(s):: ", sizeof(chntext) - 1);
       for (lp = acptr->cli_user->channel; lp; lp = lp->next_channel) {
          chptr = lp->channel;
          if (len + strlen(chptr->chname) + mlen > BUFSIZE - 7) {
             send_reply(sptr, RPL_DATASTR, chntext);
             *chntext = '\0';
-            strcpy(chntext, "     Channel(s):: ");
+            ircd_strncpy(chntext, "     Channel(s):: ", sizeof(chntext) - 1);
             len = strlen(chntext);
          }
          if (IsDeaf(acptr))
@@ -580,7 +580,7 @@ void checkClient(struct Client *sptr, struct Client *acptr)
          if (len)
             *(chntext + len) = '\0';
 
-         strcpy(chntext + len, chptr->chname);
+         { size_t clen = strlen(chptr->chname); if (len + clen + 2 < sizeof(chntext)) { memcpy(chntext + len, chptr->chname, clen); len += clen; } }
          len += strlen(chptr->chname);
          strcat(chntext + len, " ");
          len++;
@@ -717,9 +717,9 @@ signed int checkHostmask(struct Client *sptr, char *hoststr, int flags) {
   char *p = NULL;
   struct irc_in_addr cidr_check;
 
-  strcpy(nickm,"*");
-  strcpy(userm,"*");
-  strcpy(hostm,"*");
+  ircd_strncpy(nickm, "*", sizeof(nickm) - 1);
+  ircd_strncpy(userm, "*", sizeof(userm) - 1);
+  ircd_strncpy(hostm, "*", sizeof(hostm) - 1);
 
   if (!strchr(hoststr, '!') && !strchr(hoststr, '@'))
     ircd_strncpy(hostm,hoststr,sizeof(hostm));
@@ -826,13 +826,13 @@ signed int checkHostmask(struct Client *sptr, char *hoststr, int flags) {
           int mlen = strlen(me.cli_name) + len + strlen(sptr->cli_name);
           *chntext = '\0';
 
-          strcpy(chntext, "      on channels: ");
+          ircd_strncpy(chntext, "      on channels: ", sizeof(chntext) - 1);
           for (lp = acptr->cli_user->channel; lp; lp = lp->next_channel) {
             chptr = lp->channel;
             if (len + strlen(chptr->chname) + mlen > BUFSIZE - 5) {
               send_reply(sptr, RPL_DATASTR, chntext);
               *chntext = '\0';
-              strcpy(chntext, "      on channels: ");
+              ircd_strncpy(chntext, "      on channels: ", sizeof(chntext) - 1);
               len = strlen(chntext);
             }
             if (IsDeaf(acptr))
@@ -850,7 +850,7 @@ signed int checkHostmask(struct Client *sptr, char *hoststr, int flags) {
             if (len)
               *(chntext + len) = '\0';
 
-            strcpy(chntext + len, chptr->chname);
+            { size_t clen = strlen(chptr->chname); if (len + clen + 2 < sizeof(chntext)) { memcpy(chntext + len, chptr->chname, clen); len += clen; } }
             len += strlen(chptr->chname);
             strcat(chntext + len, " ");
             len++;

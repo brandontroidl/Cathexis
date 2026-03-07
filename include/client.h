@@ -307,6 +307,7 @@ struct Connection
                                       client */
   struct CapSet       con_capab;     /**< Client capabilities (from us) */
   struct CapSet       con_active;    /**< Active capabilities (to us) */
+  int                 con_capver;    /**< CAP version from LS (0 or 302) */
   struct AuthRequest* con_auth;      /**< Auth request for client */
   struct LOCInfo*     con_loc;       /**< Login-on-connect information */
 };
@@ -415,6 +416,8 @@ struct Client {
 #define cli_capab(cli)		con_capab(cli_connect(cli))
 /** Get active client capabilities for client */
 #define cli_active(cli)		con_active(cli_connect(cli))
+/** Get CAP version for client */
+#define cli_capver(cli)		con_capver(cli_connect(cli))
 /** Get client name. */
 #define cli_name(cli)		((cli)->cli_name)
 /** Get client username (ident). */
@@ -611,6 +614,8 @@ struct Client {
 #define con_capab(con)          (&(con)->con_capab)
 /** Get the active capabilities for the connection. */
 #define con_active(con)         (&(con)->con_active)
+/** Get CAP version for connection */
+#define con_capver(con)		((con)->con_capver)
 /** Get the auth request for the connection. */
 #define con_auth(con)		((con)->con_auth)
 
