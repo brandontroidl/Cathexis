@@ -81,6 +81,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include "ircd_snprintf.h"
 
 
 

@@ -46,6 +46,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
+#include "ircd_snprintf.h"
 
 /** Calculate current time or elapsed time.
  *

@@ -52,6 +52,7 @@
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <unistd.h>
+#include "ircd_snprintf.h"
 
 #define UPINGTIMEOUT 60   /**< Timeout waiting for ping responses */
 

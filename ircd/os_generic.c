@@ -84,6 +84,7 @@
 
 #ifdef HPUX
 #include <sys/syscall.h>
+#include "ircd_snprintf.h"
 #define getrusage(a,b) syscall(SYS_GETRUSAGE, a, b)
 #endif
 
