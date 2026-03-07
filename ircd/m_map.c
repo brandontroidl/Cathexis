@@ -119,9 +119,9 @@ static void dump_map(struct Client *cptr, struct Client *server, char *mask, int
     if (cli_serv(server)->lag>10000)
       lag[0]=0;
     else if (cli_serv(server)->lag<0)
-      strcpy(lag,"(0s)");
+      ircd_strncpy(lag, "(0s)", sizeof(lag) - 1);
     else
-      sprintf(lag,"(%is)",cli_serv(server)->lag);
+      ircd_snprintf(0, lag, sizeof(lag), "(%is)", cli_serv(server)->lag);
     if (IsBurst(server))
       chr = "*";
     else if (IsBurstAck(server))

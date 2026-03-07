@@ -198,7 +198,7 @@ void send_queued(struct Client *to)
     else {
       if (IsDead(to)) {
         char tmp[512];
-        sprintf(tmp,"Write error: %s", ((cli_sslerror(to)) ? (cli_sslerror(to)) :
+        ircd_snprintf(0, tmp, sizeof(tmp), "Write error: %s", ((cli_sslerror(to)) ? (cli_sslerror(to)) :
                 ((strerror(cli_error(to))) ? (strerror(cli_error(to))) : "Unknown error")) );
         dead_link(to, tmp);
       }

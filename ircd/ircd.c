@@ -219,7 +219,7 @@ static void write_pidfile(void) {
 
   if (thisServer.pid_fd >= 0) {
     memset(buff, 0, sizeof(buff));
-    sprintf(buff, "%5d\n", (int)getpid());
+    ircd_snprintf(0, buff, sizeof(buff), "%5d\n", (int)getpid());
     if (write(thisServer.pid_fd, buff, strlen(buff)) == -1)
       Debug((DEBUG_NOTICE, "Error writing to pid file %s: %m",
 	     feature_str(FEAT_PPATH)));

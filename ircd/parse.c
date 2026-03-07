@@ -949,6 +949,14 @@ struct Message msgtab[] = {
     ""
   },
   {
+    MSG_SETNAME,
+    TOK_SETNAME,
+    0, MAXPARA, MFLG_SLOW, 0, NULL,
+    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
+    { m_unregistered, m_setname, ms_setname, m_setname, m_ignore },
+    ""
+  },
+  {
     MSG_ZLINE,
     TOK_ZLINE,
     0, MAXPARA,         0, 0, NULL,
@@ -1206,6 +1214,14 @@ parse_client(struct Client *cptr, char *buffer, char *bufend)
 
   para[0] = cli_name(from);
   for (ch = buffer; *ch == ' '; ch++);  /* Eat leading spaces */
+
+  /* IRCv3 message tags: skip @tags prefix from client messages. */
+  if (*ch == '@') {
+    for (++ch; *ch && *ch != ' '; ++ch)
+      ;  /* skip to end of tags */
+    while (*ch == ' ')
+      ch++;  /* skip spaces after tags */
+  }
   if (*ch == ':')               /* Is any client doing this ? */
   {
     for (++ch; *ch && *ch != ' '; ++ch)

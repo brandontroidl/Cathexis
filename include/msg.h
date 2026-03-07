@@ -511,6 +511,10 @@ struct Client;
                                          * parv[1]. */
 #define   MFLG_NOSHUN            0x10   /** Command is SHUN exempt. */
 
+#define MSG_SETNAME	"SETNAME"
+#define TOK_SETNAME	"SETNAME"
+#define CMD_SETNAME	MSG_SETNAME, TOK_SETNAME
+
 /*
  * Structures
  */

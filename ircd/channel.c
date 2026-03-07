@@ -3876,7 +3876,7 @@ mode_process_bans(struct ParseState *state)
 
 	  if (state->flags & MODE_PARSE_SET) { /* create a new ban */
 	    newban = make_ban(ban->banstr);
-            strcpy(newban->who, ban->who);
+            ircd_strncpy(newban->who, ban->who, NICKLEN); newban->who[NICKLEN] = '\0';
 	    newban->when = ban->when;
 	    newban->flags = ban->flags & (BAN_IPMASK | BAN_EXTENDED);
 
@@ -4061,7 +4061,7 @@ mode_process_excepts(struct ParseState *state)
 
           if (state->flags & MODE_PARSE_SET) { /* create a new ban exception */
             newban = make_ban(ban->banstr);
-            strcpy(newban->who, ban->who);
+            ircd_strncpy(newban->who, ban->who, NICKLEN); newban->who[NICKLEN] = '\0';
             newban->when = ban->when;
             newban->flags = ban->flags & (BAN_IPMASK | BAN_EXTENDED);
 
