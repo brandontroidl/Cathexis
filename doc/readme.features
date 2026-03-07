@@ -1791,6 +1791,94 @@ CAP_tls
 
 Enables announcement of the 'tls' (STARTTLS) client capability.
 
+CAP_cap_notify
+ * Type: boolean
+ * Default: TRUE
+
+Enables announcement of the 'cap-notify' client capability. When enabled,
+clients using CAP 302 will automatically receive CAP NEW/DEL notifications
+when capabilities change at runtime.
+
+CAP_server_time
+ * Type: boolean
+ * Default: TRUE
+
+Enables announcement of the 'server-time' client capability. Clients that
+negotiate this capability receive an IRCv3 server-time tag on messages
+containing the ISO 8601 timestamp of when the message was processed.
+
+CAP_account_tag
+ * Type: boolean
+ * Default: TRUE
+
+Enables announcement of the 'account-tag' client capability. Clients that
+negotiate this receive an account tag on messages identifying the logged-in
+account of the sender.
+
+CAP_message_tags
+ * Type: boolean
+ * Default: TRUE
+
+Enables announcement of the 'message-tags' client capability. This is the
+foundation for IRCv3 message tags. Clients that negotiate this can send
+and receive client-only tags (prefixed with +).
+
+CAP_echo_message
+ * Type: boolean
+ * Default: TRUE
+
+Enables announcement of the 'echo-message' client capability. Clients that
+negotiate this receive a copy of their own PRIVMSG and NOTICE messages
+back from the server, confirming delivery.
+
+CAP_invite_notify
+ * Type: boolean
+ * Default: TRUE
+
+Enables announcement of the 'invite-notify' client capability. Channel
+operators who negotiate this receive notifications when other users are
+invited to channels they are on.
+
+CAP_chghost
+ * Type: boolean
+ * Default: TRUE
+
+Enables announcement of the 'chghost' client capability. Clients that
+negotiate this receive CHGHOST messages when a user's displayed username
+or hostname changes (e.g., via host hiding or SETHOST).
+
+CAP_setname
+ * Type: boolean
+ * Default: TRUE
+
+Enables announcement of the 'setname' client capability and the SETNAME
+command. Clients that negotiate this can change their realname (GECOS)
+field and receive notifications when others do the same.
+
+CAP_batch
+ * Type: boolean
+ * Default: TRUE
+
+Enables announcement of the 'batch' client capability. This provides the
+framework for grouping related messages together (e.g., during net joins
+or history replay).
+
+CAP_labeled_response
+ * Type: boolean
+ * Default: TRUE
+
+Enables announcement of the 'labeled-response' client capability. Clients
+that negotiate this can correlate server responses to specific commands
+they sent using label tags.
+
+CAP_standard_replies
+ * Type: boolean
+ * Default: TRUE
+
+Enables announcement of the 'standard-replies' client capability. This
+enables the FAIL/WARN/NOTE standard reply format for error reporting to
+clients that understand it.
+
 UPING_ENABLE
  * Type: boolean
  * Default: TRUE

@@ -150,12 +150,12 @@ int ms_sasl(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
     return 0;
 
   /* If there is no fd then it is an invalid token */
-  if ((fdstr = strchr(token, '!')) == NULL)
+  if ((fdstr = (char *)strchr(token, '!')) == NULL)
     return 0;
   fdstr++;
 
   /* If there is no cookie then it is also an invalid token */
-  if ((cookiestr = strchr(token, '.')) == NULL)
+  if ((cookiestr = (char *)strchr(token, '.')) == NULL)
     return 0;
   *cookiestr++ = '\0';
 

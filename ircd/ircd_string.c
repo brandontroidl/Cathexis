@@ -652,8 +652,8 @@ ircd_aton_ip4(const char *input, unsigned int *output, unsigned char *pbits)
 int
 ipmask_parse(const char *input, struct irc_in_addr *ip, unsigned char *pbits)
 {
-  char *colon;
-  char *dot;
+  const char *colon;
+  const char *dot;
 
   assert(ip);
   assert(input);

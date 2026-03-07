@@ -14,11 +14,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
- *
- * $Id: patchlevel.h 1942 2010-02-02 23:29:03Z entrope $
- *
  */
-#define PATCHLEVEL "14+Nefarious(2.0.0)"
+#define PATCHLEVEL "14+Nefarious2+Cathexis(1.0.0)"
 
 #define RELEASE ".12."
 

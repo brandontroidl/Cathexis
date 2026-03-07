@@ -312,8 +312,8 @@ param_parse(struct Client *sptr, const char *param, struct ListingArgs *args,
             param[0] != '&')
           return show_usage(sptr);
 
-        tmp1 = strchr(param, ',');
-        tmp2 = strchr(param, ' ');
+        tmp1 = (char *)strchr(param, ',');
+        tmp2 = (char *)strchr(param, ' ');
         if (tmp2 && (!tmp1 || (tmp2 < tmp1)))
           tmp1 = tmp2;
         

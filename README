@@ -1,179 +1,169 @@
 
-            Welcome to Nefarious 2, the Evilnet IRC daemon
+         Cathexis — Security-Hardened Nefarious2 IRC Daemon
+         ===================================================
 
-Current features include:
-  - A completely rewritten network event engine, which make full use
-    of the asynchronous event engines available in FreeBSD (kqueue)
-    and Solaris (/dev/poll), resulting in dramaticaly improved
-    performance.
-  - New F: (feature) lines in ircd.conf, and the GET/SET commands allow
-    many settings to be changed dynamically, rather than by with compile-
-    time configuration.
-  - The new "account" feature added to the P10 protocol, allows people to
-    remain logged in to service bots (i.e., gnuworld) during a netsplit.
-    This means people will not have to login again once the network rejoins.
+Cathexis is a security-hardened fork of the Nefarious2 IRC daemon (based
+on ircu/IRCu2). It retains full compatibility with the P10 server protocol
+and existing Nefarious2 networks while adding modern IRCv3 capabilities,
+systematic memory safety improvements, and comprehensive security hardening.
+
+Version: 1.0.0
+Base: Nefarious2 (u2.10.12.14)
+Protocol: P10
+License: GNU General Public License v1+
+
+WHAT CATHEXIS ADDS
+==================
+
+Security Hardening
+------------------
+  - All sprintf() calls in runtime code replaced with ircd_snprintf() or
+    snprintf() for bounds-checked formatting
+  - All dangerous strcpy() calls replaced with ircd_strncpy() for bounded
+    string copying across 20+ files
+  - SSL certificate verification callback now logs unverified connections
+    to aid deployment auditing
+  - SETNAME command includes CR/LF injection filtering
+  - Separate client/server handler pattern for SETNAME to prevent error
+    reply leakage across server links
+
+IRCv3 Capabilities (11 new)
+----------------------------
+  - cap-notify         CAP 302 implicit notification
+  - server-time        ISO 8601 timestamp tags
+  - account-tag        Account name on messages
+  - message-tags       Full IRCv3 message tag framework
+  - echo-message       Echo sent messages back to sender
+  - invite-notify      Channel invite notifications
+  - chghost            Host change notifications
+  - setname            Realname change (with SETNAME command)
+  - batch              Message batching framework
+  - labeled-response   Request/response correlation
+  - standard-replies   FAIL/WARN/NOTE error format
+
+  These join the existing capabilities: multi-prefix, userhost-in-names,
+  extended-join, away-notify, account-notify, sasl, tls.
+
+New Commands
+------------
+  - SETNAME    Change realname (GECOS) with IRCv3 capability gate
+
+Protocol Improvements
+---------------------
+  - IRCv3 message tag (@tags) prefix parsing in client message parser
+  - CAP 302 version tracking infrastructure (con_capver field)
+  - Feature flags for all new capabilities (F: line toggleable)
+
+EXISTING NEFARIOUS2 FEATURES
+=============================
+  - Asynchronous event engines: epoll (Linux), kqueue (FreeBSD),
+    /dev/poll (Solaris), poll() fallback
+  - F: (feature) lines with runtime GET/SET configuration
+  - P10 account persistence across netsplits
+  - Full SASL support (PLAIN, EXTERNAL)
+  - SSL/TLS for client and server links
+  - Extended ban types (~a, ~c, ~j, ~n, ~q, ~r, ~m, ~M)
+  - WEBIRC support for web-based clients
+  - G-line, Shun, Z-line network ban management
+  - Host cloaking
+  - GeoIP integration (optional)
 
 INSTALLATION
+============
 
-Please see the INSTALL file for installation instructions, for hints on how to
-best configure your OS for running Nefarious 2 under high load, see the various
-README.<platform> files.
+  ./configure --prefix=/path/to/install
+  make && make install
+
+See INSTALL for detailed instructions. For high-load tuning, see the
+platform-specific sections below.
 
 COMPATIBILITY
+=============
 
-This version of Nefarious 2 will only work with servers that use the P10
-protocol, some of the new features will only work between Nefarious 2 servers.
+Cathexis is fully compatible with:
+  - P10 protocol servers (Nefarious2, ircu2)
+  - IRCv3 clients (HexChat, WeeChat, irssi, The Lounge, etc.)
+  - Existing Nefarious2 configurations (ircd.conf)
 
-Nefarious 2 versions after March 22nd/commit b6ac7f6 are by default not
-backward compatable with SSL server2server links. You must add feature
-SSL_NOSSLv3 = "FALSE" until all servers are updated.
+Server-to-server links work with unmodified Nefarious2 servers. New
+IRCv3 capabilities are only sent to clients that negotiate them via CAP.
+
+CONFIGURATION
+=============
+
+All new capabilities are enabled by default and can be toggled via F: lines
+in ircd.conf or the SET command:
+
+  F:CAP_server_time:FALSE       # disable server-time
+  F:CAP_message_tags:FALSE      # disable message-tags
+  F:CAP_setname:FALSE           # disable setname
+  F:CAP_echo_message:FALSE      # disable echo-message
+  (etc.)
+
+SSL RECOMMENDATIONS
+-------------------
+
+For production deployments, enable certificate verification on server links:
+
+  F:SSL_VERIFYCERT:TRUE
+  F:SSL_NOSELFSIGNED:TRUE
+
+Without these, server-to-server TLS accepts any certificate (logged by
+Cathexis but not rejected by default for backward compatibility).
 
 GENERAL PERFORMANCE HINTS
+==========================
 
-For platform-specific notes and hints, see the platform-specific
-sections below.  These notes apply to servers that will serve large
-numbers (thousands) of clients simultaneously.  If your server serves
-a small amount of users, the defaults should work well enough.
+  - Use an OS with async event engines (Linux epoll, FreeBSD kqueue)
+  - Dedicate the server to IRC, minimize other services
+  - Tune kernel file descriptor limits for high connection counts
+  - Run local caching DNS for fast resolver lookups
+  - Synchronize clocks via NTP across all network servers
 
- - Run an OS that supports an asynchronous network event engine; currently
-   these are FreeBSD (kqueue), and Solaris (/dev/poll); possibly other BSDs
-   will also support kqueue. This will have a dramatic effect on performance.
- - Make things as lean as possible: Make your server dedicated to Nefarious 2,
-   disable anything that is not neccesary, and build a custom kernel (where
-   possible).
- - Tune kernel parameters as described in the platform-specific
-   sections below.
- - With many clients connecting each second, Nefarious 2 will be doing lots of
-   DNS lookups. Make sure that the DNS server(s) in your /etc/resolv.conf are
-   as close as possible, or run a local caching DNS server on your IRC server.
+RUNNING ON LINUX
+================
 
-TIME SYNCHRONIZATION
+Linux 2.6+ with epoll provides optimal performance. Set file descriptor
+limits appropriately:
 
-Many things can and will go horribly wrong when the clocks on the servers
-on your network become (too far) out of sync. It is therefore highly
-recommended that all servers run a version of ntpd that will keep their
-clocks from going astray.
+  ulimit -n 16384
 
-INFORMATION HIDING
+Or configure via /etc/security/limits.conf.
 
-As per undernet-admins CFV-165, this server contains code that will,
-by default, hide certain information from ordinary users. If you do
-not want this, override the default "HIS" feature settings in your
-ircd.conf.
+RUNNING ON FREEBSD
+==================
+
+kqueue is used automatically on FreeBSD. Increase system limits:
+
+  sysctl -w kern.maxfiles=16384
+  sysctl -w kern.maxfilesperproc=16384
+
+See the original Nefarious2 docs for detailed FreeBSD kernel tuning.
 
 MORE INFORMATION
+================
 
-For more information on this software, see the included documentation
-in the doc/ directory.
+  doc/               Documentation directory
+  AUDIT.md           Security audit findings and remediation
+  CHANGELOG.md       Version history and changes
+  doc/example.conf   Example configuration file
+  doc/readme.*       Feature-specific documentation
 
-For general information on Evilnet, visit http://evilnet.github.io/
+CREDITS
+=======
 
-Happy IRCing!
+Cathexis security hardening and IRCv3 modernization:
+  Brandon Troidl <btroidl@gmail.com>
 
-DOCKER
+Nefarious 2.0:
+  Jobe (Matthew Beeching), Rubin (Alex Schumann)
+  Contributors: Obnoxious, Andromeda
 
-Nefarious is available as a Docker image from GitHub Container Registry:
+Original ircu2:
+  Run (Carlo Wood), Bleep (Thomas Helvey), Isomer (Perry Lorier),
+  Kev (Kevin Mitchell)
 
-  docker pull ghcr.io/evilnet/nefarious2:latest   # Latest release
-  docker pull ghcr.io/evilnet/nefarious2:edge     # Latest master branch
-  docker pull ghcr.io/evilnet/nefarious2:dev      # Latest develop branch
+Original IRC:
+  Wiz (Jarkko Oikarinen)
 
-Environment Variables:
-
-  IRCD_GENERAL_NAME         Server name (default: localhost.localdomain)
-  IRCD_GENERAL_DESCRIPTION  Server description (default: localhost.localdomain)
-  IRCD_GENERAL_NUMERIC      Server numeric, must be unique on network (default: 1)
-  IRCD_ADMIN_LOCATION       Admin location info (default: Somewhere)
-  IRCD_ADMIN_CONTACT        Admin contact info (default: root@localhost)
-
-Example:
-
-  docker run -d \
-    -p 6667:6667 \
-    -p 6697:6697 \
-    -e IRCD_GENERAL_NAME=irc.example.com \
-    -e IRCD_GENERAL_DESCRIPTION="My IRC Server" \
-    -e IRCD_GENERAL_NUMERIC=1 \
-    -e IRCD_ADMIN_LOCATION="New York, USA" \
-    -e IRCD_ADMIN_CONTACT="admin@example.com" \
-    ghcr.io/evilnet/nefarious2:latest
-
-Exposed Ports:
-
-  6667   IRC (plaintext)
-  6697   IRC (SSL)
-  7000   IRC (plaintext)
-  4497   Server link (SSL)
-  9998   Services link (SSL)
-  16667  IRC (plaintext)
-
-SSL certificates are auto-generated on first run if not provided.
-
-RUNNING THIS SERVER ON LINUX
-
-If you run Linux 2.6 or above (or 2.4 with appropriate patches), Nefarious 2
-can use the epoll family of system calls for much more efficient checks of
-which connections are active.  Most pre-epoll systems will use 100% CPU with
-2000 clients; with epoll, a server may use only a few percent of CPU with the
-same load.
-
-To handle that many connections, the ircd must be started with a high
-enough file descriptor resource.  Check your distribution's docs on
-how to set the global and per-user limits according to your expected
-load.
-
-RUNNING THIS SERVER ON FREEBSD
-
-When running on FreeBSD, Nefarious 2 can make use of the kqueue() event engine,
-which results in much improved performance over the old poll()-based method.
-kqueue is included in the more recent 4.x releases of FreeBSD.
-
-In order for Nefarious 2 to be able to serve many clients simultaneously, you
-need to increase the maximum allowable number of open files in the system. To
-do this, add commands such as the following during your system's boot sequence:
-
-sysctl -w kern.maxfiles=16384
-sysctl -w kern.maxfilesperproc=16384
-
-Unless you will be serving thousands of clients simultaneously, you will not
-need to do the following, unless of course you just can't stand having a
-system that is not optimized to its limits :)
-
-Build a custom kernel: Make your kernel as lean as possible by removing all
-drivers and options you will not need. The following parameters will affect
-performance, they are listed with suggested values only. For more information
-on what they do exactly, see FreeBSD's documentation.
-
-maxusers        2048
-options         NMBCLUSTERS=65535
-options         ICMP_BANDLIM
-
-Also, you may wish to run the following at system startup (from /etc/rc.local,
-or whichever other method you prefer):
-
-sysctl -w net.inet.tcp.rfc1323=1
-sysctl -w net.inet.tcp.delayed_ack=0
-sysctl -w net.inet.tcp.restrict_rst=1
-sysctl -w kern.ipc.maxsockbuf=2097152
-sysctl -w kern.ipc.somaxconn=2048
-
-Created by Sengaia <sengaia@undernet.org>, July 20 2002.
-
-RUNNING THIS SERVER ON SOLARIS
-
-When running on Solaris, Nefarious 2 can make use of the /dev/poll event
-engine, which results in much improved performance over the old poll()-based
-method. Solaris versions 8 and 9 include /dev/poll out of the box, for Solaris
-7 you will have to grab and install Patch-ID 106541-21.
-
-In order to increase the number of clients Nefarious 2 can handle, add lines
-such as the following to /etc/system:
-
-* set hard limit on file descriptors
-set rlim_fd_max = 16384
-* set soft limit on file descriptors
-set rlim_fd_cur = 8192
-
-For more useful hints see http://www.sean.de/Solaris/soltune.html
-
-Created by Sengaia <sengaia@undernet.org> on July 20, 2002.
+For a full list of contributors, see doc/Authors.

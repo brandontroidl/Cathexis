@@ -240,3 +240,15 @@ Jobe <jobe@mdbnet.co.uk>
 Rubin <rubin@afternet.org>
 Andromeda <andromeda@cerberuslabs.ca>
 Obnoxious <obnoxious@binhex.org>
+
+Cathexis 1.0.0
+--------
+
+Cathexis is a security-hardened fork of Nefarious2 focused on memory
+safety, IRCv3 modernization, and production hardening.
+
+The current maintainer is Brandon Troidl.
+
+Security audit, hardening and IRCv3 implementation by:
+
+Brandon Troidl <btroidl@gmail.com>
