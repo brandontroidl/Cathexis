@@ -695,6 +695,7 @@ static const struct UserMode {
   { FLAG_ACCOUNTONLY,  'R' },
   { FLAG_WHOIS_NOTICE, 'W' },
   { FLAG_ADMIN,        'a' },
+  { FLAG_NETADMIN,     'N' },
   { FLAG_XTRAOP,       'X' },
   { FLAG_NOLINK,       'L' },
   { FLAG_SSL,          'z' },
@@ -1590,6 +1591,12 @@ int set_user_mode(struct Client *cptr, struct Client *sptr, int parc,
         else
           ClearAdmin(acptr);
         break;
+      case 'N':
+        if (what == MODE_ADD)
+          SetNetAdmin(acptr);
+        else
+          ClearNetAdmin(acptr);
+        break;
       case 'X':
         if (what == MODE_ADD)
           SetXtraOp(acptr);
@@ -2143,6 +2150,36 @@ const char *snomask_to_str(unsigned int mask, char *buf, size_t buflen)
   }
   buf[pos] = '\0';
   return buf;
+}
+
+/** Convert a letter-based snomask string to a numeric bitmask.
+ * Accepts strings like "nKg", "+nKgDt", or "+nKg-c".
+ * Unknown letters are silently ignored.
+ * @param[in] str The snomask letter string.
+ * @return The numeric snomask bitmask.
+ */
+unsigned int snomask_str_to_mask(const char *str)
+{
+  unsigned int mask = 0;
+  int adding = 1;
+  if (!str)
+    return 0;
+  if (*str == '+')
+    str++;
+  for (; *str; str++) {
+    if (*str == '+') { adding = 1; continue; }
+    if (*str == '-') { adding = 0; continue; }
+    {
+      unsigned int flag = snomask_char_to_flag(*str);
+      if (flag) {
+        if (adding)
+          mask |= flag;
+        else
+          mask &= ~flag;
+      }
+    }
+  }
+  return mask;
 }
 
 /** Check whether \a word looks like a server notice mask argument.

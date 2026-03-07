@@ -70,7 +70,7 @@ static struct capabilities {
   _CAP(SERVERTIME, 0, "server-time", FEAT_CAP_server_time),
   _CAP(ACCOUNTTAG, 0, "account-tag", FEAT_CAP_account_tag),
   _CAP(MSGTAGS, 0, "message-tags", FEAT_CAP_message_tags),
-  _CAP(ECHOMSG, 0, "echo-message", FEAT_CAP_echo_message),
+  /* _CAP(ECHOMSG, 0, "echo-message", FEAT_CAP_echo_message), -- disabled: requires message relay infrastructure */
   _CAP(INVITENOTIFY, 0, "invite-notify", FEAT_CAP_invite_notify),
   _CAP(CHGHOST, 0, "chghost", FEAT_CAP_chghost),
   _CAP(SETNAME, 0, "setname", FEAT_CAP_setname),

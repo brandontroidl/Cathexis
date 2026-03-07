@@ -137,6 +137,7 @@ enum Priv
     PRIV_HIDE_CHANNELS, /**< oper can set user mode +n */
     PRIV_HIDE_IDLE, /**< oper can set user mode +I */
     PRIV_ADMIN, /**< oper is an admin (gets, can set and unset mode +a) */
+    PRIV_NETADMIN, /**< oper is a network admin (gets, can set and unset mode +N) */
     PRIV_XTRAOP, /**< oper can set/unset user mode +X */
     PRIV_SERVICE, /**< oper can set/unset user mode +k */
     PRIV_REMOTE, /**< oper can OPER from another server */
@@ -209,6 +210,7 @@ enum Flag
     FLAG_BOT,                       /**< Bot */
     FLAG_GEOIP,                     /**< User has had GeoIP data applied */
     FLAG_ADMIN,                     /**< User is an admin (user mode +a) */
+    FLAG_NETADMIN,                  /**< User is a network admin (user mode +N) */
     FLAG_XTRAOP,                    /**< User has user mode +X (XtraOp) */
     FLAG_NOLINK,                    /**< Client will not automatically get redirected if +L is set on a chan */
 
@@ -265,6 +267,7 @@ struct Connection
   int                 con_error;     /**< last socket level error for client */
   int                 con_sentalong; /**< sentalong marker for connection */
   unsigned int        con_snomask;   /**< mask for server messages */
+  unsigned int        con_capver;    /**< CAP version (0=none, 302=IRCv3.2) */
   time_t              con_nextnick;  /**< Next time a nick change is allowed */
   time_t              con_nexttarget;/**< Next time a target change is allowed */
   time_t              con_lasttime;  /**< Last time data read from socket */
@@ -307,7 +310,6 @@ struct Connection
                                       client */
   struct CapSet       con_capab;     /**< Client capabilities (from us) */
   struct CapSet       con_active;    /**< Active capabilities (to us) */
-  int                 con_capver;    /**< CAP version from LS (0 or 302) */
   struct AuthRequest* con_auth;      /**< Auth request for client */
   struct LOCInfo*     con_loc;       /**< Login-on-connect information */
 };
@@ -416,8 +418,6 @@ struct Client {
 #define cli_capab(cli)		con_capab(cli_connect(cli))
 /** Get active client capabilities for client */
 #define cli_active(cli)		con_active(cli_connect(cli))
-/** Get CAP version for client */
-#define cli_capver(cli)		con_capver(cli_connect(cli))
 /** Get client name. */
 #define cli_name(cli)		((cli)->cli_name)
 /** Get client username (ident). */
@@ -473,6 +473,7 @@ struct Client {
 #define cli_sslerror(cli)       con_sslerror(cli_connect(cli))
 /** Get server notice mask for the client. */
 #define cli_snomask(cli)	con_snomask(cli_connect(cli))
+#define cli_capver(cli)	con_capver(cli_connect(cli))
 /** Get next time a nick change is allowed for the client. */
 #define cli_nextnick(cli)	con_nextnick(cli_connect(cli))
 /** Get next time a target change is allowed for the client. */
@@ -556,6 +557,7 @@ struct Client {
 #define con_sentalong(con)      ((con)->con_sentalong)
 /** Get server notice mask for connection. */
 #define con_snomask(con)	((con)->con_snomask)
+#define con_capver(con)	((con)->con_capver)
 /** Get next nick change time for connection. */
 #define con_nextnick(con)	((con)->con_nextnick)
 /** Get next new target time for connection. */
@@ -614,8 +616,6 @@ struct Client {
 #define con_capab(con)          (&(con)->con_capab)
 /** Get the active capabilities for the connection. */
 #define con_active(con)         (&(con)->con_active)
-/** Get CAP version for connection */
-#define con_capver(con)		((con)->con_capver)
 /** Get the auth request for the connection. */
 #define con_auth(con)		((con)->con_auth)
 
@@ -774,6 +774,7 @@ struct Client {
 #define IsGeoIP(x)              HasFlag(x, FLAG_GEOIP)
 /** Return non-zero if the client is an admin. */
 #define IsAdmin(x)              HasFlag(x, FLAG_ADMIN)
+#define IsNetAdmin(x)           HasFlag(x, FLAG_NETADMIN)
 /** Return non-zero if the client has set +X. */
 #define IsXtraOp(x)             HasFlag(x, FLAG_XTRAOP)
 /** Return non-zero if the client has set +L. */
@@ -894,6 +895,7 @@ struct Client {
 #define SetGeoIP(x)             SetFlag(x, FLAG_GEOIP)
 /** Mark a client as being an admin. */
 #define SetAdmin(x)             SetFlag(x, FLAG_ADMIN)
+#define SetNetAdmin(x)          SetFlag(x, FLAG_NETADMIN)
 /** Mark a client as having mode +X (XtraOp). */
 #define SetXtraOp(x)            SetFlag(x, FLAG_XTRAOP)
 /** Mark a client as having mode +L (No Redirect). */
@@ -999,6 +1001,7 @@ struct Client {
 #define ClearGeoIP(x)           ClrFlag(x, FLAG_GEOIP)
 /** Client is no long an admin. */
 #define ClearAdmin(x)           ClrFlag(x, FLAG_ADMIN)
+#define ClearNetAdmin(x)        ClrFlag(x, FLAG_NETADMIN)
 /** Remove mode +X (XtraOp) flag from client */
 #define ClearXtraOp(x)          ClrFlag(x, FLAG_XTRAOP)
 /** Remove mode +L (No Redirect) flag from client */

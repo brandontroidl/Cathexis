@@ -45,6 +45,7 @@
 #include "s_misc.h"
 #include "s_stats.h"
 #include "s_user.h"
+#include "ircd_chattr.h"
 #include "send.h"
 #include "struct.h"
 #include "sys.h"    /* FALSE bleah */
@@ -537,7 +538,7 @@ static struct FeatureDesc {
   F_B(HOST_HIDING, 0, 1, 0),
   F_S(HIDDEN_HOST, FEAT_CASE, "Users.Nefarious", 0),
   F_S(HIDDEN_IP, 0, "127.0.0.1", 0),
-  F_B(CONNEXIT_NOTICES, 0, 0, 0),
+  F_B(CONNEXIT_NOTICES, 0, 1, 0),
   F_B(OPLEVELS, 0, 0, feature_notify_oplevels),
   F_B(ZANNELS, 0, 0, 0),
   F_B(LOCAL_CHANNELS, 0, 1, set_isupport_chantypes),
@@ -654,7 +655,9 @@ static struct FeatureDesc {
   F_S(DIEPASS, FEAT_NULL | FEAT_CASE | FEAT_NODISP | FEAT_READ, 0, 0),
   F_B(HIS_STATS_W, 0, 1, 0),
   F_S(WHOIS_OPER, 0, "is an IRC Operator", 0),
-  F_S(WHOIS_ADMIN, 0, "is an IRC Administrator", 0),
+  F_S(WHOIS_LOCOPER, 0, "is a Local IRC Operator", 0),
+  F_S(WHOIS_ADMIN, 0, "is a Server Administrator", 0),
+  F_S(WHOIS_NETADMIN, 0, "is a Network Administrator", 0),
   F_S(WHOIS_SERVICE, 0, "is a Network Service", 0),
   F_B(TARGET_LIMITING, 0, 1, 0),
   F_B(OPER_XTRAOP, 0, 0, 0),
@@ -912,6 +915,9 @@ feature_set(struct Client* from, const char* const* fields, int count)
 	feat->flags &= ~FEAT_MARK;
       } else { /* ok, figure out the value and whether to mark it */
 	feat->v_int = strtoul(fields[1], 0, 0);
+	/* If strtoul returned 0 but the input has letters, try snomask letters */
+	if (feat->v_int == 0 && fields[1][0] != '0' && IsAlpha(fields[1][0]))
+	  feat->v_int = snomask_str_to_mask(fields[1]);
 	if (feat->v_int == feat->def_int)
 	  feat->flags &= ~FEAT_MARK;
 	else
@@ -1117,8 +1123,15 @@ feature_get(struct Client* from, const char* const* fields, int count)
       break;
 
     case FEAT_INT: /* integer, report integer value */
-      send_reply(from, SND_EXPLICIT | RPL_FEATURE,
-		 ":Integer value of %s: %d", feat->type, feat->v_int);
+      if (!strncmp(feat->type, "SNOMASK_", 8)) {
+        char snobuf[24];
+        send_reply(from, SND_EXPLICIT | RPL_FEATURE,
+                   ":Value of %s: %d (%s)", feat->type, feat->v_int,
+                   snomask_to_str(feat->v_int, snobuf, sizeof(snobuf)));
+      } else {
+        send_reply(from, SND_EXPLICIT | RPL_FEATURE,
+                   ":Integer value of %s: %d", feat->type, feat->v_int);
+      }
       break;
 
     case FEAT_BOOL: /* boolean, report boolean value */
@@ -1254,9 +1267,17 @@ feature_report(struct Client* to, const struct StatDesc* sd, char* param)
 
 
     case FEAT_INT: /* Report an F-line with integer values */
-      if (report) /* it's been changed */
-	send_reply(to, SND_EXPLICIT | RPL_STATSFLINE, "%c %s %d",
-		   changed, features[i].type, features[i].v_int);
+      if (report) { /* it's been changed */
+        if (!strncmp(features[i].type, "SNOMASK_", 8)) {
+          char snobuf[24];
+          send_reply(to, SND_EXPLICIT | RPL_STATSFLINE, "%c %s %d (%s)",
+                     changed, features[i].type, features[i].v_int,
+                     snomask_to_str(features[i].v_int, snobuf, sizeof(snobuf)));
+        } else {
+          send_reply(to, SND_EXPLICIT | RPL_STATSFLINE, "%c %s %d",
+                     changed, features[i].type, features[i].v_int);
+        }
+      }
       break;
 
     case FEAT_BOOL: /* Report an F-line with boolean values */

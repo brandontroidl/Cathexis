@@ -183,6 +183,7 @@ client_set_privs(struct Client *client, struct ConfItem *oper)
     FlagClr(&privs_global, PRIV_HIDE_CHANNELS);
     FlagClr(&privs_global, PRIV_HIDE_IDLE);
     FlagClr(&privs_global, PRIV_ADMIN);
+    FlagClr(&privs_global, PRIV_NETADMIN);
     FlagClr(&privs_global, PRIV_XTRAOP);
     FlagClr(&privs_global, PRIV_SERVICE);
     FlagClr(&privs_global, PRIV_REMOTE);
@@ -276,7 +277,7 @@ static struct {
   P(DISPLAY),        P(SEE_OPERS),      P(WIDE_GLINE),    P(LIST_CHAN),
   P(FORCE_OPMODE),   P(FORCE_LOCAL_OPMODE), P(APASS_OPMODE), P(CHECK),
   P(WHOIS_NOTICE),   P(HIDE_OPER),      P(HIDE_CHANNELS), P(HIDE_IDLE),
-  P(ADMIN),          P(XTRAOP),         P(SERVICE),       P(REMOTE),
+  P(ADMIN),          P(NETADMIN),       P(XTRAOP),         P(SERVICE),       P(REMOTE),
   P(SHUN),           P(LOCAL_SHUN),     P(WIDE_SHUN),     P(FREEFORM),
   P(REMOTEREHASH),   P(REMOVE),         P(LOCAL_ZLINE),   P(ZLINE),
   P(WIDE_ZLINE),     P(TEMPSHUN),

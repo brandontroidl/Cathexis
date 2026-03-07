@@ -104,7 +104,7 @@ int m_help(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
 
 
   if (parc < 2) {
-    send_reply(sptr, RPL_HELPSTART, "*", "Nefarious Help System");
+    send_reply(sptr, RPL_HELPSTART, "*", "Cathexis Help System");
     for (i = 0; msgtab[i].cmd; i++)
       send_reply(sptr, RPL_HELPTXT, "*", msgtab[i].cmd, msgtab[i].help);
     return send_reply(sptr, RPL_ENDOFHELP, "*", "End of HELP");
@@ -118,7 +118,7 @@ int m_help(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
         break;
       }
     }
-    send_reply(sptr, RPL_HELPSTART, cmd, "Nefarious Help System");
+    send_reply(sptr, RPL_HELPSTART, cmd, "Cathexis Help System");
     for (i = 0; msgtab[i].cmd; i++) {
       if (!strcmp(cmd, msgtab[i].cmd)) {
         send_reply(sptr, RPL_HELPTXT, cmd, msgtab[i].cmd, msgtab[i].help);

@@ -139,6 +139,8 @@ void do_oper(struct Client* cptr, struct Client* sptr, struct ConfItem* aconf)
       SetOper(sptr);
       if (HasPriv(sptr, PRIV_ADMIN))
         SetAdmin(sptr);
+      if (HasPriv(sptr, PRIV_NETADMIN))
+        SetNetAdmin(sptr);
       if (!IsHideOper(sptr) && !IsChannelService(sptr) && !IsBot(sptr))
         ++UserStats.opers;
     }
@@ -166,7 +168,12 @@ void do_oper(struct Client* cptr, struct Client* sptr, struct ConfItem* aconf)
     client_send_privs(&me, sptr, sptr);
 
     if (HasPriv(sptr, PRIV_PROPAGATE)) {
-      modes = (HasPriv(sptr, PRIV_ADMIN) ? "aowsg" : "owsg");
+      if (HasPriv(sptr, PRIV_NETADMIN))
+        modes = "aNowsg";
+      else if (HasPriv(sptr, PRIV_ADMIN))
+        modes = "aowsg";
+      else
+        modes = "owsg";
     } else {
       modes = "Owsg";
     }
@@ -187,8 +194,10 @@ void do_oper(struct Client* cptr, struct Client* sptr, struct ConfItem* aconf)
           HasFlag(sptr, FLAG_SERVNOTICE))
         { char snobuf[24]; send_reply(sptr, RPL_SNOMASK, snomask_to_str(cli_snomask(sptr), snobuf, sizeof(snobuf)), cli_snomask(sptr)); }
     } else {
-      if (snomask)
-        sendcmdto_one(&me, CMD_MODE, sptr, "%s %s+s +%d", cli_name(sptr), modes, snomask);
+      if (snomask) {
+        char snobuf[24];
+        sendcmdto_one(&me, CMD_MODE, sptr, "%s %s+s %s", cli_name(sptr), modes, snomask_to_str(snomask, snobuf, sizeof(snobuf)));
+      }
       else
         sendcmdto_one(&me, CMD_MODE, sptr, "%s %s", cli_name(sptr), modes);
     }

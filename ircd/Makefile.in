@@ -185,6 +185,7 @@ IRCD_SRC = \
 	m_set.c \
 	m_sethost.c \
 	m_setname.c \
+	m_tagmsg.c \
 	m_settime.c \
 	m_shun.c \
 	m_silence.c \
@@ -924,7 +925,6 @@ m_set.o: m_set.c ../config.h ../include/client.h ../include/hash.h \
   ../include/ircd_reply.h ../include/ircd_string.h ../include/numeric.h \
   ../include/numnicks.h ../include/send.h
 m_sethost.o: m_sethost.c ../config.h ../include/client.h ../include/hash.h \
-	m_setname.c \
   ../include/ircd.h ../include/ircd_features.h ../include/ircd_log.h \
   ../include/ircd_reply.h ../include/ircd_snprintf.h \
   ../include/ircd_string.h ../include/numeric.h ../include/numnicks.h \

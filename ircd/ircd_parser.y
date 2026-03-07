@@ -48,6 +48,7 @@
 #include "res.h"
 #include "s_auth.h"
 #include "s_bsd.h"
+#include "s_user.h"
 #include "s_conf.h"
 #include "s_debug.h"
 #include "s_misc.h"
@@ -246,7 +247,7 @@ static void free_slist(struct SLink **link) {
 %token TPRIV_HIDE_CHANNELS TPRIV_HIDE_IDLE TPRIV_XTRAOP TPRIV_SERVICE
 %token TPRIV_REMOTE TPRIV_LOCAL_SHUN TPRIV_WIDE_SHUN
 %token TPRIV_FREEFORM TPRIV_REMOTEREHASH TPRIV_REMOVE TPRIV_LOCAL_ZLINE
-%token TPRIV_WIDE_ZLINE TPRIV_TEMPSHUN
+%token TPRIV_WIDE_ZLINE TPRIV_TEMPSHUN TPRIV_NETADMIN
 /* and some types... */
 %type <num> sizespec
 %type <num> timespec timefactor factoredtimes factoredtime
@@ -556,6 +557,11 @@ classmaxchans: MAXCHANS '=' expr ';'
 classsnomask: SNOMASK '=' expr ';'
 {
   snomask = $3;
+}
+| SNOMASK '=' QSTRING ';'
+{
+  snomask = snomask_str_to_mask($3);
+  MyFree($3);
 };
 classfakelagmin: FAKELAGMINIMUM '=' expr ';'
 {
@@ -848,6 +854,11 @@ opersslfp: SSLFP '=' QSTRING ';'
 opersnomask: SNOMASK '=' expr ';'
 {
   snomask = $3;
+}
+| SNOMASK '=' QSTRING ';'
+{
+  snomask = snomask_str_to_mask($3);
+  MyFree($3);
 };
 operajoinchan: AUTOJOINCHANNEL '=' QSTRING ';'
 {
@@ -925,7 +936,8 @@ privtype: TPRIV_CHAN_LIMIT { $$ = PRIV_CHAN_LIMIT; } |
           ZLINE { $$ = PRIV_ZLINE; } |
           TPRIV_LOCAL_ZLINE { $$ = PRIV_LOCAL_ZLINE; } |
           TPRIV_WIDE_ZLINE { $$ = PRIV_WIDE_ZLINE; } |
-          TPRIV_TEMPSHUN { $$ = PRIV_TEMPSHUN; };
+          TPRIV_TEMPSHUN { $$ = PRIV_TEMPSHUN; } |
+          TPRIV_NETADMIN { $$ = PRIV_NETADMIN; };
 
 yesorno: YES { $$ = 1; } | NO { $$ = 0; };
 

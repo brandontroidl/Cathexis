@@ -33,7 +33,7 @@ IRCv3 Capabilities (11 new)
   - server-time        ISO 8601 timestamp tags
   - account-tag        Account name on messages
   - message-tags       Full IRCv3 message tag framework
-  - echo-message       Echo sent messages back to sender
+  - echo-message       (pending implementation)
   - invite-notify      Channel invite notifications
   - chghost            Host change notifications
   - setname            Realname change (with SETNAME command)

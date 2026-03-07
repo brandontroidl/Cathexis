@@ -515,6 +515,10 @@ struct Client;
 #define TOK_SETNAME	"SETNAME"
 #define CMD_SETNAME	MSG_SETNAME, TOK_SETNAME
 
+#define MSG_TAGMSG	"TAGMSG"
+#define TOK_TAGMSG	"TAGMSG"
+#define CMD_TAGMSG	MSG_TAGMSG, TOK_TAGMSG
+
 /*
  * Structures
  */

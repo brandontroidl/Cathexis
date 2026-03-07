@@ -138,6 +138,10 @@ void relay_channel_message(struct Client* sptr, const char* name, const char* te
   RevealDelayedJoinIfNeeded(sptr, chptr);
   sendcmdto_channel_butone(sptr, CMD_PRIVATE, chptr, cli_from(sptr),
 			   SKIP_DEAF | SKIP_BURST, text[0], "%H :%s", chptr, mytext);
+
+  /* IRCv3 echo-message: send copy back to the sender */
+  if (MyConnect(sptr) && CapActive(sptr, CAP_ECHOMSG))
+    sendcmdto_one(sptr, CMD_PRIVATE, sptr, "%H :%s", chptr, mytext);
 }
 
 /** Relay a local user's notice to a channel.
@@ -192,6 +196,10 @@ void relay_channel_notice(struct Client* sptr, const char* name, const char* tex
   RevealDelayedJoinIfNeeded(sptr, chptr);
   sendcmdto_channel_butone(sptr, CMD_NOTICE, chptr, cli_from(sptr),
 			   SKIP_DEAF | SKIP_BURST, '\0', "%H :%s", chptr, mytext);
+
+  /* IRCv3 echo-message: send copy back to the sender */
+  if (MyConnect(sptr) && CapActive(sptr, CAP_ECHOMSG))
+    sendcmdto_one(sptr, CMD_NOTICE, sptr, "%H :%s", chptr, mytext);
 }
 
 /** Relay a message to a channel.
@@ -479,6 +487,10 @@ void relay_private_message(struct Client* sptr, const char* name, const char* te
     add_target(acptr, sptr);
 
   sendcmdto_one(sptr, CMD_PRIVATE, acptr, "%C :%s", acptr, text);
+
+  /* IRCv3 echo-message: send copy back to the sender */
+  if (MyConnect(sptr) && CapActive(sptr, CAP_ECHOMSG))
+    sendcmdto_one(sptr, CMD_PRIVATE, sptr, "%C :%s", acptr, text);
 }
 
 /** Relay a private notice from a local user.
@@ -534,6 +546,10 @@ void relay_private_notice(struct Client* sptr, const char* name, const char* tex
     add_target(acptr, sptr);
 
   sendcmdto_one(sptr, CMD_NOTICE, acptr, "%C :%s", acptr, text);
+
+  /* IRCv3 echo-message: send copy back to the sender */
+  if (MyConnect(sptr) && CapActive(sptr, CAP_ECHOMSG))
+    sendcmdto_one(sptr, CMD_NOTICE, sptr, "%C :%s", acptr, text);
 }
 
 /** Relay a private message that arrived from a server.
