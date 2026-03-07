@@ -185,7 +185,7 @@ void do_oper(struct Client* cptr, struct Client* sptr, struct ConfItem* aconf)
       send_umode(NULL, sptr, &old_mode, HasPriv(sptr, PRIV_PROPAGATE));
       if ((cli_snomask(sptr) != feature_int(FEAT_SNOMASK_OPERDEFAULT)) &&
           HasFlag(sptr, FLAG_SERVNOTICE))
-        send_reply(sptr, RPL_SNOMASK, cli_snomask(sptr), cli_snomask(sptr));
+        { char snobuf[24]; send_reply(sptr, RPL_SNOMASK, snomask_to_str(cli_snomask(sptr), snobuf, sizeof(snobuf)), cli_snomask(sptr)); }
     } else {
       if (snomask)
         sendcmdto_one(&me, CMD_MODE, sptr, "%s %s+s +%d", cli_name(sptr), modes, snomask);

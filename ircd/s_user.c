@@ -623,7 +623,7 @@ int register_user(struct Client *cptr, struct Client *sptr)
     send_umode(cptr, sptr, &flags, ALL_UMODES);
     if ((cli_snomask(sptr) != feature_int(FEAT_SNOMASK_DEFAULT)) &&
         HasFlag(sptr, FLAG_SERVNOTICE))
-      send_reply(sptr, RPL_SNOMASK, cli_snomask(sptr), cli_snomask(sptr));
+      { char snobuf[24]; send_reply(sptr, RPL_SNOMASK, snomask_to_str(cli_snomask(sptr), snobuf, sizeof(snobuf)), cli_snomask(sptr)); }
 
     if ((connclass = get_client_class_conf(sptr)) != NULL)
     {
@@ -1432,7 +1432,7 @@ int set_user_mode(struct Client *cptr, struct Client *sptr, int parc,
         && cli_snomask(acptr) !=
         (unsigned int)(IsOper(acptr) ? feature_int(FEAT_SNOMASK_OPERDEFAULT) :
          feature_int(FEAT_SNOMASK_DEFAULT)))
-      send_reply(acptr, RPL_SNOMASK, cli_snomask(acptr), cli_snomask(acptr));
+      { char snobuf[24]; send_reply(acptr, RPL_SNOMASK, snomask_to_str(cli_snomask(acptr), snobuf, sizeof(snobuf)), cli_snomask(acptr)); }
     return 0;
   }
 
@@ -1743,7 +1743,7 @@ int set_user_mode(struct Client *cptr, struct Client *sptr, int parc,
       if (tmpmask != cli_snomask(acptr))
 	set_snomask(acptr, tmpmask, SNO_SET);
       if (cli_snomask(acptr) && snomask_given)
-	send_reply(acptr, RPL_SNOMASK, cli_snomask(acptr), cli_snomask(acptr));
+	{ char snobuf[24]; send_reply(acptr, RPL_SNOMASK, snomask_to_str(cli_snomask(acptr), snobuf, sizeof(snobuf)), cli_snomask(acptr)); }
     }
     else
       set_snomask(acptr, 0, SNO_SET);
@@ -2062,62 +2062,186 @@ void send_umode(struct Client *cptr, struct Client *sptr, struct Flags *old,
  * at least one digit and 2) The first digit occurs before the first
  * alphabetic character.
  * @param[in] word Word to check for sno_mask-ness.
- * @return Non-zero if \a word looks like a server notice mask; zero if not.
+/** SNO flag to letter mapping table.
+ * Letters follow modern IRC daemon conventions (UnrealIRCd, InspIRCd,
+ * Charybdis) where possible, with Cathexis-specific assignments for
+ * flags unique to this daemon.
+ *
+ * Letter assignments:
+ *   c = client connect/exit     k = server kills (collisions)
+ *   K = oper kills              D = desyncs
+ *   s = temporary desyncs       u = unauthorized connections
+ *   e = TCP/socket errors       f = too many connections
+ *   h = Uworld actions          g = G-lines
+ *   n = net join/break           i = IP mismatches
+ *   t = throttle notices         r = oper-only messages
+ *   G = auto G-lines             d = debug messages
+ *   N = nick changes             A = IAuth notices
+ *   w = WebIRC notices           o = unsorted old messages
  */
-int is_snomask(char *word)
+static const struct {
+  unsigned int flag;
+  char letter;
+  const char *desc;
+} snomask_map[] = {
+  { SNO_OLDSNO,     'o', "old unsorted messages" },
+  { SNO_SERVKILL,   'k', "server kills (collisions)" },
+  { SNO_OPERKILL,   'K', "oper kills" },
+  { SNO_HACK2,      'D', "desyncs" },
+  { SNO_HACK3,      's', "temporary desyncs" },
+  { SNO_UNAUTH,     'u', "unauthorized connections" },
+  { SNO_TCPCOMMON,  'e', "TCP/socket errors" },
+  { SNO_TOOMANY,    'f', "too many connections" },
+  { SNO_HACK4,      'h', "Uworld actions" },
+  { SNO_GLINE,      'g', "G-lines" },
+  { SNO_NETWORK,    'n', "net join/break" },
+  { SNO_IPMISMATCH, 'i', "IP mismatches" },
+  { SNO_THROTTLE,   't', "throttle notices" },
+  { SNO_OLDREALOP,  'r', "oper-only messages" },
+  { SNO_CONNEXIT,   'c', "client connect/exit" },
+  { SNO_AUTO,       'G', "auto G-lines" },
+  { SNO_DEBUG,      'd', "debug messages" },
+  { SNO_NICKCHG,    'N', "nick changes" },
+  { SNO_AUTH,       'A', "IAuth notices" },
+  { SNO_WEBIRC,     'w', "WebIRC notices" },
+  { 0, 0, NULL }
+};
+
+/** Convert a snomask letter to its corresponding SNO_ flag.
+ * @param[in] c The snomask letter.
+ * @return The SNO_ flag value, or 0 if not found.
+ */
+static unsigned int snomask_char_to_flag(char c)
 {
-  if (word)
-  {
-    if (ircd_strcmp(word, "all") == 0)
-      return 1;
-    for (; *word; word++)
-      if (IsDigit(*word))
-        return 1;
-      else if (IsAlpha(*word))
-        return 0;
+  int i;
+  for (i = 0; snomask_map[i].flag; i++) {
+    if (snomask_map[i].letter == c)
+      return snomask_map[i].flag;
   }
   return 0;
 }
 
+/** Convert a snomask bitmask to a human-readable letter string.
+ * The output is a '+' followed by the letters for each set flag,
+ * e.g. "+nKg" for network + operkill + gline.
+ * @param[in] mask The snomask bitmask.
+ * @param[out] buf Output buffer (must be at least 24 bytes).
+ * @param[in] buflen Size of output buffer.
+ * @return Pointer to buf.
+ */
+const char *snomask_to_str(unsigned int mask, char *buf, size_t buflen)
+{
+  size_t pos = 0;
+  int i;
+
+  if (pos < buflen - 1)
+    buf[pos++] = '+';
+
+  for (i = 0; snomask_map[i].flag && pos < buflen - 1; i++) {
+    if (mask & snomask_map[i].flag)
+      buf[pos++] = snomask_map[i].letter;
+  }
+  buf[pos] = '\0';
+  return buf;
+}
+
+/** Check whether \a word looks like a server notice mask argument.
+ * Accepts letter-based masks (e.g. "nKg", "+nKg", "-c"), numeric masks
+ * for backward compatibility (e.g. "1024", "+512"), or the keyword "all".
+ * @param[in] word Potential snomask argument.
+ * @return Non-zero if \a word looks like a server notice mask; zero if not.
+ */
+int is_snomask(char *word)
+{
+  if (!word || !*word)
+    return 0;
+  if (ircd_strcmp(word, "all") == 0)
+    return 1;
+  /* Skip leading +/- */
+  if (*word == '+' || *word == '-')
+    word++;
+  if (!*word)
+    return 0;
+  /* If it starts with a digit, it's a legacy numeric mask */
+  if (IsDigit(*word))
+    return 1;
+  /* Check if all characters are valid snomask letters */
+  for (; *word; word++) {
+    if (*word == '+' || *word == '-')
+      continue;  /* allow embedded +/- for mixed add/remove */
+    if (snomask_char_to_flag(*word))
+      continue;
+    return 0;  /* unknown letter = not a snomask */
+  }
+  return 1;
+}
+
 /** Update snomask \a oldmask according to \a arg and \a what.
- * @param[in] oldmask Original user mask.
- * @param[in] arg Update string (either a number or '+'/'-' followed by a number).
+ * Supports both modern letter-based masks (e.g. "+nKg", "-c", "nKg")
+ * and legacy numeric masks (e.g. "1024", "+512") for backward compatibility.
+ * @param[in] oldmask Original snomask value.
+ * @param[in] arg Update string.
  * @param[in] what MODE_ADD if adding the mask.
- * @return New value of service notice mask.
+ * @return New value of server notice mask.
  */
 unsigned int umode_make_snomask(unsigned int oldmask, char *arg, int what)
 {
   unsigned int sno_what;
   unsigned int newmask;
-  if (what == MODE_ADD)
-    if (ircd_strcmp(arg, "all") == 0)
-      return SNO_ALL;
-  if (*arg == '+')
-  {
+
+  if (what == MODE_ADD && ircd_strcmp(arg, "all") == 0)
+    return SNO_ALL;
+
+  /* Determine base operation from leading +/- */
+  if (*arg == '+') {
     arg++;
-    if (what == MODE_ADD)
-      sno_what = SNO_ADD;
-    else
-      sno_what = SNO_DEL;
-  }
-  else if (*arg == '-')
-  {
+    sno_what = (what == MODE_ADD) ? SNO_ADD : SNO_DEL;
+  } else if (*arg == '-') {
     arg++;
-    if (what == MODE_ADD)
-      sno_what = SNO_DEL;
-    else
-      sno_what = SNO_ADD;
-  }
-  else
+    sno_what = (what == MODE_ADD) ? SNO_DEL : SNO_ADD;
+  } else {
     sno_what = (what == MODE_ADD) ? SNO_SET : SNO_DEL;
-  /* pity we don't have strtoul everywhere */
-  newmask = (unsigned int)atoi(arg);
-  if (sno_what == SNO_DEL)
-    newmask = oldmask & ~newmask;
-  else if (sno_what == SNO_ADD)
-    newmask |= oldmask;
+  }
+
+  /* Detect whether this is a letter-based or numeric mask */
+  if (*arg && !IsDigit(*arg)) {
+    /* Letter-based mask: parse each character */
+    unsigned int add_flags = 0, del_flags = 0, flag;
+    int cur_adding = (sno_what != SNO_DEL);
+
+    for (; *arg; arg++) {
+      if (*arg == '+') {
+        cur_adding = 1;
+        continue;
+      }
+      if (*arg == '-') {
+        cur_adding = 0;
+        continue;
+      }
+      flag = snomask_char_to_flag(*arg);
+      if (flag) {
+        if (cur_adding)
+          add_flags |= flag;
+        else
+          del_flags |= flag;
+      }
+    }
+
+    if (sno_what == SNO_SET)
+      newmask = add_flags & ~del_flags;
+    else
+      newmask = (oldmask | add_flags) & ~del_flags;
+  } else {
+    /* Legacy numeric mask: backward compatible */
+    newmask = (unsigned int)atoi(arg);
+    if (sno_what == SNO_DEL)
+      newmask = oldmask & ~newmask;
+    else if (sno_what == SNO_ADD)
+      newmask |= oldmask;
+  }
   return newmask;
 }
+
 
 /** Remove \a cptr from the singly linked list \a list.
  * @param[in] cptr Client to remove from list.

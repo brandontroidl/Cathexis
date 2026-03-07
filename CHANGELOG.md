@@ -80,6 +80,21 @@ All capabilities are feature-gated and enabled by default.
 - `include/client.h` — Added `con_capver` field to Connection struct
   with `cli_capver()` / `con_capver()` accessor macros
 
+### Snomask Modernization
+
+Replaced the legacy numeric snomask system with letter-based masks following
+modern IRC daemon conventions (UnrealIRCd, InspIRCd, Charybdis).
+
+- `ircd/s_user.c` — New snomask letter mapping table, rewritten
+  `is_snomask()` and `umode_make_snomask()` to parse letter strings,
+  new `snomask_to_str()` display function
+- `ircd/s_err.c` — RPL_SNOMASK (008) now shows letter display
+- `include/s_user.h` — Added `snomask_to_str()` declaration
+- `doc/snomask.txt` — Complete rewrite with letter reference table
+
+Users now use `/mode nick +s +nKg` instead of `/mode nick +s 1540`.
+Legacy numeric masks are still accepted for backward compatibility.
+
 ### Files Modified (31 changed, 1 new)
 
 **Headers:** capab.h, client.h, handlers.h, ircd_features.h, msg.h

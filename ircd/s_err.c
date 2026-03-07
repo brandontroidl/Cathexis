@@ -48,7 +48,7 @@ static Numeric replyTable[] = {
 /* 007 */
   { 0 },
 /* 008 */
-  { RPL_SNOMASK, "%u :: Server notice mask (%#x)", "008" },
+  { RPL_SNOMASK, "%s :: Server notice mask (%#x)", "008" },
 /* 009 */
   { 0 },
 /* 010 */
