@@ -142,3 +142,49 @@ int ms_svsnoop(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
   return 0;
 }
 
+
+/** Handle SVSNOOP from a local operator.
+ * Requires PRIV_NETADMIN privilege.
+ * parv[1] = Target server
+ * parv[2] = + or -
+ */
+int mo_svsnoop(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
+{
+  struct ConfItem *aconf;
+  struct Client *server = 0;
+  char c;
+
+  if (!HasPriv(sptr, PRIV_NETADMIN))
+    return send_reply(sptr, ERR_NOPRIVILEGES);
+
+  if (parc < 3)
+    return need_more_params(sptr, "SVSNOOP");
+
+  sendto_opmask_butone(0, SNO_OLDSNO, "%C used SVSNOOP on %s: %s",
+                        sptr, parv[1], parv[2]);
+
+  if (!string_has_wildcards(parv[1]))
+    server = FindServer(parv[1]);
+  else
+    server = find_match_server(parv[1]);
+
+  if (!server)
+    return send_reply(sptr, ERR_NOSUCHSERVER, parv[1]);
+
+  if (server == &me) {
+    c = *parv[2];
+    if (c == '+') {
+      for(aconf = GlobalConfList; aconf; aconf = aconf->next) {
+        if (aconf->status & CONF_OPERATOR)
+          aconf->status |= CONF_ILLEGAL;
+      }
+      SetServerNoop(&me);
+    } else {
+      rehash(&me, 2);
+      ClearServerNoop(&me);
+    }
+  }
+
+  sendcmdto_serv_butone(&me, CMD_SVSNOOP, cptr, "%s %s", parv[1], parv[2]);
+  return 0;
+}

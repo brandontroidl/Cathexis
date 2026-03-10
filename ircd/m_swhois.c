@@ -127,3 +127,36 @@ int ms_swhois(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
   return 0;
 }
 
+
+/** Handle SWHOIS from a local operator.
+ * Requires PRIV_NETADMIN privilege.
+ * parv[1] = Target nickname
+ * parv[2] = SWHOIS line (empty to clear)
+ */
+int mo_swhois(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
+{
+  struct Client *acptr;
+
+  if (!HasPriv(sptr, PRIV_NETADMIN))
+    return send_reply(sptr, ERR_NOPRIVILEGES);
+
+  if (parc < 2)
+    return need_more_params(sptr, "SWHOIS");
+
+  if (!(acptr = FindUser(parv[1])))
+    return send_reply(sptr, ERR_NOSUCHNICK, parv[1]);
+
+  sendto_opmask_butone(0, SNO_OLDSNO, "%C used SWHOIS on %C: %s",
+                        sptr, acptr, (parc > 2) ? parv[2] : "(cleared)");
+
+  if (parc > 2)
+    ircd_strncpy(cli_user(acptr)->swhois, parv[2], BUFSIZE + 1);
+  else
+    cli_user(acptr)->swhois[0] = '\0';
+
+  if (parc > 2 && !EmptyString(parv[2]))
+    sendcmdto_serv_butone(&me, CMD_SWHOIS, cptr, "%C :%s", acptr, parv[2]);
+  else
+    sendcmdto_serv_butone(&me, CMD_SWHOIS, cptr, "%C", acptr);
+  return 0;
+}

@@ -203,3 +203,39 @@ int ms_svsjoin(struct Client *cptr, struct Client *sptr, int parc, char *parv[])
   return 0;
 }
 
+
+/** Handle SVSJOIN from a local operator.
+ * Requires PRIV_NETADMIN privilege.
+ * parv[1] = Target nickname
+ * parv[2] = Channel(s) to join
+ */
+int mo_svsjoin(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
+{
+  struct Client *acptr;
+
+  if (!HasPriv(sptr, PRIV_NETADMIN))
+    return send_reply(sptr, ERR_NOPRIVILEGES);
+
+  if (parc < 3)
+    return need_more_params(sptr, "SVSJOIN");
+
+  if (!(acptr = FindUser(parv[1])))
+    return send_reply(sptr, ERR_NOSUCHNICK, parv[1]);
+
+  sendto_opmask_butone(0, SNO_OLDSNO, "%C used SVSJOIN to force %C into %s",
+                        sptr, acptr, parv[2]);
+
+  if (MyUser(acptr)) {
+    /* Target is local - call the server handler directly */
+    char *args[4];
+    args[0] = parv[0];
+    args[1] = (char *)NumNick(acptr);
+    args[2] = parv[2];
+    args[3] = NULL;
+    return ms_svsjoin(cptr, &me, 3, args);
+  }
+
+  /* Target is remote - propagate */
+  sendcmdto_serv_butone(&me, CMD_SVSJOIN, cptr, "%C %s", acptr, parv[2]);
+  return 0;
+}

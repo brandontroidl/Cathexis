@@ -226,6 +226,16 @@ cap_ls(struct Client *sptr, const char *caplist)
 {
   if (IsUnknown(sptr) && cli_auth(sptr)) /* registration hasn't completed; suspend it... */
     auth_cap_start(cli_auth(sptr));
+
+  /* IRCv3.2 CAP LS 302 - track version and implicitly enable cap-notify */
+  if (caplist && atoi(caplist) >= 302) {
+    if (MyConnect(sptr))
+      con_capver(cli_connect(sptr)) = 302;
+    /* cap-notify is implicitly enabled for 302 clients */
+    CapSet(cli_capab(sptr), CAP_CAPNOTIFY);
+    CapSet(cli_active(sptr), CAP_CAPNOTIFY);
+  }
+
   return send_caplist(sptr, 0, 0, "LS"); /* send list of capabilities */
 }
 

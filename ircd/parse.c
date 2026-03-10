@@ -745,24 +745,24 @@ struct Message msgtab[] = {
     TOK_SVSIDENT,
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
-    { m_ignore, m_ignore, ms_svsident, m_ignore, m_ignore },
-    "(Services only) Set user account information on behalf of network services."
+    { m_ignore, m_ignore, ms_svsident, mo_svsident, m_ignore },
+    "<nick> <newident> - Change a user's ident. Requires Network Administrator."
   },
   {
     MSG_SVSINFO,
     TOK_SVSINFO,
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
-    { m_ignore, m_ignore, ms_svsinfo, m_ignore, m_ignore },
-    "(Services only) Set additional information on behalf of network services."
+    { m_ignore, m_ignore, ms_svsinfo, mo_svsinfo, m_ignore },
+    "<nick> :<newinfo> - Change a user's realname. Requires Network Administrator."
   },
   {
     MSG_SVSQUIT,
     TOK_SVSQUIT,
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
-    { m_ignore, m_ignore, ms_svsquit, m_ignore, m_ignore },
-    "(Services only) Force a user to quit on behalf of network services."
+    { m_ignore, m_ignore, ms_svsquit, mo_svsquit, m_ignore },
+    "<nick> [:<reason>] - Force a user to quit. Requires Network Administrator."
   },
   {
     MSG_SNO,
@@ -801,48 +801,48 @@ struct Message msgtab[] = {
     TOK_SVSNOOP,
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
-    { m_ignore, m_ignore, ms_svsnoop, m_ignore, m_ignore },
-    "(Services only) Disable operator status on a server."
+    { m_ignore, m_ignore, ms_svsnoop, mo_svsnoop, m_ignore },
+    "<server> <+/-> - Enable or disable NOOP on a server. Requires Network Administrator."
   },
   {
     MSG_SVSMODE,
     TOK_SVSMODE,
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
-    { m_ignore, m_ignore, ms_svsmode, m_ignore, m_ignore },
-    "(Services only) Change user modes on behalf of network services."
+    { m_ignore, m_ignore, ms_svsmode, mo_svsmode, m_ignore },
+    "<nick> <modes> - Force a mode change on a user. Requires Network Administrator."
   },
   {
     MSG_SVSNICK,
     TOK_SVSNICK,
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
-    { m_ignore, m_ignore, ms_svsnick, m_ignore, m_ignore },
-    "(Services only) Force a nickname change on behalf of network services."
+    { m_ignore, m_ignore, ms_svsnick, mo_svsnick, m_ignore },
+    "<nick> <newnick> - Force a user to change nickname. Requires Network Administrator."
   },
   {
     MSG_SVSPART,
     TOK_SVSPART,
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
-    { m_ignore, m_ignore, ms_svspart, m_ignore, m_ignore },
-    "(Services only) Force a user to leave a channel on behalf of network services."
+    { m_ignore, m_ignore, ms_svspart, mo_svspart, m_ignore },
+    "<nick> <#channel> [:<reason>] - Force a user to part a channel. Requires Network Administrator."
   },
   {
     MSG_SVSJOIN,
     TOK_SVSJOIN,
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
-    { m_ignore, m_ignore, ms_svsjoin, m_ignore, m_ignore },
-    "(Services only) Force a user to join a channel on behalf of network services."
+    { m_ignore, m_ignore, ms_svsjoin, mo_svsjoin, m_ignore },
+    "<nick> <#channel> - Force a user to join a channel. Requires Network Administrator."
   },
   {
     MSG_SWHOIS,
     TOK_SWHOIS,
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
-    { m_ignore, m_ignore, ms_swhois, m_ignore, m_ignore },
-    "(Services only) Set a custom WHOIS line for a user on behalf of network services."
+    { m_ignore, m_ignore, ms_swhois, mo_swhois, m_ignore },
+    "<nick> [:<text>] - Set or clear a custom WHOIS line for a user. Requires Network Administrator."
   },
   {
     MSG_FAKE,

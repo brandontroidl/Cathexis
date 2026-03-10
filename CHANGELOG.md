@@ -190,3 +190,31 @@ privileges. Empty strings remain only for internal server-only commands.
   +c will see client connects and quits.
 - **client.h enum corruption fixed** — Restored proper enum structure
   for Flag and Priv enums that was broken by a deduplication error.
+
+### SVS* Commands — Network Administrator Access
+
+All SVS commands now have `mo_*` oper handlers requiring `PRIV_NETADMIN`.
+Network Administrators can use these directly without raw server lines:
+
+  /SVSJOIN <nick> <#channel>          Force a user to join a channel
+  /SVSPART <nick> <#channel> [:msg]   Force a user to part a channel
+  /SVSNICK <nick> <newnick>           Force a nickname change
+  /SVSMODE <nick> <modes>             Force user mode changes
+  /SVSQUIT <nick> [:reason]           Force a user to disconnect
+  /SVSIDENT <nick> <newident>         Change a user's ident
+  /SVSINFO <nick> :<newrealname>      Change a user's realname
+  /SVSNOOP <server> <+/->             Enable/disable NOOP on a server
+  /SWHOIS <nick> [:<text>]            Set/clear custom WHOIS line
+
+All commands log to SNO_OLDSNO for audit trail.
+Server-to-server handlers (ms_*) remain for services compatibility.
+
+Files changed: m_svsjoin.c, m_svspart.c, m_svsnick.c, m_svsmode.c,
+m_svsquit.c, m_svsident.c, m_svsinfo.c, m_svsnoop.c, m_swhois.c,
+handlers.h, parse.c
+
+### IRCv3 CAP LS 302 Support
+
+- `ircd/m_cap.c` — cap_ls() now parses the version parameter from
+  `CAP LS 302`. Version is stored in `con_capver`. Clients requesting
+  302 automatically get cap-notify enabled (per IRCv3 spec).

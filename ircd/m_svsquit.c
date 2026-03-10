@@ -33,6 +33,7 @@
 #include "numnicks.h"
 #include "send.h"
 #include "s_conf.h"
+#include "numeric.h"
 #include "s_misc.h"
 #include "s_user.h"
 
@@ -71,3 +72,38 @@ int ms_svsquit(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
   return 0;
 }
 
+
+/** Handle SVSQUIT from a local operator.
+ * Requires PRIV_NETADMIN privilege.
+ * parv[1] = Target nickname
+ * parv[parc-1] = Quit message (optional)
+ */
+int mo_svsquit(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
+{
+  struct Client *acptr;
+
+  if (!HasPriv(sptr, PRIV_NETADMIN))
+    return send_reply(sptr, ERR_NOPRIVILEGES);
+
+  if (parc < 2)
+    return need_more_params(sptr, "SVSQUIT");
+
+  if (!(acptr = FindUser(parv[1])))
+    return send_reply(sptr, ERR_NOSUCHNICK, parv[1]);
+
+  sendto_opmask_butone(0, SNO_OLDSNO, "%C used SVSQUIT on %C",
+                        sptr, acptr);
+
+  if (MyConnect(acptr)) {
+    if (parc > 2 && !BadPtr(parv[parc - 1]))
+      return exit_client_msg(acptr, acptr, acptr, "%s", parv[parc - 1]);
+    else
+      return exit_client(acptr, acptr, acptr, "Quit");
+  }
+
+  if (parc > 2 && !BadPtr(parv[parc - 1]))
+    sendcmdto_serv_butone(&me, CMD_SVSQUIT, cptr, "%C :%s", acptr, parv[parc - 1]);
+  else
+    sendcmdto_serv_butone(&me, CMD_SVSQUIT, cptr, "%C", acptr);
+  return 0;
+}

@@ -163,3 +163,42 @@ int ms_svspart(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
   return joinbuf_flush(&parts); /* flush channel parts */
 }
 
+
+/** Handle SVSPART from a local operator.
+ * Requires PRIV_NETADMIN privilege.
+ * parv[1] = Target nickname
+ * parv[2] = Channel(s)
+ * parv[parc-1] = Part message (optional)
+ */
+int mo_svspart(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
+{
+  struct Client *acptr;
+
+  if (!HasPriv(sptr, PRIV_NETADMIN))
+    return send_reply(sptr, ERR_NOPRIVILEGES);
+
+  if (parc < 3)
+    return need_more_params(sptr, "SVSPART");
+
+  if (!(acptr = FindUser(parv[1])))
+    return send_reply(sptr, ERR_NOSUCHNICK, parv[1]);
+
+  sendto_opmask_butone(0, SNO_OLDSNO, "%C used SVSPART to force %C from %s",
+                        sptr, acptr, parv[2]);
+
+  if (MyUser(acptr)) {
+    char *args[5];
+    args[0] = parv[0];
+    args[1] = (char *)NumNick(acptr);
+    args[2] = parv[2];
+    args[3] = (parc > 3) ? parv[parc - 1] : NULL;
+    args[4] = NULL;
+    return ms_svspart(cptr, &me, (parc > 3) ? 4 : 3, args);
+  }
+
+  if (parc > 3)
+    sendcmdto_serv_butone(&me, CMD_SVSPART, cptr, "%C %s :%s", acptr, parv[2], parv[parc - 1]);
+  else
+    sendcmdto_serv_butone(&me, CMD_SVSPART, cptr, "%C %s", acptr, parv[2]);
+  return 0;
+}

@@ -33,6 +33,7 @@
 #include "numnicks.h"
 #include "send.h"
 #include "s_conf.h"
+#include "numeric.h"
 #include "s_user.h"
 
 
@@ -66,3 +67,37 @@ int ms_svsinfo(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
   return 0;
 }
 
+
+/** Handle SVSINFO from a local operator.
+ * Requires PRIV_NETADMIN privilege.
+ * parv[1] = Target nickname
+ * parv[2] = New info/realname
+ */
+int mo_svsinfo(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
+{
+  struct Client *acptr;
+
+  if (!HasPriv(sptr, PRIV_NETADMIN))
+    return send_reply(sptr, ERR_NOPRIVILEGES);
+
+  if (parc < 3)
+    return need_more_params(sptr, "SVSINFO");
+
+  if (!(acptr = FindUser(parv[1])))
+    return send_reply(sptr, ERR_NOSUCHNICK, parv[1]);
+
+  sendto_opmask_butone(0, SNO_OLDSNO, "%C used SVSINFO on %C: %s",
+                        sptr, acptr, parv[2]);
+
+  if (MyUser(acptr)) {
+    char *args[4];
+    args[0] = parv[0];
+    args[1] = (char *)NumNick(acptr);
+    args[2] = parv[2];
+    args[3] = NULL;
+    return ms_svsinfo(cptr, &me, 3, args);
+  }
+
+  sendcmdto_serv_butone(&me, CMD_SVSINFO, cptr, "%C :%s", acptr, parv[2]);
+  return 0;
+}
