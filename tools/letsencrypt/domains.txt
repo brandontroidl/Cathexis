@@ -1,1 +1,0 @@
-yourmainserver.afternet.org irc.afternet.org
