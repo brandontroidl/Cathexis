@@ -218,3 +218,43 @@ handlers.h, parse.c
 - `ircd/m_cap.c` — cap_ls() now parses the version parameter from
   `CAP LS 302`. Version is stored in `con_capver`. Clients requesting
   302 automatically get cap-notify enabled (per IRCv3 spec).
+
+### SA* Commands — Direct Oper Interface (replaces SVS* for opers)
+
+Added 7 SA* (Server Admin) commands as the oper-facing interface,
+matching UnrealIRCd/InspIRCd conventions:
+
+  /SAJOIN <nick> <#channel>      Force join (no services needed)
+  /SAPART <nick> <#channel>      Force part
+  /SANICK <nick> <newnick>       Force nick change
+  /SAMODE <target> <modes>       Force mode change (users and channels)
+  /SAQUIT <nick> [:reason]       Force disconnect
+  /SATOPIC <#channel> :<topic>   Force topic change
+  /SAWHOIS <nick> [:<text>]      Set/clear custom WHOIS line
+
+All require PRIV_NETADMIN (+N). All log actions to SNO_OLDSNO.
+Remote targets propagate via SVS* S2S protocol automatically.
+Non-opers see "Permission Denied". Non-netadmins see "No privileges".
+
+SVS* commands remain as server-to-server protocol for services
+compatibility (X3, Atheme, anope, etc.).
+
+New files: ircd/m_sa.c, include/msg.h (SA defines)
+Changed: parse.c, handlers.h, Makefile.in
+
+### Help System Rewrite
+
+Completely rewritten /HELP with categories and multi-line help:
+
+  /HELP              Categorized command index
+  /HELP <command>    Detailed multi-line help for any command
+  /HELP USERMODES    User mode reference table
+  /HELP CHANMODES    Channel mode reference table
+  /HELP SNOMASK      Server notice mask letter reference
+  /HELP OPERLEVELS   Oper hierarchy reference
+
+Extended help entries for all SA* commands with usage, examples,
+and privilege requirements. Falls back to msgtab one-liners for
+commands without extended entries.
+
+New file: ircd/m_help.c (complete rewrite)

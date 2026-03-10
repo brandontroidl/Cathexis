@@ -548,3 +548,32 @@ struct Message {
 extern struct Message msgtab[];
 
 #endif /* INCLUDED_msg_h */
+
+/* SA* (Server Admin) commands - oper equivalents of SVS* */
+#define MSG_SAJOIN	"SAJOIN"
+#define TOK_SAJOIN	"SAJOIN"
+#define CMD_SAJOIN	MSG_SAJOIN, TOK_SAJOIN
+
+#define MSG_SAPART	"SAPART"
+#define TOK_SAPART	"SAPART"
+#define CMD_SAPART	MSG_SAPART, TOK_SAPART
+
+#define MSG_SANICK	"SANICK"
+#define TOK_SANICK	"SANICK"
+#define CMD_SANICK	MSG_SANICK, TOK_SANICK
+
+#define MSG_SAMODE	"SAMODE"
+#define TOK_SAMODE	"SAMODE"
+#define CMD_SAMODE	MSG_SAMODE, TOK_SAMODE
+
+#define MSG_SAQUIT	"SAQUIT"
+#define TOK_SAQUIT	"SAQUIT"
+#define CMD_SAQUIT	MSG_SAQUIT, TOK_SAQUIT
+
+#define MSG_SATOPIC	"SATOPIC"
+#define TOK_SATOPIC	"SATOPIC"
+#define CMD_SATOPIC	MSG_SATOPIC, TOK_SATOPIC
+
+#define MSG_SAWHOIS	"SAWHOIS"
+#define TOK_SAWHOIS	"SAWHOIS"
+#define CMD_SAWHOIS	MSG_SAWHOIS, TOK_SAWHOIS

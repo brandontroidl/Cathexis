@@ -286,3 +286,12 @@ extern int ms_zline(struct Client*, struct Client*, int, char*[]);
 
 #endif /* INCLUDED_handlers_h */
 
+
+/* SA* oper command handlers */
+extern int mo_sajoin(struct Client*, struct Client*, int, char*[]);
+extern int mo_sapart(struct Client*, struct Client*, int, char*[]);
+extern int mo_sanick(struct Client*, struct Client*, int, char*[]);
+extern int mo_samode(struct Client*, struct Client*, int, char*[]);
+extern int mo_saquit(struct Client*, struct Client*, int, char*[]);
+extern int mo_satopic(struct Client*, struct Client*, int, char*[]);
+extern int mo_sawhois(struct Client*, struct Client*, int, char*[]);

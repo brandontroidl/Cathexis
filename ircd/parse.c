@@ -745,24 +745,24 @@ struct Message msgtab[] = {
     TOK_SVSIDENT,
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
-    { m_ignore, m_ignore, ms_svsident, mo_svsident, m_ignore },
-    "<nick> <newident> - Change a user's ident. Requires Network Administrator."
+    { m_ignore, m_ignore, ms_svsident, m_ignore, m_ignore },
+    "(Server protocol) Set user ident. See /SAIDENT for the oper command."
   },
   {
     MSG_SVSINFO,
     TOK_SVSINFO,
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
-    { m_ignore, m_ignore, ms_svsinfo, mo_svsinfo, m_ignore },
-    "<nick> :<newinfo> - Change a user's realname. Requires Network Administrator."
+    { m_ignore, m_ignore, ms_svsinfo, m_ignore, m_ignore },
+    "(Server protocol) Set user realname. See /SAINFO for the oper command."
   },
   {
     MSG_SVSQUIT,
     TOK_SVSQUIT,
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
-    { m_ignore, m_ignore, ms_svsquit, mo_svsquit, m_ignore },
-    "<nick> [:<reason>] - Force a user to quit. Requires Network Administrator."
+    { m_ignore, m_ignore, ms_svsquit, m_ignore, m_ignore },
+    "(Server protocol) Force quit. See /SAQUIT for the oper command."
   },
   {
     MSG_SNO,
@@ -801,48 +801,48 @@ struct Message msgtab[] = {
     TOK_SVSNOOP,
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
-    { m_ignore, m_ignore, ms_svsnoop, mo_svsnoop, m_ignore },
-    "<server> <+/-> - Enable or disable NOOP on a server. Requires Network Administrator."
+    { m_ignore, m_ignore, ms_svsnoop, m_ignore, m_ignore },
+    "(Server protocol) Toggle NOOP. See /SANOOP for the oper command."
   },
   {
     MSG_SVSMODE,
     TOK_SVSMODE,
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
-    { m_ignore, m_ignore, ms_svsmode, mo_svsmode, m_ignore },
-    "<nick> <modes> - Force a mode change on a user. Requires Network Administrator."
+    { m_ignore, m_ignore, ms_svsmode, m_ignore, m_ignore },
+    "(Server protocol) Force mode. See /SAMODE for the oper command."
   },
   {
     MSG_SVSNICK,
     TOK_SVSNICK,
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
-    { m_ignore, m_ignore, ms_svsnick, mo_svsnick, m_ignore },
-    "<nick> <newnick> - Force a user to change nickname. Requires Network Administrator."
+    { m_ignore, m_ignore, ms_svsnick, m_ignore, m_ignore },
+    "(Server protocol) Force nick. See /SANICK for the oper command."
   },
   {
     MSG_SVSPART,
     TOK_SVSPART,
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
-    { m_ignore, m_ignore, ms_svspart, mo_svspart, m_ignore },
-    "<nick> <#channel> [:<reason>] - Force a user to part a channel. Requires Network Administrator."
+    { m_ignore, m_ignore, ms_svspart, m_ignore, m_ignore },
+    "(Server protocol) Force part. See /SAPART for the oper command."
   },
   {
     MSG_SVSJOIN,
     TOK_SVSJOIN,
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
-    { m_ignore, m_ignore, ms_svsjoin, mo_svsjoin, m_ignore },
-    "<nick> <#channel> - Force a user to join a channel. Requires Network Administrator."
+    { m_ignore, m_ignore, ms_svsjoin, m_ignore, m_ignore },
+    "(Server protocol) Force join. See /SAJOIN for the oper command."
   },
   {
     MSG_SWHOIS,
     TOK_SWHOIS,
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
-    { m_ignore, m_ignore, ms_swhois, mo_swhois, m_ignore },
-    "<nick> [:<text>] - Set or clear a custom WHOIS line for a user. Requires Network Administrator."
+    { m_ignore, m_ignore, ms_swhois, m_ignore, m_ignore },
+    "(Server protocol) Set WHOIS line. See /SAWHOIS for the oper command."
   },
   {
     MSG_FAKE,
@@ -965,6 +965,62 @@ struct Message msgtab[] = {
     "<target> - Send a tag-only message (typing indicators, reactions). Requires message-tags capability."
   },
   {
+  {
+    MSG_SAJOIN,
+    TOK_SAJOIN,
+    0, MAXPARA, MFLG_SLOW, 0, NULL,
+    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
+    { m_unregistered, m_not_oper, m_ignore, mo_sajoin, m_ignore },
+    "<nick> <#channel[,#channel2]> - Force a user to join channel(s). Requires +N (Network Administrator)."
+  },
+  {
+    MSG_SAPART,
+    TOK_SAPART,
+    0, MAXPARA, MFLG_SLOW, 0, NULL,
+    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
+    { m_unregistered, m_not_oper, m_ignore, mo_sapart, m_ignore },
+    "<nick> <#channel[,#channel2]> [:<reason>] - Force a user to part channel(s). Requires +N."
+  },
+  {
+    MSG_SANICK,
+    TOK_SANICK,
+    0, MAXPARA, MFLG_SLOW, 0, NULL,
+    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
+    { m_unregistered, m_not_oper, m_ignore, mo_sanick, m_ignore },
+    "<nick> <newnick> - Force a user to change their nickname. Requires +N (Network Administrator)."
+  },
+  {
+    MSG_SAMODE,
+    TOK_SAMODE,
+    0, MAXPARA, MFLG_SLOW, 0, NULL,
+    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
+    { m_unregistered, m_not_oper, m_ignore, mo_samode, m_ignore },
+    "<nick|#channel> <modes> [params] - Force mode changes on a user or channel. Requires +N."
+  },
+  {
+    MSG_SAQUIT,
+    TOK_SAQUIT,
+    0, MAXPARA, MFLG_SLOW, 0, NULL,
+    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
+    { m_unregistered, m_not_oper, m_ignore, mo_saquit, m_ignore },
+    "<nick> [:<reason>] - Force a user to disconnect from the network. Requires +N."
+  },
+  {
+    MSG_SATOPIC,
+    TOK_SATOPIC,
+    0, MAXPARA, MFLG_SLOW, 0, NULL,
+    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
+    { m_unregistered, m_not_oper, m_ignore, mo_satopic, m_ignore },
+    "<#channel> :<topic> - Force a topic change, bypassing +t. Requires +N (Network Administrator)."
+  },
+  {
+    MSG_SAWHOIS,
+    TOK_SAWHOIS,
+    0, MAXPARA, MFLG_SLOW, 0, NULL,
+    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
+    { m_unregistered, m_not_oper, m_ignore, mo_sawhois, m_ignore },
+    "<nick> [:<text>] - Set or clear a custom WHOIS line for a user. Requires +N."
+  },
     MSG_ZLINE,
     TOK_ZLINE,
     0, MAXPARA,         0, 0, NULL,
