@@ -965,7 +965,6 @@ struct Message msgtab[] = {
     "<target> - Send a tag-only message (typing indicators, reactions). Requires message-tags capability."
   },
   {
-  {
     MSG_SAJOIN, TOK_SAJOIN,
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     { m_unregistered, m_not_oper, m_ignore, mo_sajoin, m_ignore },
@@ -1007,7 +1006,7 @@ struct Message msgtab[] = {
     { m_unregistered, m_not_oper, m_ignore, mo_sawhois, m_ignore },
     "<nick> [:<text>] - Set or clear a custom WHOIS line. Requires +k (Services Root)."
   },
-  },
+  {
     MSG_ZLINE,
     TOK_ZLINE,
     0, MAXPARA,         0, 0, NULL,

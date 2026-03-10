@@ -275,9 +275,13 @@ extern int ms_xquery(struct Client*, struct Client*, int, char*[]);
 extern int ms_xreply(struct Client*, struct Client*, int, char*[]);
 extern int ms_zline(struct Client*, struct Client*, int, char*[]);
 
+/* SA* oper command handlers (services root) */
+extern int mo_sajoin(struct Client*, struct Client*, int, char*[]);
+extern int mo_sapart(struct Client*, struct Client*, int, char*[]);
+extern int mo_sanick(struct Client*, struct Client*, int, char*[]);
+extern int mo_samode(struct Client*, struct Client*, int, char*[]);
+extern int mo_saquit(struct Client*, struct Client*, int, char*[]);
+extern int mo_satopic(struct Client*, struct Client*, int, char*[]);
+extern int mo_sawhois(struct Client*, struct Client*, int, char*[]);
+
 #endif /* INCLUDED_handlers_h */
-
-
-
-/* SA* services protocol handler */
-extern int ms_satopic(struct Client*, struct Client*, int, char*[]);
