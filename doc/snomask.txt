@@ -1,0 +1,137 @@
+SNOMASK - Server Notice Masks
+=============================
+
+Written by Ghostwolf 18th June 1997
+Modified with permission by loki 12th November 1997
+Converted to TXT by Jobe 30th May 2013
+Updated for Cathexis letter-based masks, March 2026
+
+-----------------------------
+
+This document describes the server notice mask (snomask) system. The snomask
+controls which types of server notices an IRC operator or user receives when
+usermode +s is set.
+
+Cathexis uses letter-based snomasks following modern IRC daemon conventions
+(similar to UnrealIRCd, InspIRCd, and Charybdis). Legacy numeric masks are
+still accepted for backward compatibility.
+
+-----------------------------
+
+Usage: /mode <nick> +s <mask>
+
+Where <mask> is a string of letters, optionally prefixed with + or -:
+
+  /mode nick +s +nKg       Add network, operkill, and gline notices
+  /mode nick +s -c         Remove connect/exit notices
+  /mode nick +s nKgt       Set mask to exactly these notices
+  /mode nick +s +nKg-c     Add nKg, remove c in one argument
+  /mode nick +s all        Enable all notices (opers only)
+  /mode nick -s            Disable all server notices
+
+-----------------------------
+
+Snomask Letter Reference
+========================
+
+Letter  Flag              Hex Value  Description
+------  ----------------  ---------  -----------
+  o     SNO_OLDSNO            0x1    Unsorted old messages
+  k     SNO_SERVKILL          0x2    Server kills (nick collisions)
+  K     SNO_OPERKILL          0x4    Oper kills
+  D     SNO_HACK2             0x8    Desyncs
+  s     SNO_HACK3            0x10    Temporary desyncs
+  u     SNO_UNAUTH           0x20    Unauthorized connections
+  e     SNO_TCPCOMMON        0x40    Common TCP or socket errors
+  f     SNO_TOOMANY          0x80    Too many connections
+  h     SNO_HACK4           0x100    Uworld actions on channels
+  g     SNO_GLINE           0x200    G-lines
+  n     SNO_NETWORK         0x400    Net join/break, etc
+  i     SNO_IPMISMATCH      0x800    IP mismatches
+  t     SNO_THROTTLE       0x1000    Host throttle add/remove notices
+  r     SNO_OLDREALOP      0x2000    Old oper-only messages
+  c     SNO_CONNEXIT       0x4000    Client connect/exit (oper only)
+  G     SNO_AUTO           0x8000    AUTO G-lines
+  d     SNO_DEBUG         0x10000    Debugging messages (DEBUGMODE only)
+  N     SNO_NICKCHG       0x20000    Nick change messages
+  A     SNO_AUTH          0x40000    IAuth status messages (oper only)
+  w     SNO_WEBIRC        0x80000    WebIRC messages
+
+-----------------------------
+
+Letter Conventions
+==================
+
+The letter choices follow modern IRC daemon conventions where possible:
+
+  c  - Connections (UnrealIRCd, InspIRCd, Charybdis all use +c)
+  k  - Kills (common across multiple daemons)
+  K  - Oper kills (uppercase = oper variant)
+  n  - Network events (common)
+  g  - G-lines (common)
+  d  - Debug (common)
+  u  - Unauthorized (Charybdis)
+  f  - Flood/connection limits (Charybdis)
+  N  - Nick changes (InspIRCd)
+  t  - Throttle (Cathexis-specific)
+  w  - WebIRC (Cathexis-specific)
+  A  - Auth/IAuth (Cathexis-specific)
+
+-----------------------------
+
+Defaults
+========
+
+Standard +s (users):
+  SNO_DEFAULT = +nKg (network, operkill, gline)
+
+Standard +s (opers):
+  SNO_OPERDEFAULT = +nKgDto (default + desyncs, throttle, old messages)
+
+Oper-only flags:
+  SNO_OPER = +crA (connect/exit, realop messages, iauth)
+  Only IRC operators may enable these flags.
+
+-----------------------------
+
+Examples
+========
+
+To receive only operkills:
+  /mode nick +s K
+
+To receive operkills and glines:
+  /mode nick +s Kg
+
+To add network notices to your current mask:
+  /mode nick +s +n
+
+To remove connect/exit notices while keeping others:
+  /mode nick +s -c
+
+To set operkills, glines, and network, removing everything else:
+  /mode nick +s nKg
+
+To receive all available notices (opers):
+  /mode nick +s all
+
+Backward Compatibility: Legacy numeric masks still work:
+  /mode nick +s 1024       (same as +s +n)
+  /mode nick +s +512       (same as +s +g)
+
+-----------------------------
+
+RPL_SNOMASK (008) Response
+==========================
+
+When your snomask changes, the server sends numeric 008:
+
+  :server 008 nick +nKg :: Server notice mask (0x604)
+
+The letter display shows which notices are active. The hex value is
+shown in parentheses for debugging purposes.
+
+-----------------------------
+
+If you have further questions about server notices, please consult the
+Cathexis source code or file an issue on the project repository.
