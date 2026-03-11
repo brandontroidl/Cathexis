@@ -210,6 +210,15 @@ static void do_whois(struct Client* sptr, struct Client *acptr, int parc)
          *(buf + len++) = '*';
        if (IsDelayedJoin(chan) && (sptr != acptr))
          *(buf + len++) = '<';
+       else if (IsNamesX(sptr) || CapActive(sptr, CAP_NAMESX)) {
+         /* IRCv3 multi-prefix: show ALL applicable prefixes */
+         if (IsChanOp(chan))
+           *(buf + len++) = '@';
+         if (IsHalfOp(chan))
+           *(buf + len++) = '%';
+         if (HasVoice(chan))
+           *(buf + len++) = '+';
+       }
        else if (IsChanOp(chan))
          *(buf + len++) = '@';
        else if (IsHalfOp(chan))

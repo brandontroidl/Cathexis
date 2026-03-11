@@ -3,7 +3,8 @@
 **Codebase:** Nefarious2 (Cathexis fork), ~88,000 lines of C  
 **Audit Date:** March 2026  
 **Scope:** Full source review — 177 .c files, 89 .h files  
-**Methodology:** Manual code review with simulated static analysis
+**Methodology:** Manual code review with simulated static analysis  
+**Updated:** Cathexis 1.1.0 — all identified fixes applied to source
 
 ---
 
@@ -190,14 +191,15 @@ IP string into HOSTLEN+1) but replaced for defense-in-depth.
 
 **Files:** s_user.c, s_bsd.c, s_misc.c.
 
-### L10-L14 — strcat Chains with Pre-validation (NOT CHANGED)
+### L10-L14 — strcat Chains with Pre-validation (FIXED in 1.1.0)
 
-Several files use `strcat` chains with flush-at-threshold patterns that
-prevent overflow. These are functionally safe but not modernized in this
-release to minimize churn.
+Several files used `strcat` chains with flush-at-threshold patterns that
+prevented overflow. While functionally safe, these were modernized in
+1.1.0 to use bounded alternatives (`strncat`, `memcpy` with position
+tracking) for defense-in-depth.
 
 **Files:** client.c, ircd_features.c, m_cap.c, ircd_cloaking.c,
-ircd_crypt_smd5.c.
+ircd_crypt_smd5.c, m_check.c, m_whois.c, s_user.c, crule.c, s_misc.c.
 
 ---
 
@@ -265,11 +267,13 @@ No user-controlled format strings found anywhere in the codebase. **Safe.**
 
 1. **Enable SSL_VERIFYCERT by default** in new deployments
 2. **Replace MD5 PRNG** with `/dev/urandom` reads for security-critical values
-3. **Add MFLG_SLOW to TAGMSG** when TAGMSG command is implemented
+3. **Add MFLG_SLOW to TAGMSG** when TAGMSG relay is fully implemented
 4. **Add CAP flood counter** to prevent registration abuse
-5. **Modernize remaining strcat chains** in client.c, ircd_features.c
+5. ~~**Modernize remaining strcat chains** in client.c, ircd_features.c~~ (DONE in 1.1.0)
 6. **Consider AddressSanitizer** builds for CI testing
 7. **Fuzz parse_client()** and mode_parse() with AFL++/libFuzzer
+8. **Add SVS* source validation** (U-line / services-only check)
+9. **Implement full IRCv3 tag relay** infrastructure for TAGMSG
 
 ---
 
@@ -345,3 +349,52 @@ clients degrade gracefully.
 - Zero compiler warnings
 - All SVS* S2S handlers unchanged (backward compatible)
 - All SA* handlers properly privilege-gated
+
+---
+
+## Addendum — Cathexis 1.1.0 Security Hardening Audit
+
+### Summary
+
+The 1.1.0 release applies all security fixes that were documented but
+not applied in 1.0.0. A secondary independent 10-pass audit was performed
+and cross-referenced against the original findings.
+
+### Fixes Applied
+
+| Finding | File | Status |
+|---------|------|--------|
+| MA-01: Cloaking key overflow | ircd_cloaking.c | **FIXED** — safe_key_copy() |
+| MA-02: Watch list accumulation | m_watch.c | **FIXED** — ircd_strncpy + memcpy |
+| MA-03: Privilege strcat chains | client.c | **FIXED** — position-tracked memcpy |
+| MA-05: PRIVS strcat | m_privs.c | **FIXED** — bounded memcpy |
+| TF-01: Server channel name length | channel.c | **FIXED** — CHANNELLEN enforced for all |
+| TF-02: Cloaking key taint flow | ircd_cloaking.c | **FIXED** — bounded copy |
+| L10-L14: strcat accumulation | 10 files | **FIXED** — strncat/memcpy |
+| PA-01: Timing-safe compare | ircd_crypt.c | **FIXED** — CRYPTO_memcmp fallback |
+
+### IRCv3 Compliance Verified
+
+Reviewed against the ircv3-specifications-master archive:
+
+| Spec | Compliance |
+|------|-----------|
+| capability-negotiation | Full (CAP LS 302, NEW/DEL, cap-notify) |
+| message-tags | Accept-strip (graceful degradation) |
+| multi-prefix | Full (NAMES + WHO + WHOIS) — WHOIS fixed in 1.1.0 |
+| setname | Full (FAIL replies, NAMELEN ISUPPORT) — fixed in 1.1.0 |
+| SASL 3.2 | Full (mechanism list, relay to services) |
+| WEBIRC | Full (options: secure, ports, certfp, account) |
+| extended-join | Full |
+| away-notify | Full |
+| account-notify | Full |
+| userhost-in-names | Full |
+| server-time | Advertised (framework only) |
+| batch | Advertised (framework only) |
+| TAGMSG | Accept-no-relay |
+
+### Remaining Items (by design)
+
+- PA-02: S2S PRIVS injection — P10 protocol design limitation
+- PA-04: SVS* from any server — requires U-line infrastructure
+- DS-04–06: S2S message authentication — requires protocol redesign

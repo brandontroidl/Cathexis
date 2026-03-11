@@ -1,5 +1,109 @@
 # Cathexis Changelog
 
+## 1.1.0 — 2026-03-11
+
+Security hardening release. All vulnerabilities identified in the 10-pass
+security audit have been remediated in-source. Zero compiler warnings.
+
+### Security Fixes (CRITICAL)
+
+- **ircd_cloaking.c** — Replaced all 9 `strcpy(res+16, KEY*)` calls with
+  bounded `safe_key_copy()` helper. Prevents stack buffer overflow when
+  cloaking keys exceed 496 bytes (MA-01). Also replaced `strcat()` in
+  `hidehost_normalhost()` with `strncat()`.
+
+- **channel.c** — `get_channel()` now enforces `CHANNELLEN` for ALL
+  sources, not just local users. Previously a rogue server could
+  introduce over-length channel names that overflow `CHANNELLEN+1`
+  buffers in mode parsing (TF-01, Patch 4).
+
+- **ircd_crypt.c** — Added constant-time `CRYPTO_memcmp()` fallback
+  for non-SSL builds, preserving timing-safe password comparison.
+
+### Security Fixes (HIGH)
+
+- **client.c** — Rewrote all 4 privilege/mark accumulation functions
+  (`client_check_privs`, `client_send_privs`, `client_sendtoserv_privs`,
+  `client_check_marks`) to use position-tracked `memcpy` with explicit
+  bounds checking instead of `strcat` chains (MA-03, Patch 6).
+
+- **m_privs.c** — Replaced `strcat` loop in `ms_privs()` with bounded
+  `memcpy` construction (MA-05, Patch 3).
+
+- **m_watch.c** — Replaced `strcpy`/`strcat` with `ircd_strncpy` and
+  bounded `memcpy` in watch list display (MA-02).
+
+### Security Fixes (MEDIUM — strcat → strncat/bounded)
+
+All remaining `strcat()` calls across the codebase replaced:
+
+- **m_cap.c** — Capability list accumulation
+- **m_check.c** — All 20+ `strcat` calls (status flags, eflags, mode
+  buffers, channel text accumulation)
+- **m_whois.c** — Mark display and channel list accumulation
+- **ircd_features.c** — ISUPPORT MAXLIST/EXTBAN construction
+- **s_user.c** — ISUPPORT MAXLIST/EXTBAN, user mode buffer
+- **ircd_crypt_smd5.c** — Salt construction
+- **crule.c** — Connection rule argument parsing
+- **s_misc.c** — Netsplit comment construction
+
+### Security Fixes (LOW — strcpy → ircd_strncpy)
+
+Defense-in-depth replacements for `strcpy` of bounded values:
+
+- **s_auth.c** — `cli_sockhost` copy
+- **s_misc.c** — `ctime()` result copy
+- **m_map.c** — Tree prompt literal
+- **opercmds.c** — Timestamp literal
+- **numnicks.c** — Numeric nick copy
+- **uping.c** — Server name copy
+- **whocmds.c** — "n/a" literal
+
+### Compiler Warning Fixes
+
+- **s_bsd.c** — Suppressed 4 `write()` return value warnings with
+  proper `__attribute__((unused))` pattern.
+
+### IRCv3 Compliance Fixes
+
+- **m_whois.c** — WHOIS channel list now shows all applicable prefixes
+  (`@%+`) when client has negotiated `multi-prefix`, matching the IRCv3
+  multi-prefix specification requirement for NAMES, WHO, and WHOIS.
+
+- **m_setname.c** — Error responses changed from `ERR_NEEDMOREPARAMS` to
+  IRCv3 standard-replies `FAIL SETNAME INVALID_REALNAME` format per the
+  setname specification.
+
+- **s_user.c** — Added `NAMELEN` token to RPL_ISUPPORT (005) as required
+  by the IRCv3 setname specification.
+
+### Build
+
+- Zero compiler errors
+- Zero compiler warnings
+- `./configure && make && make install` verified clean
+- 22 source files modified from 1.0.0
+
+### Files Changed (22)
+
+**Security (critical):** ircd_cloaking.c, channel.c, ircd_crypt.c
+
+**Security (buffer hardening):** client.c, m_privs.c, m_watch.c,
+m_cap.c, m_check.c, m_whois.c, ircd_features.c, s_user.c,
+ircd_crypt_smd5.c, crule.c, s_misc.c
+
+**Security (defense-in-depth):** s_auth.c, m_map.c, opercmds.c,
+numnicks.c, uping.c, whocmds.c
+
+**IRCv3 compliance:** m_whois.c, m_setname.c, s_user.c
+
+**Compiler warnings:** s_bsd.c
+
+**Version/docs:** patchlevel.h, CHANGELOG.md, AUDIT.md, MEMORY_AUDIT.md,
+PATCH_DIFFS.md, PRIVILEGE_ANALYSIS.md, EXPLOIT_ANALYSIS.md,
+TAINT_ANALYSIS.md, DESYNC_ANALYSIS.md, CATHEXIS_SECURITY_AUDIT.md,
+example.conf
+
 ## 1.0.0 — 2026-03-07
 
 Initial Cathexis release. Security-hardened fork of Nefarious2 (u2.10.12.14).

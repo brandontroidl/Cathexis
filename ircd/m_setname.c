@@ -110,13 +110,15 @@ int m_setname(struct Client *cptr, struct Client *sptr, int parc, char *parv[])
 
   /* Reject embedded CR/LF (prevents IRC message injection) */
   if (!valid_realname(newname)) {
-    send_reply(sptr, ERR_NEEDMOREPARAMS, "SETNAME");
+    /* IRCv3 standard-replies: FAIL SETNAME INVALID_REALNAME */
+    sendrawto_one(sptr, "FAIL SETNAME INVALID_REALNAME :Realname is not valid");
     return 0;
   }
 
   /* Enforce length limit */
   if (strlen(newname) > REALLEN) {
-    send_reply(sptr, ERR_NEEDMOREPARAMS, "SETNAME");
+    /* IRCv3 standard-replies: FAIL SETNAME INVALID_REALNAME */
+    sendrawto_one(sptr, "FAIL SETNAME INVALID_REALNAME :Realname is too long");
     return 0;
   }
 

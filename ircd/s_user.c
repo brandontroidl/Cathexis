@@ -2691,6 +2691,7 @@ void init_isupport(void)
   add_isupport_s("NETWORK", feature_str(FEAT_NETWORK));
   add_isupport_s("MAXLIST", imaxlist);
   add_isupport_s("ELIST", "CT");
+  add_isupport_i("NAMELEN", REALLEN);   /* IRCv3 setname: max realname length */
 }
 
 /** Send RPL_ISUPPORT lines to \a cptr.
