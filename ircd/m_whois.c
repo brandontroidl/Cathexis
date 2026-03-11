@@ -145,8 +145,8 @@ void client_whois_marks(struct Client *client, struct Client *replyto, const cha
     }
 
     if (markbufp[0])
-      strcat(markbufp, ", ");
-    strcat(markbufp, dp->value.cp);
+      strncat(markbufp, ", ", sizeof(markbufp) - strlen(markbufp) - 1);
+    strncat(markbufp, dp->value.cp, sizeof(markbufp) - strlen(markbufp) - 1);
   }
 
   if (markbufp[0]) {
@@ -222,7 +222,7 @@ static void do_whois(struct Client* sptr, struct Client *acptr, int parc)
           *(buf + len) = '\0';
        ircd_strncpy(buf + len, chptr->chname, sizeof(buf) - len - 1);
        len += strlen(chptr->chname);
-       strcat(buf + len, " ");
+       if ((size_t)(len + 1) < sizeof(buf)) buf[len] = ' ';
        len++;
      }
      if (buf[0] != '\0')

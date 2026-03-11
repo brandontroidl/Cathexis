@@ -111,7 +111,7 @@ char *militime_float(char* start)
           (tv.tv_sec - atoi(start)) * 1000 + (tv.tv_usec - atoi(p)) / 1000);
     }
     else
-      strcpy(timebuf, "0");
+      ircd_strncpy(timebuf, "0", sizeof(timebuf) - 1);
   }
   else
     ircd_snprintf(0, timebuf, sizeof(timebuf), "%ld.%ld", (long int)tv.tv_sec, (long int)tv.tv_usec);

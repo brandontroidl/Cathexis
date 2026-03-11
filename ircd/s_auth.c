@@ -1131,7 +1131,7 @@ static void start_dns_query(struct AuthRequest *auth)
   }
 
   if (irc_in_addr_is_loopback(&cli_ip(auth->client))) {
-    strcpy(cli_sockhost(auth->client), cli_name(&me));
+    ircd_strncpy(cli_sockhost(auth->client), cli_name(&me), HOSTLEN);
     sendto_iauth(auth->client, "N %s", cli_sockhost(auth->client));
     return;
   }

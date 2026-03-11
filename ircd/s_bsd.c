@@ -586,7 +586,7 @@ void add_connection(struct Listener* listener, int fd) {
 #ifdef USE_SSL
       ssl_murder(ssl, fd, throttle_message);
 #else
-      write(fd, throttle_message, strlen(throttle_message));
+      { ssize_t _wr __attribute__((unused)) = write(fd, throttle_message, strlen(throttle_message)); }
       close(fd);
 #endif /* USE_SSL */
       return;
@@ -616,7 +616,7 @@ void add_connection(struct Listener* listener, int fd) {
 #ifdef USE_SSL
     ssl_murder(ssl, fd, zreason);
 #else
-    write(fd, zreason, strlen(zreason));
+    { ssize_t _wr __attribute__((unused)) = write(fd, zreason, strlen(zreason)); }
     close(fd);
 #endif
     cli_fd(new_client) = -1;
@@ -632,7 +632,7 @@ void add_connection(struct Listener* listener, int fd) {
 #ifdef USE_SSL
     ssl_murder(ssl, fd, greason);
 #else
-    write(fd, greason, strlen(greason));
+    { ssize_t _wr __attribute__((unused)) = write(fd, greason, strlen(greason)); }
     close(fd);
 #endif
     cli_fd(new_client) = -1;
@@ -647,7 +647,7 @@ void add_connection(struct Listener* listener, int fd) {
 #ifdef USE_SSL
     ssl_murder(ssl, fd, register_message);
 #else
-    write(fd, register_message, strlen(register_message));
+    { ssize_t _wr __attribute__((unused)) = write(fd, register_message, strlen(register_message)); }
     close(fd);
 #endif /* USE_SSL */
     cli_fd(new_client) = -1;

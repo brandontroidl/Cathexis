@@ -1399,8 +1399,8 @@ int set_user_mode(struct Client *cptr, struct Client *sptr, int parc,
         /* Just propagate and ignore */
         char bufh[BUFSIZE] = "";
         for (i=1;i<parc;i++) {
-          strcat(bufh, " ");
-          strcat(bufh, parv[i]);
+          strncat(bufh, " ", sizeof(bufh) - strlen(bufh) - 1);
+          strncat(bufh, parv[i], sizeof(bufh) - strlen(bufh) - 1);
         }
         sendcmdto_serv_butone(sptr, CMD_MODE, cptr, "%s", bufh);
         return 0;
@@ -2622,11 +2622,11 @@ void init_isupport(void)
   char cmodebuf[BUFSIZE] = "";
   char extbanbuf[BUFSIZE] = "";
 
-  strcat(imaxlist, "b:");
-  strcat(imaxlist, itoa(feature_int(FEAT_MAXBANS)));
+  strncat(imaxlist, "b:", sizeof(imaxlist) - strlen(imaxlist) - 1);
+  strncat(imaxlist, itoa(feature_int(FEAT_MAXBANS)), sizeof(imaxlist) - strlen(imaxlist) - 1);
   if (feature_bool(FEAT_EXCEPTS)) {
-    strcat(imaxlist, ",e:");
-    strcat(imaxlist, itoa(feature_int(FEAT_MAXEXCEPTS)));
+    strncat(imaxlist, ",e:", sizeof(imaxlist) - strlen(imaxlist) - 1);
+    strncat(imaxlist, itoa(feature_int(FEAT_MAXEXCEPTS)), sizeof(imaxlist) - strlen(imaxlist) - 1);
   }
 
   ircd_snprintf(0, cmodebuf, BUFSIZE, "b%s,%sk%s,Ll,aCcDdiMmNnOpQRrSsTtZz",
@@ -2669,20 +2669,20 @@ void init_isupport(void)
   }
 
   if (feature_bool(FEAT_EXTBANS)) {
-    strcat(extbanbuf, "~,");
+    strncat(extbanbuf, "~,", sizeof(extbanbuf) - strlen(extbanbuf) - 1);
 
     if (feature_bool(FEAT_EXTBAN_a))
-      strcat(extbanbuf, "a");
+      strncat(extbanbuf, "a", sizeof(extbanbuf) - strlen(extbanbuf) - 1);
     if (feature_bool(FEAT_EXTBAN_c))
-      strcat(extbanbuf, "c");
+      strncat(extbanbuf, "c", sizeof(extbanbuf) - strlen(extbanbuf) - 1);
     if (feature_bool(FEAT_EXTBAN_j))
-      strcat(extbanbuf, "j");
+      strncat(extbanbuf, "j", sizeof(extbanbuf) - strlen(extbanbuf) - 1);
     if (feature_bool(FEAT_EXTBAN_n))
-      strcat(extbanbuf, "n");
+      strncat(extbanbuf, "n", sizeof(extbanbuf) - strlen(extbanbuf) - 1);
     if (feature_bool(FEAT_EXTBAN_q))
-      strcat(extbanbuf, "q");
+      strncat(extbanbuf, "q", sizeof(extbanbuf) - strlen(extbanbuf) - 1);
     if (feature_bool(FEAT_EXTBAN_r))
-      strcat(extbanbuf, "r");
+      strncat(extbanbuf, "r", sizeof(extbanbuf) - strlen(extbanbuf) - 1);
 
     add_isupport_s("EXTBANS", extbanbuf);
   }

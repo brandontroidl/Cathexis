@@ -33,6 +33,20 @@
 #include <netinet/in.h>
 #include <string.h>
 
+/** Safely copy a cloaking key into a buffer at the given offset.
+ * Prevents overflow of the destination buffer.
+ * @param dest Destination buffer.
+ * @param src Source key string.
+ * @param destsize Total size of destination buffer.
+ * @param offset Offset within dest to begin writing.
+ */
+static inline void safe_key_copy(char *dest, const char *src, size_t destsize, size_t offset)
+{
+  size_t avail = (destsize > offset + 1) ? destsize - offset - 1 : 0;
+  strncpy(dest + offset, src, avail);
+  dest[offset + avail] = '\0';
+}
+
 #undef KEY1
 #undef KEY2
 #undef KEY3
@@ -105,7 +119,7 @@ unsigned char *pch;
         /* ALPHA... */
         ircd_snprintf(0, buf, 512, "%s:%d.%d.%d.%d:%s", KEY2, a, b, c, d, KEY3);
         DoMD5((unsigned char *)&res, (unsigned char *)&buf, strlen(buf));
-        strcpy(res+16, KEY1); /* first 16 bytes are filled, append our key.. */
+        safe_key_copy(res, KEY1, sizeof(res), 16); /* first 16 bytes are filled, append our key.. */
         n = strlen(res+16) + 16;
         DoMD5((unsigned char *)&res2, (unsigned char *)&res, n);
         alpha = downsample24((unsigned char *)&res2);
@@ -113,7 +127,7 @@ unsigned char *pch;
         /* BETA... */
         ircd_snprintf(0, buf, 512, "%s:%d.%d.%d:%s", KEY3, a, b, c, KEY1);
         DoMD5((unsigned char *)&res, (unsigned char *)&buf, strlen(buf));
-        strcpy(res+16, KEY2); /* first 16 bytes are filled, append our key.. */
+        safe_key_copy(res, KEY2, sizeof(res), 16); /* first 16 bytes are filled, append our key.. */
         n = strlen(res+16) + 16;
         DoMD5((unsigned char *)&res2, (unsigned char *)&res, n);
         beta = downsample24((unsigned char *)&res2);
@@ -121,7 +135,7 @@ unsigned char *pch;
         /* GAMMA... */
         ircd_snprintf(0, buf, 512, "%s:%d.%d:%s", KEY1, a, b, KEY2);
         DoMD5((unsigned char *)&res, (unsigned char *)&buf, strlen(buf));
-        strcpy(res+16, KEY3); /* first 16 bytes are filled, append our key.. */
+        safe_key_copy(res, KEY3, sizeof(res), 16); /* first 16 bytes are filled, append our key.. */
         n = strlen(res+16) + 16;
         DoMD5((unsigned char *)&res2, (unsigned char *)&res, n);
         gamma = downsample24((unsigned char *)&res2);
@@ -129,7 +143,7 @@ unsigned char *pch;
         /* DELTA... */
         ircd_snprintf(0, buf, 512, "%s:%d:%s:%s", KEY2, a, KEY1, KEY3);
         DoMD5((unsigned char *)&res, (unsigned char *)&buf, strlen(buf));
-        strcpy(res+16, KEY1); /* first 16 bytes are filled, append our key.. */
+        safe_key_copy(res, KEY1, sizeof(res), 16); /* first 16 bytes are filled, append our key.. */
         n = strlen(res+16) + 16;
         DoMD5((unsigned char *)&res2, (unsigned char *)&res, n);
         delta = downsample24((unsigned char *)&res2);
@@ -172,7 +186,7 @@ unsigned int alpha, beta, gamma, delta;
         /* ALPHA... */
         ircd_snprintf(0, buf, 512, "%s:%x:%x:%x:%x:%x:%x:%x:%x:%s", KEY2, a, b, c, d, e, f, g, h, KEY3);
         DoMD5((unsigned char *)&res, (unsigned char *)&buf, strlen(buf));
-        strcpy(res+16, KEY1); /* first 16 bytes are filled, append our key.. */
+        safe_key_copy(res, KEY1, sizeof(res), 16); /* first 16 bytes are filled, append our key.. */
         n = strlen(res+16) + 16;
         DoMD5((unsigned char *)&res2, (unsigned char *)&res, n);
         alpha = downsample24((unsigned char *)&res2);
@@ -180,7 +194,7 @@ unsigned int alpha, beta, gamma, delta;
         /* BETA... */
         ircd_snprintf(0, buf, 512, "%s:%x:%x:%x:%x:%x:%x:%x:%s", KEY3, a, b, c, d, e, f, g, KEY1);
         DoMD5((unsigned char *)&res, (unsigned char *)&buf, strlen(buf));
-        strcpy(res+16, KEY2); /* first 16 bytes are filled, append our key.. */
+        safe_key_copy(res, KEY2, sizeof(res), 16); /* first 16 bytes are filled, append our key.. */
         n = strlen(res+16) + 16;
         DoMD5((unsigned char *)&res2, (unsigned char *)&res, n);
         beta = downsample24((unsigned char *)&res2);
@@ -188,7 +202,7 @@ unsigned int alpha, beta, gamma, delta;
         /* GAMMA... */
         ircd_snprintf(0, buf, 512, "%s:%x:%x:%x:%x:%s", KEY1, a, b, c, d, KEY2);
         DoMD5((unsigned char *)&res, (unsigned char *)&buf, strlen(buf));
-        strcpy(res+16, KEY3); /* first 16 bytes are filled, append our key.. */
+        safe_key_copy(res, KEY3, sizeof(res), 16); /* first 16 bytes are filled, append our key.. */
         n = strlen(res+16) + 16;
         DoMD5((unsigned char *)&res2, (unsigned char *)&res, n);
         gamma = downsample24((unsigned char *)&res2);
@@ -196,7 +210,7 @@ unsigned int alpha, beta, gamma, delta;
         /* DELTA... */
         ircd_snprintf(0, buf, 512, "%s:%x:%x:%s:%s", KEY2, a, b, KEY1, KEY3);
         DoMD5((unsigned char *)&res, (unsigned char *)&buf, strlen(buf));
-        strcpy(res+16, KEY1); /* first 16 bytes are filled, append our key.. */
+        safe_key_copy(res, KEY1, sizeof(res), 16); /* first 16 bytes are filled, append our key.. */
         n = strlen(res+16) + 16;
         DoMD5((unsigned char *)&res2, (unsigned char *)&res, n);
         delta = downsample24((unsigned char *)&res2);
@@ -214,7 +228,7 @@ int comps = 0;
 
         ircd_snprintf(0, buf, 512, "%s:%s:%s", KEY1, host, KEY2);
         DoMD5((unsigned char *)&res, (unsigned char *)&buf, strlen(buf));
-        strcpy(res+16, KEY3); /* first 16 bytes are filled, append our key.. */
+        safe_key_copy(res, KEY3, sizeof(res), 16); /* first 16 bytes are filled, append our key.. */
         n = strlen(res+16) + 16;
         DoMD5((unsigned char *)&res2, (unsigned char *)&res, n);
         alpha = downsample((unsigned char *)&res2);
@@ -235,13 +249,13 @@ int comps = 0;
                 ircd_snprintf(0, result, HOSTLEN, "%s-%X.", PREFIX, alpha);
                 len = strlen(result) + strlen(p);
                 if (len <= HOSTLEN)
-                        strcat(result, p);
+                        strncat(result, p, HOSTLEN - strlen(result));
                 else
                 {
                         c = p + (len - HOSTLEN);
                         if ((*c == '.') && *(c+1))
                                 c++;
-                        strcat(result, c);
+                        strncat(result, c, HOSTLEN - strlen(result));
                 }
         } else
                 ircd_snprintf(0, result, HOSTLEN, "%s-%X", PREFIX, alpha);

@@ -145,7 +145,7 @@ char *myctime(time_t value)
   static char buf[28];
   char *p;
 
-  strcpy(buf, ctime(&value));
+  ircd_strncpy(buf, ctime(&value), sizeof(buf) - 1);
   if ((p = strchr(buf, '\n')) != NULL)
     *p = '\0';
 
@@ -465,8 +465,8 @@ int exit_client(struct Client *cptr,
     else
     {
       ircd_strncpy(comment1, cli_name(cli_serv(victim)->up), sizeof(comment1) - 1);
-      strcat(comment1, " ");
-      strcat(comment1, cli_name(victim));
+      strncat(comment1, " ", sizeof(comment1) - strlen(comment1) - 1);
+      strncat(comment1, cli_name(victim), sizeof(comment1) - strlen(comment1) - 1);
     }
 
     if (IsUser(killer))

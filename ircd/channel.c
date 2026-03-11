@@ -1814,7 +1814,7 @@ struct Channel *get_channel(struct Client *cptr, char *chname, ChannelGetType fl
     return NULL;
 
   len = strlen(chname);
-  if (MyUser(cptr) && len > CHANNELLEN)
+  if (len > CHANNELLEN)
   {
     len = CHANNELLEN;
     *(chname + CHANNELLEN) = '\0';

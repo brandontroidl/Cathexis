@@ -316,24 +316,24 @@ set_isupport_extbans(void)
   char imaxlist[BUFSIZE] = "";
 
   if (feature_bool(FEAT_EXTBANS)) {
-    strcat(imaxlist, "~,");
+    strncat(imaxlist, "~,", sizeof(imaxlist) - strlen(imaxlist) - 1);
 
     if (feature_bool(FEAT_EXTBAN_a))
-      strcat(imaxlist, "a");
+      strncat(imaxlist, "a", sizeof(imaxlist) - strlen(imaxlist) - 1);
     if (feature_bool(FEAT_EXTBAN_c))
-      strcat(imaxlist, "c");
+      strncat(imaxlist, "c", sizeof(imaxlist) - strlen(imaxlist) - 1);
     if (feature_bool(FEAT_EXTBAN_j))
-      strcat(imaxlist, "j");
+      strncat(imaxlist, "j", sizeof(imaxlist) - strlen(imaxlist) - 1);
     if (feature_bool(FEAT_EXTBAN_n))
-      strcat(imaxlist, "n");
+      strncat(imaxlist, "n", sizeof(imaxlist) - strlen(imaxlist) - 1);
     if (feature_bool(FEAT_EXTBAN_q))
-      strcat(imaxlist, "q");
+      strncat(imaxlist, "q", sizeof(imaxlist) - strlen(imaxlist) - 1);
     if (feature_bool(FEAT_EXTBAN_r))
-      strcat(imaxlist, "r");
+      strncat(imaxlist, "r", sizeof(imaxlist) - strlen(imaxlist) - 1);
     if (feature_bool(FEAT_EXTBAN_m))
-      strcat(imaxlist, "m");
+      strncat(imaxlist, "m", sizeof(imaxlist) - strlen(imaxlist) - 1);
     if (feature_bool(FEAT_EXTBAN_M))
-      strcat(imaxlist, "M");
+      strncat(imaxlist, "M", sizeof(imaxlist) - strlen(imaxlist) - 1);
 
     add_isupport_s("EXTBANS", imaxlist);
   }
@@ -393,11 +393,11 @@ set_isupport_maxbans(void)
 
     add_isupport_i("MAXBANS", feature_int(FEAT_MAXBANS));
 
-    strcat(imaxlist, "b:");
-    strcat(imaxlist, itoa(feature_int(FEAT_MAXBANS)));
+    strncat(imaxlist, "b:", sizeof(imaxlist) - strlen(imaxlist) - 1);
+    strncat(imaxlist, itoa(feature_int(FEAT_MAXBANS)), sizeof(imaxlist) - strlen(imaxlist) - 1);
     if (feature_bool(FEAT_EXCEPTS)) {
-      strcat(imaxlist, ",e:");
-      strcat(imaxlist, itoa(feature_int(FEAT_MAXEXCEPTS)));
+      strncat(imaxlist, ",e:", sizeof(imaxlist) - strlen(imaxlist) - 1);
+      strncat(imaxlist, itoa(feature_int(FEAT_MAXEXCEPTS)), sizeof(imaxlist) - strlen(imaxlist) - 1);
     }
 
     add_isupport_s("MAXLIST", imaxlist);    

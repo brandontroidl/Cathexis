@@ -140,7 +140,7 @@ unsigned long l;
  /* Now make the output string. */
  memset(passwd, 0, 120);
  strncpy(passwd, sp, sl);
- strcat(passwd, "$");
+ strncat(passwd, "$", sizeof(passwd) - strlen(passwd) - 1);
 
  MD5Final(final,&ctx);
 

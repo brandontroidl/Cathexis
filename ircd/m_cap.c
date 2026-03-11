@@ -411,23 +411,29 @@ void client_check_caps(struct Client *client, struct Client *replyto)
   char outbuf[BUFSIZE];
   int i = 0;
   static char capbufp[BUFSIZE] = "";
+  size_t pos = 0;
 
-  memset(&capbufp, 0, BUFSIZE);
+  capbufp[0] = '\0';
 
   for (i = 0; i < CAPAB_LIST_LEN; i++) {
     if (CapActive(client, capab_list[i].cap)) {
-      if (strlen(capbufp) + capab_list[i].namelen + 4 > 70) {
+      if (pos + capab_list[i].namelen + 4 > 70) {
+        capbufp[pos] = '\0';
         ircd_snprintf(0, outbuf, sizeof(outbuf), "   Capabilities:: %s", capbufp);
         send_reply(replyto, RPL_DATASTR, outbuf);
-        memset(&capbufp, 0, BUFSIZE);
+        pos = 0;
       }
 
-      strcat(capbufp, capab_list[i].name);
-      strcat(capbufp, " ");
+      if (pos + capab_list[i].namelen + 2 < sizeof(capbufp)) {
+        memcpy(capbufp + pos, capab_list[i].name, capab_list[i].namelen);
+        pos += capab_list[i].namelen;
+        capbufp[pos++] = ' ';
+      }
     }
   }
 
-  if (strlen(capbufp) > 0) {
+  if (pos > 0) {
+    capbufp[pos] = '\0';
     ircd_snprintf(0, outbuf, sizeof(outbuf), "   Capabilities:: %s", capbufp);
     send_reply(replyto, RPL_DATASTR, outbuf);
   }

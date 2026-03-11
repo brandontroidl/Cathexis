@@ -140,7 +140,7 @@ static void dump_map(struct Client *cptr, struct Client *server, char *mask, int
   }
   if (prompt_length > 60)
     return;
-  strcpy(p, "|-");
+  ircd_strncpy(p, "|-", prompt + sizeof(prompt) - p - 1);
   for (lp = cli_serv(server)->down; lp; lp = lp->next)
     if (match(mask, cli_name(lp->value.cptr)))
       ClrFlag(lp->value.cptr, FLAG_MAP);

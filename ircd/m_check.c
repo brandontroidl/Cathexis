@@ -216,36 +216,36 @@ void checkUsers(struct Client *sptr, struct Channel *chptr, int flags) {
       }
 
       if (chptr && IsZombie(lp))
-         strcat(ustat, "!");
+         strncat(ustat, "!", sizeof(ustat) - strlen(ustat) - 1);
       else
-         strcat(ustat, " ");
+         strncat(ustat, " ", sizeof(ustat) - strlen(ustat) - 1);
 
       if (chptr && IsDelayedJoin(lp))
       {
-         strcat(ustat, "<");
+         strncat(ustat, "<", sizeof(ustat) - strlen(ustat) - 1);
          delayed++;
       }
 
       else if (chptr && IsChanOp(lp))
       {
-         strcat(ustat, "@");
+         strncat(ustat, "@", sizeof(ustat) - strlen(ustat) - 1);
          opcntr++;
          opped = 1;
       }
 
       else if (chptr && IsHalfOp(lp))
       {
-         strcat(ustat, "%");
+         strncat(ustat, "%", sizeof(ustat) - strlen(ustat) - 1);
          hopcntr++;
       }
 
       else if (chptr && HasVoice(lp))
       {
-         strcat(ustat, "+");
+         strncat(ustat, "+", sizeof(ustat) - strlen(ustat) - 1);
          vcntr++;
       }
       else
-         strcat(ustat, " ");
+         strncat(ustat, " ", sizeof(ustat) - strlen(ustat) - 1);
 
       if (feature_bool(FEAT_OPLEVELS) && opped)
          ircd_snprintf(0, oplvl, sizeof(oplvl), "%3d", OpLevel(lp));
@@ -360,13 +360,13 @@ void checkChannel(struct Client *sptr, struct Channel *chptr)
    channel_modes(sptr, modebuf, parabuf, sizeof(modebuf), chptr, NULL);
 
    if(modebuf[1] == '\0')
-      strcat(outbuf, "<none>");
+      strncat(outbuf, "<none>", sizeof(outbuf) - strlen(outbuf) - 1);
    else if(*parabuf) {
-      strcat(outbuf, modebuf);
-      strcat(outbuf, " ");
-      strcat(outbuf, parabuf);
+      strncat(outbuf, modebuf, sizeof(outbuf) - strlen(outbuf) - 1);
+      strncat(outbuf, " ", sizeof(outbuf) - strlen(outbuf) - 1);
+      strncat(outbuf, parabuf, sizeof(outbuf) - strlen(outbuf) - 1);
    } else
-      strcat(outbuf, modebuf);
+      strncat(outbuf, modebuf, sizeof(outbuf) - strlen(outbuf) - 1);
 
    send_reply(sptr, RPL_DATASTR, outbuf);
 
@@ -508,14 +508,14 @@ void checkClient(struct Client *sptr, struct Client *acptr)
 #endif /* USE_SSL */
 
    if ((eflags = get_except_flags(acptr)) != 0) {
-     if (eflags & EFLAG_SHUN) { if (ebuf[0]) { strcat(ebuf, ", "); } strcat(ebuf, "Shuns"); }
-     if (eflags & EFLAG_KLINE) { if (ebuf[0]) { strcat(ebuf, ", "); } strcat(ebuf, "K:Lines"); }
-     if (eflags & EFLAG_GLINE) { if (ebuf[0]) { strcat(ebuf, ", "); } strcat(ebuf, "G:Lines"); }
-     if (eflags & EFLAG_ZLINE) { if (ebuf[0]) { strcat(ebuf, ", "); } strcat(ebuf, "Z:Lines"); }
-     if (eflags & EFLAG_IDENT) { if (ebuf[0]) { strcat(ebuf, ", "); } strcat(ebuf, "Ident Lookups"); }
-     if (eflags & EFLAG_RDNS) { if (ebuf[0]) { strcat(ebuf, ", "); } strcat(ebuf, "rDNS Lookups"); }
-     if (eflags & EFLAG_IPCHECK) { if (ebuf[0]) { strcat(ebuf, ", "); } strcat(ebuf, "IPCheck"); }
-     if (eflags & EFLAG_TARGLIMIT) { if (ebuf[0]) { strcat(ebuf, ", "); } strcat(ebuf, "Target Limiting"); }
+     if (eflags & EFLAG_SHUN) { if (ebuf[0]) { strncat(ebuf, ", ", sizeof(ebuf) - strlen(ebuf) - 1); } strncat(ebuf, "Shuns", sizeof(ebuf) - strlen(ebuf) - 1); }
+     if (eflags & EFLAG_KLINE) { if (ebuf[0]) { strncat(ebuf, ", ", sizeof(ebuf) - strlen(ebuf) - 1); } strncat(ebuf, "K:Lines", sizeof(ebuf) - strlen(ebuf) - 1); }
+     if (eflags & EFLAG_GLINE) { if (ebuf[0]) { strncat(ebuf, ", ", sizeof(ebuf) - strlen(ebuf) - 1); } strncat(ebuf, "G:Lines", sizeof(ebuf) - strlen(ebuf) - 1); }
+     if (eflags & EFLAG_ZLINE) { if (ebuf[0]) { strncat(ebuf, ", ", sizeof(ebuf) - strlen(ebuf) - 1); } strncat(ebuf, "Z:Lines", sizeof(ebuf) - strlen(ebuf) - 1); }
+     if (eflags & EFLAG_IDENT) { if (ebuf[0]) { strncat(ebuf, ", ", sizeof(ebuf) - strlen(ebuf) - 1); } strncat(ebuf, "Ident Lookups", sizeof(ebuf) - strlen(ebuf) - 1); }
+     if (eflags & EFLAG_RDNS) { if (ebuf[0]) { strncat(ebuf, ", ", sizeof(ebuf) - strlen(ebuf) - 1); } strncat(ebuf, "rDNS Lookups", sizeof(ebuf) - strlen(ebuf) - 1); }
+     if (eflags & EFLAG_IPCHECK) { if (ebuf[0]) { strncat(ebuf, ", ", sizeof(ebuf) - strlen(ebuf) - 1); } strncat(ebuf, "IPCheck", sizeof(ebuf) - strlen(ebuf) - 1); }
+     if (eflags & EFLAG_TARGLIMIT) { if (ebuf[0]) { strncat(ebuf, ", ", sizeof(ebuf) - strlen(ebuf) - 1); } strncat(ebuf, "Target Limiting", sizeof(ebuf) - strlen(ebuf) - 1); }
 
      ircd_snprintf(0, outbuf, sizeof(outbuf), "     Exemptions:: %s", ebuf);
      send_reply(sptr, RPL_DATASTR, outbuf);
@@ -582,7 +582,7 @@ void checkClient(struct Client *sptr, struct Client *acptr)
 
          { size_t clen = strlen(chptr->chname); if (len + clen + 2 < sizeof(chntext)) { memcpy(chntext + len, chptr->chname, clen); len += clen; } }
          len += strlen(chptr->chname);
-         strcat(chntext + len, " ");
+         if (len + 1 < sizeof(chntext)) chntext[len] = ' ';
          len++;
       }
 
@@ -852,7 +852,7 @@ signed int checkHostmask(struct Client *sptr, char *hoststr, int flags) {
 
             { size_t clen = strlen(chptr->chname); if (len + clen + 2 < sizeof(chntext)) { memcpy(chntext + len, chptr->chname, clen); len += clen; } }
             len += strlen(chptr->chname);
-            strcat(chntext + len, " ");
+            if (len + 1 < sizeof(chntext)) chntext[len] = ' ';
             len++;
           }
           if (chntext[0] != '\0')

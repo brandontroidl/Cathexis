@@ -257,7 +257,7 @@ void do_who(struct Client* sptr, struct Client* acptr, struct Channel* repchan,
   {
       if (!chan || !IsChanOp(chan))
       {
-        strcpy(p1, " n/a");
+        ircd_strncpy(p1, " n/a", 5);
         p1 += 4;
       }
       else

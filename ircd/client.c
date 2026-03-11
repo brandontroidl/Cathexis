@@ -315,22 +315,29 @@ void client_check_privs(struct Client *client, struct Client *replyto)
   char outbuf[BUFSIZE];
   int i = 0;
   static char privbufp[BUFSIZE] = "";
+  size_t pos = 0;
 
-  memset(&privbufp, 0, BUFSIZE);
+  privbufp[0] = '\0';
 
   for (i = 0; privtab[i].name; i++) {
     if (HasPriv(client, privtab[i].priv)) {
-      if (strlen(privbufp) + strlen(privtab[i].name) + 2 > 70) {
+      size_t nlen = strlen(privtab[i].name);
+      if (pos + nlen + 2 > 70) {
+        privbufp[pos] = '\0';
         ircd_snprintf(0, outbuf, sizeof(outbuf), "     Privileges:: %s", privbufp);
         send_reply(replyto, RPL_DATASTR, outbuf);
-        memset(&privbufp, 0, BUFSIZE);
+        pos = 0;
       }
-      strcat(privbufp, privtab[i].name);
-      strcat(privbufp, " ");
+      if (pos + nlen + 2 > sizeof(privbufp) - 1)
+        break;
+      memcpy(privbufp + pos, privtab[i].name, nlen);
+      pos += nlen;
+      privbufp[pos++] = ' ';
     }
   }
 
-  if (strlen(privbufp) > 0) {
+  if (pos > 0) {
+    privbufp[pos] = '\0';
     ircd_snprintf(0, outbuf, sizeof(outbuf), "     Privileges:: %s", privbufp);
     send_reply(replyto, RPL_DATASTR, outbuf);
   }
@@ -341,24 +348,29 @@ void client_send_privs(struct Client *from, struct Client *to, struct Client *cl
   int i, p;
   int mlen = NICKLEN + 5 + NICKLEN + 7;
   static char privbuf[BUFSIZE] = "";
+  size_t pos = 0;
 
-  memset(&privbuf, 0, BUFSIZE);
+  privbuf[0] = '\0';
   p = 1; /* Count the victim too */
 
   for (i = 0; privtab[i].name; i++) {
     if (HasPriv(client, privtab[i].priv)) {
-      if ((p >= MAXPARA) || (strlen(privbuf) + strlen(privtab[i].name) + 1 > BUFSIZE - mlen)) {
+      size_t nlen = strlen(privtab[i].name);
+      if ((p >= MAXPARA) || (pos + nlen + 2 > (size_t)(BUFSIZE - mlen))) {
         p = 1;
+        privbuf[pos] = '\0';
         sendcmdto_one(from, CMD_PRIVS, to, "%C %s", client, privbuf);
-        memset(&privbuf, 0, BUFSIZE);
+        pos = 0;
       }
       p++;
-      strcat(privbuf, privtab[i].name);
-      strcat(privbuf, " ");
+      memcpy(privbuf + pos, privtab[i].name, nlen);
+      pos += nlen;
+      privbuf[pos++] = ' ';
     }
   }
 
-  if (strlen(privbuf) > 0) {
+  if (pos > 0) {
+    privbuf[pos] = '\0';
     sendcmdto_one(from, CMD_PRIVS, to, "%C %s", client, privbuf);
   }    
 }
@@ -368,24 +380,29 @@ void client_sendtoserv_privs(struct Client *client)
   int i, p;
   int mlen = NICKLEN + 5 + NICKLEN + 7;
   static char privbuf[BUFSIZE] = "";
+  size_t pos = 0;
 
-  memset(&privbuf, 0, BUFSIZE);
+  privbuf[0] = '\0';
   p = 1;
 
   for (i = 0; privtab[i].name; i++) {
     if (HasPriv(client, privtab[i].priv)) {
-      if ((p >= MAXPARA) || (strlen(privbuf) + strlen(privtab[i].name) + 1 > BUFSIZE - mlen)) {
+      size_t nlen = strlen(privtab[i].name);
+      if ((p >= MAXPARA) || (pos + nlen + 2 > (size_t)(BUFSIZE - mlen))) {
         p = 1;
+        privbuf[pos] = '\0';
         sendcmdto_serv_butone(&me, CMD_PRIVS, client, "%C %s", client, privbuf);
-        memset(&privbuf, 0, BUFSIZE);
+        pos = 0;
       }
       p++;
-      strcat(privbuf, privtab[i].name);
-      strcat(privbuf, " ");
+      memcpy(privbuf + pos, privtab[i].name, nlen);
+      pos += nlen;
+      privbuf[pos++] = ' ';
     }
   }
 
-  if (strlen(privbuf) > 0) {
+  if (pos > 0) {
+    privbuf[pos] = '\0';
     sendcmdto_serv_butone(&me, CMD_PRIVS, client, "%C %s", client, privbuf);
   }
 }
@@ -445,25 +462,34 @@ void client_check_marks(struct Client *client, struct Client *replyto)
   char outbuf[BUFSIZE];
   static char markbufp[BUFSIZE] = "";
   struct SLink* dp;
+  size_t pos = 0;
 
   if (!IsMarked(client))
     return;
 
-  memset(&markbufp, 0, BUFSIZE);
+  markbufp[0] = '\0';
 
   for (dp = cli_marks(client); dp; dp = dp->next) {
-    if (markbufp[0] && strlen(markbufp) + strlen(dp->value.cp) + 4 > 70) {
+    size_t vlen = strlen(dp->value.cp);
+    if (pos > 0 && pos + vlen + 4 > 70) {
+      markbufp[pos] = '\0';
       ircd_snprintf(0, outbuf, sizeof(outbuf), "          Marks:: %s", markbufp);
       send_reply(replyto, RPL_DATASTR, outbuf);
-      memset(&markbufp, 0, BUFSIZE);
+      pos = 0;
     }
 
-    if (markbufp[0])
-      strcat(markbufp, ", ");
-    strcat(markbufp, dp->value.cp);
+    if (pos > 0 && pos + 2 < sizeof(markbufp) - 1) {
+      memcpy(markbufp + pos, ", ", 2);
+      pos += 2;
+    }
+    if (pos + vlen < sizeof(markbufp) - 1) {
+      memcpy(markbufp + pos, dp->value.cp, vlen);
+      pos += vlen;
+    }
   }
 
-  if (markbufp[0]) {
+  if (pos > 0) {
+    markbufp[pos] = '\0';
     ircd_snprintf(0, outbuf, sizeof(outbuf), "          Marks:: %s", markbufp);
     send_reply(replyto, RPL_DATASTR, outbuf);
   }

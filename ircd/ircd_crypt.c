@@ -60,7 +60,22 @@
 /* #include <assert.h> -- Now using assert in ircd_log.h */
 #include <unistd.h>
 #include <string.h>
+
+#ifdef USE_SSL
 #include <openssl/crypto.h>
+#else
+/* Constant-time memory comparison (fallback when OpenSSL is not available) */
+static int CRYPTO_memcmp(const void *a, const void *b, size_t len)
+{
+  const unsigned char *pa = (const unsigned char *)a;
+  const unsigned char *pb = (const unsigned char *)b;
+  unsigned char diff = 0;
+  size_t i;
+  for (i = 0; i < len; i++)
+    diff |= pa[i] ^ pb[i];
+  return diff;
+}
+#endif
 
 /* evil global */
 crypt_mechs_t* crypt_mechs_root;

@@ -101,9 +101,17 @@ int ms_privs(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
       return 0;
     }
 
-    for (i=2; i<parc; i++) {
-      strcat(buf, parv[i]);
-      strcat(buf, " ");
+    {
+      size_t buf_pos = 0;
+      for (i=2; i<parc; i++) {
+        size_t plen = strlen(parv[i]);
+        if (buf_pos + plen + 2 > sizeof(buf) - 1)
+          break;
+        memcpy(buf + buf_pos, parv[i], plen);
+        buf_pos += plen;
+        buf[buf_pos++] = ' ';
+      }
+      buf[buf_pos] = '\0';
     }
 
     for (i = 2; i < parc; i++) {
