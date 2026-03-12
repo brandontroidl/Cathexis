@@ -4578,6 +4578,14 @@ mode_parse(struct ModeBuf *mbuf, struct Client *cptr, struct Client *sptr,
           mode_parse_dummy(&state, flag_p);
         break;
 
+      case 'q': /* deal with owner (+q) — services only */
+        if (!(feature_bool(FEAT_OWNERPROTECT) || IsServer(sptr))) {
+          mode_parse_dummy(&state, flag_p);
+          break;
+        }
+        mode_parse_client(&state, flag_p);
+        break;
+
       case 'h': /* deal with ops/halfops/voice */
         if (!(feature_bool(FEAT_HALFOPS) || IsServer(sptr))) {
           mode_parse_dummy(&state, flag_p);
@@ -4588,13 +4596,16 @@ mode_parse(struct ModeBuf *mbuf, struct Client *cptr, struct Client *sptr,
         mode_parse_client(&state, flag_p);
         break;
 
-      case 'a': /* deal with admin only */
-        /* If they're not an admin, they can't +/- EXMODE_ADMINONLY. */
-        if ((feature_bool(FEAT_CHMODE_a) && IsAdmin(sptr)) ||
-            IsServer(sptr) || IsChannelService(sptr))
+      case 'a': /* +a: member protect mode (if OWNERPROTECT) or admin-only channel mode */
+        if (feature_bool(FEAT_OWNERPROTECT)) {
+          /* +a is a member prefix mode (protect/admin) — services only */
+          mode_parse_client(&state, flag_p);
+        } else if ((feature_bool(FEAT_CHMODE_a) && IsAdmin(sptr)) ||
+            IsServer(sptr) || IsChannelService(sptr)) {
           mode_parse_exmode(&state, flag_p);
-        else
+        } else {
           send_reply(sptr, ERR_NOPRIVILEGES);
+        }
         break;
 
       case 'M': /* deal with registered + moderated */

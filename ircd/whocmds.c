@@ -177,9 +177,9 @@ void do_who(struct Client* sptr, struct Client* acptr, struct Channel* repchan,
        * multiple channel status flags, as this is currently the only
        * way to know if someone has @'s *and* is +'d.
        */
-      if (IsOwner(chan))
+      if (feature_bool(FEAT_OWNERPROTECT) && IsOwner(chan))
         *(p1++) = '~';
-      if (IsProtect(chan))
+      if (feature_bool(FEAT_OWNERPROTECT) && IsProtect(chan))
         *(p1++) = '&';
       if (IsChanOp(chan))
         *(p1++) = '@';
@@ -193,9 +193,9 @@ void do_who(struct Client* sptr, struct Client* acptr, struct Channel* repchan,
         *(p1++) = '<';
     }
     else {
-      if (IsOwner(chan))
+      if (feature_bool(FEAT_OWNERPROTECT) && IsOwner(chan))
         *(p1++) = '~';
-      else if (IsProtect(chan))
+      else if (feature_bool(FEAT_OWNERPROTECT) && IsProtect(chan))
         *(p1++) = '&';
       else if (IsChanOp(chan))
         *(p1++) = '@';

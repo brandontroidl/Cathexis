@@ -245,14 +245,34 @@ feature_notify_oplevels(void)
   add_isupport_s("CHANMODES", cmodebuf);
 }
 
-/** Update whether #me has halfops support or not.
-*/
+/** Update PREFIX and STATUSMSG based on halfops and owner/protect settings. */
 static void
 feature_notify_halfops(void)
 {
-  add_isupport_s("PREFIX", feature_bool(FEAT_HALFOPS) ? "(ohv)@%+" : "(ov)@+");
-  add_isupport_s("STATUSMSG", feature_bool(FEAT_HALFOPS) ? "@%+" : "@+");
+  int h = feature_bool(FEAT_HALFOPS);
+  int qp = feature_bool(FEAT_OWNERPROTECT);
+
+  if (qp && h)
+    add_isupport_s("PREFIX", "(qaohv)~&@%+");
+  else if (qp)
+    add_isupport_s("PREFIX", "(qaov)~&@+");
+  else if (h)
+    add_isupport_s("PREFIX", "(ohv)@%+");
+  else
+    add_isupport_s("PREFIX", "(ov)@+");
+
+  if (qp && h)
+    add_isupport_s("STATUSMSG", "~&@%+");
+  else if (qp)
+    add_isupport_s("STATUSMSG", "~&@+");
+  else if (h)
+    add_isupport_s("STATUSMSG", "@%+");
+  else
+    add_isupport_s("STATUSMSG", "@+");
 }
+
+/** Alias so the owner/protect feature uses the same notification. */
+#define feature_notify_ownerprotect feature_notify_halfops
 
 static void
 feature_notify_excepts(void)
@@ -720,6 +740,7 @@ static struct FeatureDesc {
   F_B(CHMODE_T, 0, 1, 0),
   F_B(CHMODE_Z, 0, 1, 0),
   F_B(HALFOPS, FEAT_READ, 0, feature_notify_halfops),
+  F_B(OWNERPROTECT, FEAT_READ, 0, feature_notify_ownerprotect),
   F_B(EXCEPTS, FEAT_READ, 0, feature_notify_excepts),
   F_I(MAXEXCEPTS, 0, 45, set_isupport_maxexcepts),
   F_I(AVEXCEPTLEN, 0, 40, 0),

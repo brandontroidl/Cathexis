@@ -212,9 +212,9 @@ static void do_whois(struct Client* sptr, struct Client *acptr, int parc)
          *(buf + len++) = '<';
        else if (IsNamesX(sptr) || CapActive(sptr, CAP_NAMESX)) {
          /* IRCv3 multi-prefix: show ALL applicable prefixes */
-         if (IsOwner(chan))
+         if (feature_bool(FEAT_OWNERPROTECT) && IsOwner(chan))
            *(buf + len++) = '~';
-         if (IsProtect(chan))
+         if (feature_bool(FEAT_OWNERPROTECT) && IsProtect(chan))
            *(buf + len++) = '&';
          if (IsChanOp(chan))
            *(buf + len++) = '@';
@@ -223,9 +223,9 @@ static void do_whois(struct Client* sptr, struct Client *acptr, int parc)
          if (HasVoice(chan))
            *(buf + len++) = '+';
        }
-       else if (IsOwner(chan))
+       else if (feature_bool(FEAT_OWNERPROTECT) && IsOwner(chan))
          *(buf + len++) = '~';
-       else if (IsProtect(chan))
+       else if (feature_bool(FEAT_OWNERPROTECT) && IsProtect(chan))
          *(buf + len++) = '&';
        else if (IsChanOp(chan))
          *(buf + len++) = '@';
