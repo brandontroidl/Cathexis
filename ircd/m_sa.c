@@ -310,15 +310,32 @@ int ms_sanick(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
 int mo_samode(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
 {
   struct Client *acptr;
+  struct Channel *chptr;
+  struct ModeBuf mbuf;
+
   if (!HasPriv(sptr, PRIV_NETADMIN))
     return send_reply(sptr, ERR_NOPRIVILEGES);
   if (parc < 3) return need_more_params(sptr, "SAMODE");
 
   if (IsChannelName(parv[1])) {
+    if (!(chptr = FindChannel(parv[1])))
+      return send_reply(sptr, ERR_NOSUCHCHANNEL, parv[1]);
+
     sendto_opmask_butone(0, SNO_OLDSNO, "%C used SAMODE on %s: %s", sptr, parv[1], parv[2]);
-    parv[0] = cli_name(sptr);
-    return mo_opmode(cptr, sptr, parc, parv);
+
+    /* Call mode_parse directly with FORCE — bypasses all permission checks
+     * including CONFIG_OPERCMDS and PRIV_OPMODE. This is the correct path
+     * for services-level mode changes. */
+    modebuf_init(&mbuf, sptr, cptr, chptr,
+                 (MODEBUF_DEST_CHANNEL | MODEBUF_DEST_SERVER |
+                  MODEBUF_DEST_OPMODE  | MODEBUF_DEST_LOG));
+    mode_parse(&mbuf, cptr, sptr, chptr, parc - 2, parv + 2,
+               (MODE_PARSE_SET | MODE_PARSE_FORCE), NULL);
+    modebuf_flush(&mbuf);
+    return 0;
   }
+
+  /* User mode */
   if (!(acptr = FindUser(parv[1])))
     return send_reply(sptr, ERR_NOSUCHNICK, parv[1]);
 
@@ -337,7 +354,26 @@ int mo_samode(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
 int ms_samode(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
 {
   struct Client* acptr;
+  struct Channel *chptr;
+  struct ModeBuf mbuf;
+
   if (parc < 3) return need_more_params(sptr, "SAMODE");
+
+  /* Channel mode from server */
+  if (IsChannelName(parv[1])) {
+    if (!(chptr = FindChannel(parv[1])))
+      return 0;
+
+    modebuf_init(&mbuf, sptr, cptr, chptr,
+                 (MODEBUF_DEST_CHANNEL | MODEBUF_DEST_SERVER |
+                  MODEBUF_DEST_OPMODE  | MODEBUF_DEST_LOG));
+    mode_parse(&mbuf, cptr, sptr, chptr, parc - 2, parv + 2,
+               (MODE_PARSE_SET | MODE_PARSE_FORCE), NULL);
+    modebuf_flush(&mbuf);
+    return 0;
+  }
+
+  /* User mode from server */
   if (!(acptr = findNUser(parv[1]))) return 0;
   if (MyUser(acptr)) {
     char *param[4];
