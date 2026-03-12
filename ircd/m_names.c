@@ -176,6 +176,18 @@ void do_names(struct Client* sptr, struct Channel* chptr, int filter)
         done_prefix = 1;
       }
     }
+    if (IsOwner(member)) {
+      if ((IsNamesX(sptr) || CapActive(sptr, CAP_NAMESX)) || !done_prefix) {
+        buf[idx++] = '~';
+        done_prefix = 1;
+      }
+    }
+    if (IsProtect(member)) {
+      if ((IsNamesX(sptr) || CapActive(sptr, CAP_NAMESX)) || !done_prefix) {
+        buf[idx++] = '&';
+        done_prefix = 1;
+      }
+    }
     if (IsChanOp(member)) {
       if ((IsNamesX(sptr) || CapActive(sptr, CAP_NAMESX)) || !done_prefix) {
         buf[idx++] = '@';

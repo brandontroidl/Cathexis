@@ -2243,14 +2243,16 @@ modebuf_flush_int(struct ModeBuf *mbuf, int all)
       bufptr_i = &rembuf_i;
     }
 
-    if (MB_TYPE(mbuf, i) & (MODE_CHANOP | MODE_HALFOP | MODE_VOICE)) {
+    if (MB_TYPE(mbuf, i) & (MODE_OWNER | MODE_PROTECT | MODE_CHANOP | MODE_HALFOP | MODE_VOICE)) {
       tmp = strlen(cli_name(MB_CLIENT(mbuf, i)));
 
       if ((totalbuflen - IRCD_MAX(9, tmp)) <= 0) /* don't overflow buffer */
 	MB_TYPE(mbuf, i) |= MODE_SAVE; /* save for later */
       else {
-	bufptr[(*bufptr_i)++] = MB_TYPE(mbuf, i) & MODE_CHANOP ? 'o' :
-                                (MB_TYPE(mbuf, i) & MODE_HALFOP ? 'h' : 'v');
+	bufptr[(*bufptr_i)++] = MB_TYPE(mbuf, i) & MODE_OWNER ? 'q' :
+                                (MB_TYPE(mbuf, i) & MODE_PROTECT ? 'a' :
+                                (MB_TYPE(mbuf, i) & MODE_CHANOP ? 'o' :
+                                (MB_TYPE(mbuf, i) & MODE_HALFOP ? 'h' : 'v')));
 	totalbuflen -= IRCD_MAX(9, tmp) + 1;
       }
     } else if (MB_TYPE(mbuf, i) & (MODE_BAN | MODE_EXCEPT | MODE_APASS | MODE_UPASS)) {
@@ -4127,6 +4129,15 @@ mode_parse_client(struct ParseState *state, int *flag_p)
       !((*flag_p == MODE_VOICE) && (state->flags & MODE_PARSE_ISHALFOP)))
     notoper = 1;
 
+  /* +q (owner) and +a (protect) are services-only — only servers or
+   * SA* force commands (MODE_PARSE_FORCE) can set/unset them. Regular
+   * channel operators cannot toggle these modes. */
+  if ((*flag_p == MODE_OWNER || *flag_p == MODE_PROTECT) &&
+      MyUser(state->sptr) && !(state->flags & MODE_PARSE_FORCE)) {
+    send_reply(state->sptr, ERR_CHANOPRIVSNEEDED, state->chptr->chname);
+    return;
+  }
+
   if (notoper && (state->dir != MODE_DEL)) {
     send_notoper(state);
     return;
@@ -4417,6 +4428,8 @@ mode_parse(struct ModeBuf *mbuf, struct Client *cptr, struct Client *sptr,
 	   struct Membership* member)
 {
   static int chan_flags[] = {
+    MODE_OWNER,		'q',
+    MODE_PROTECT,	'a',
     MODE_CHANOP,	'o',
     MODE_HALFOP,	'h',
     MODE_VOICE,		'v',

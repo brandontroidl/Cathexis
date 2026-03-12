@@ -87,8 +87,16 @@ struct Client;
 					 */
 #define CHFL_HALFOP             0x800000 /**< Channel half operator */
 
-#define CHFL_OVERLAP         (CHFL_CHANOP | CHFL_HALFOP | CHFL_VOICE)
-#define CHFL_VOICED_OR_OPPED (CHFL_CHANOP | CHFL_HALFOP | CHFL_VOICE)
+#define CHFL_PROTECT            0x080000 /**< Channel admin/protect (+a, &) — services only */
+#define CHFL_OWNER              0x200000 /**< Channel owner (+q, ~) — services only */
+
+#define CHFL_BURST_ALREADY_PROTECTED    0x1000000
+                                        /**< In oob BURST, already protected */
+#define CHFL_BURST_ALREADY_OWNED        0x2000000
+                                        /**< In oob BURST, already owner */
+
+#define CHFL_OVERLAP         (CHFL_OWNER | CHFL_PROTECT | CHFL_CHANOP | CHFL_HALFOP | CHFL_VOICE)
+#define CHFL_VOICED_OR_OPPED (CHFL_OWNER | CHFL_PROTECT | CHFL_CHANOP | CHFL_HALFOP | CHFL_VOICE)
 
 #define MBFL_BANVALID           0x0001  /**< MBFL_BANNED bit is valid */
 #define MBFL_BANNED             0x0002  /**< Channel member is banned */
@@ -107,6 +115,9 @@ struct Client;
 
 #define MODE_CHANOP     CHFL_CHANOP	/**< +o Chanop */
 #define MODE_VOICE      CHFL_VOICE	/**< +v Voice */
+#define MODE_HALFOP     CHFL_HALFOP     /**< +h Halfop */
+#define MODE_PROTECT    CHFL_PROTECT    /**< +a Channel admin/protect — services only */
+#define MODE_OWNER      CHFL_OWNER      /**< +q Channel owner — services only */
 #define MODE_PRIVATE    0x0004		/**< +p Private */
 #define MODE_SECRET     0x0008		/**< +s Secret */
 #define MODE_MODERATED  0x0010		/**< +m Moderated */
@@ -130,7 +141,6 @@ struct Client;
 #define MODE_WASDELJOINS 0x400000 	/**< Not DELJOINS, but some joins 
 					 * pending */
 
-#define MODE_HALFOP     CHFL_HALFOP     /**< +h Halfop */
 #define MODE_EXCEPT     0x1000000       /**< +e Ban exception */
 #define MODE_REDIRECT   0x2000000       /**< +L Channel redirect */
 
@@ -148,7 +158,7 @@ struct Client;
 
 /** mode flags which take another parameter (With PARAmeterS)
  */
-#define MODE_WPARAS     (MODE_CHANOP|MODE_HALFOP|MODE_VOICE|MODE_BAN|MODE_KEY|MODE_LIMIT|MODE_APASS|MODE_UPASS)
+#define MODE_WPARAS     (MODE_OWNER|MODE_PROTECT|MODE_CHANOP|MODE_HALFOP|MODE_VOICE|MODE_BAN|MODE_KEY|MODE_LIMIT|MODE_APASS|MODE_UPASS)
 
 /** Available Channel modes */
 #define infochanmodes feature_bool(FEAT_OPLEVELS) ? "AabCcDdhikLlMmNnOopQRrSsTtUvZz" : "abCcDdhikLlMmNnOopQRrSsTtvZz"
@@ -247,6 +257,8 @@ struct Membership {
 #define IsBanValidNick(x)   ((x)->banflags & MBFL_BANVALID_NICK)
 #define IsChanOp(x)         ((x)->status & CHFL_CHANOP)
 #define IsHalfOp(x)         ((x)->status & CHFL_HALFOP)
+#define IsOwner(x)          ((x)->status & CHFL_OWNER)
+#define IsProtect(x)        ((x)->status & CHFL_PROTECT)
 #define ExtBanTypes(x)      ((x)->extbantype)
 #define OpLevel(x)          ((x)->oplevel)
 #define HasVoice(x)         ((x)->status & CHFL_VOICE)

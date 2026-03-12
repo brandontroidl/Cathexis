@@ -2,6 +2,30 @@
 
 ## 1.1.0 — 2026-03-11
 
+### Channel Access Hierarchy (+q/+a/+o/+h/+v)
+
+Implemented full modern channel prefix mode hierarchy:
+
+  ~  +q  Owner     — services-only (X3, Atheme, Anope via S2S or SA*)
+  &  +a  Protect   — services-only (same restriction as +q)
+  @  +o  Operator  — standard chanop (existing)
+  %  +h  Halfop    — half operator (existing)
+  +  +v  Voice     — voice (existing)
+
++q and +a can ONLY be set by:
+  - Services via S2S protocol (SAMODE from a linked server)
+  - Network administrators via /SAMODE (requires +N, netadmin = yes)
+  - BURST during network synchronization
+
+Regular channel operators CANNOT set +q or +a, matching the behavior
+of UnrealIRCd, InspIRCd, Charybdis, Hybrid, and other modern daemons.
+
+ISUPPORT PREFIX updated: (qaohv)~\&@%+
+ISUPPORT STATUSMSG updated: ~\&@%+
+
+Files changed: channel.h, channel.c, m_names.c, whocmds.c, m_whois.c,
+s_user.c, m_burst.c
+
 ### SVS* Removal
 
 - **All SVS* commands removed.** Replaced entirely by SA* commands.

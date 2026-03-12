@@ -507,6 +507,7 @@ int ms_burst(struct Client *cptr, struct Client *sptr, int parc, char *parv[])
 	      for (current_mode_needs_reset = 1; *ptr; ptr++) {
 		if (*ptr == 'o') { /* has oper status */
 		  /*
+		   * 'q' sets owner, 'a' sets protect, 'o' sets chanop.
 		   * An 'o' is pre-oplevel protocol, so this is only for
 		   * backwards compatibility.  Give them an op-level of
 		   * MAXOPLEVEL so everyone can deop them.
@@ -651,7 +652,7 @@ int ms_burst(struct Client *cptr, struct Client *sptr, int parc, char *parv[])
 	    if (member->status & CHFL_VOICE)
 	      member->status |= CHFL_BURST_ALREADY_VOICED;
 	    /* Synchronize with the burst. */
-	    member->status |= CHFL_BURST_JOINED | (current_mode & (CHFL_CHANOP|CHFL_HALFOP|CHFL_VOICE));
+	    member->status |= CHFL_BURST_JOINED | (current_mode & (CHFL_OWNER|CHFL_PROTECT|CHFL_CHANOP|CHFL_HALFOP|CHFL_VOICE));
 	    SetOpLevel(member, oplevel);
 	  }
 	}
@@ -694,6 +695,10 @@ int ms_burst(struct Client *cptr, struct Client *sptr, int parc, char *parv[])
     /* first deal with channel members */
     for (member = chptr->members; member; member = member->next_member) {
       if (member->status & CHFL_BURST_JOINED) { /* joined during burst */
+	if ((member->status & CHFL_OWNER) && !(member->status & CHFL_BURST_ALREADY_OWNED))
+	  modebuf_mode_client(mbuf, MODE_ADD | CHFL_OWNER, member->user, OpLevel(member));
+	if ((member->status & CHFL_PROTECT) && !(member->status & CHFL_BURST_ALREADY_PROTECTED))
+	  modebuf_mode_client(mbuf, MODE_ADD | CHFL_PROTECT, member->user, OpLevel(member));
 	if ((member->status & CHFL_CHANOP) && !(member->status & CHFL_BURST_ALREADY_OPPED))
 	  modebuf_mode_client(mbuf, MODE_ADD | CHFL_CHANOP, member->user, OpLevel(member));
         if ((member->status & CHFL_HALFOP) && !(member->status & CHFL_BURST_ALREADY_HALFOPPED))
