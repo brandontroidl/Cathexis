@@ -263,7 +263,7 @@ int server_estab(struct Client *cptr, struct ConfItem *aconf)
 		    NumNick(acptr), cli_info(acptr));
 
       if (cli_user(acptr) && !EmptyString(cli_user(acptr)->swhois))
-        sendcmdto_one(cli_user(acptr)->server, CMD_SWHOIS, cptr, "%C :%s", acptr,
+        sendcmdto_one(cli_user(acptr)->server, CMD_SAWHOIS, cptr, "%C :%s", acptr,
                       cli_user(acptr)->swhois);
 
       if (cli_version(acptr) && !EmptyString(cli_version(acptr)))

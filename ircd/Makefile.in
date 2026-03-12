@@ -195,15 +195,6 @@ IRCD_SRC = \
 	m_squit.c \
 	m_starttls.c \
 	m_stats.c \
-	m_svsident.c \
-	m_svsinfo.c \
-	m_svsjoin.c \
-	m_svsmode.c \
-	m_svsnick.c \
-	m_svsnoop.c \
-	m_svspart.c \
-	m_svsquit.c \
-	m_swhois.c \
 	m_tempshun.c \
 	m_time.c \
 	m_topic.c \
@@ -969,7 +960,6 @@ m_stats.o: m_stats.c ../config.h ../include/client.h ../include/ircd.h \
   ../include/ircd_string.h ../include/msg.h ../include/numeric.h \
   ../include/s_stats.h ../include/s_user.h ../include/send.h \
   ../include/struct.h
-m_svsident.o: m_svsident.c ../include/channel.h ../config.h \
   ../include/client.h ../include/handlers.h ../include/hash.h \
   ../include/ircd.h ../include/ircd_chattr.h ../include/ircd_defs.h \
   ../include/ircd_features.h ../include/ircd_relay.h \
@@ -979,41 +969,33 @@ m_svsident.o: m_svsident.c ../include/channel.h ../config.h \
   ../include/querycmds.h ../include/send.h ../include/s_conf.h \
   ../include/s_user.h ../include/s_debug.h ../include/userload.h \
   ../include/patchlevel.h
-m_svsinfo.o: m_svsinfo.c ../config.h ../include/client.h \
   ../include/handlers.h ../include/ircd.h ../include/ircd_reply.h \
   ../include/ircd_string.h ../include/msg.h ../include/numnicks.h \
   ../include/send.h ../include/s_conf.h ../include/s_user.h
-m_svsjoin.o: m_svsjoin.c ../config.h ../include/channel.h \
   ../include/client.h ../include/gline.h ../include/hash.h \
   ../include/ircd.h ../include/ircd_chattr.h ../include/ircd_features.h \
   ../include/ircd_log.h ../include/ircd_reply.h ../include/ircd_string.h \
   ../include/msg.h ../include/numeric.h ../include/numnicks.h \
   ../include/s_debug.h ../include/s_user.h ../include/send.h \
   ../include/sys.h
-m_svsmode.o: m_svsmode.c ../config.h ../include/client.h ../include/hash.h \
   ../include/ircd.h ../include/ircd_log.h ../include/ircd_reply.h \
   ../include/ircd_string.h ../include/msg.h ../include/numeric.h \
   ../include/numnicks.h ../include/send.h ../include/s_user.h
-m_svsnick.o: m_svsnick.c ../config.h ../include/client.h ../include/hash.h \
   ../include/ircd.h ../include/ircd_features.h ../include/ircd_log.h \
   ../include/ircd_reply.h ../include/ircd_string.h ../include/msg.h \
   ../include/numeric.h ../include/numnicks.h ../include/send.h \
   ../include/sys.h ../include/s_misc.h ../include/s_user.h
-m_svsnoop.o: m_svsnoop.c ../config.h ../include/client.h ../include/hash.h \
   ../include/ircd.h ../include/ircd_log.h ../include/ircd_reply.h \
   ../include/ircd_string.h ../include/msg.h ../include/numeric.h \
   ../include/numnicks.h ../include/send.h ../include/s_conf.h
-m_svspart.o: m_svspart.c ../config.h ../include/channel.h \
   ../include/client.h ../include/hash.h ../include/ircd.h \
   ../include/ircd_log.h ../include/ircd_reply.h ../include/ircd_string.h \
   ../include/msg.h ../include/numeric.h ../include/numnicks.h \
   ../include/send.h
-m_svsquit.o: m_svsquit.c ../config.h ../include/client.h \
   ../include/handlers.h ../include/ircd.h ../include/ircd_reply.h \
   ../include/ircd_string.h ../include/msg.h ../include/numnicks.h \
   ../include/send.h ../include/s_conf.h ../include/s_misc.h \
   ../include/s_user.h
-m_swhois.o: m_swhois.c ../config.h ../include/client.h ../include/hash.h \
   ../include/ircd.h ../include/ircd_log.h ../include/ircd_reply.h \
   ../include/ircd_string.h ../include/msg.h ../include/numeric.h \
   ../include/numnicks.h ../include/send.h ../include/version.h

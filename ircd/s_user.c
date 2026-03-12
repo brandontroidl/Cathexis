@@ -1367,7 +1367,7 @@ int set_user_mode(struct Client *cptr, struct Client *sptr, int parc,
   char* sethost = NULL;
   struct Client *acptr = NULL;
 
-  if (MyUser(sptr) && (allow_modes & ALLOWMODES_SVSMODE))
+  if (MyUser(sptr) && (allow_modes & ALLOWMODES_SAMODE))
     is_svsmode = 1;
 
   what = MODE_ADD;

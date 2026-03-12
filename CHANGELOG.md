@@ -2,6 +2,18 @@
 
 ## 1.1.0 — 2026-03-11
 
+### SVS* Removal
+
+- **All SVS* commands removed.** Replaced entirely by SA* commands.
+- SA* commands serve as both the oper interface AND S2S propagation protocol.
+- No external services required. Only PRIV_NETADMIN (+N) needed.
+- New commands added: SAIDENT, SAINFO, SANOOP (replacing SVSIDENT, SVSINFO, SVSNOOP)
+- Each SA* command has both mo_sa* (oper) and ms_sa* (server) handlers.
+- 9 SVS* source files removed, all functionality consolidated in m_sa.c.
+- ALLOWMODES_SVSMODE renamed to ALLOWMODES_SAMODE.
+- Wire protocol tokens preserved (SJ, SP, SN, SM, SX, SID, SI, SO, SW) for
+  network compatibility during rolling upgrades.
+
 Security hardening release. All vulnerabilities identified in the 10-pass
 security audit have been remediated in-source. Zero compiler warnings.
 
@@ -337,10 +349,10 @@ matching UnrealIRCd/InspIRCd conventions:
   /SAWHOIS <nick> [:<text>]      Set/clear custom WHOIS line
 
 All require PRIV_NETADMIN (+N). All log actions to SNO_OLDSNO.
-Remote targets propagate via SVS* S2S protocol automatically.
+Remote targets propagate via SA* S2S protocol automatically.
 Non-opers see "Permission Denied". Non-netadmins see "No privileges".
 
-SVS* commands remain as server-to-server protocol for services
+SA* commands remain as server-to-server protocol for services
 compatibility (X3, Atheme, anope, etc.).
 
 New files: ircd/m_sa.c, include/msg.h (SA defines)

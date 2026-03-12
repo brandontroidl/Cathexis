@@ -61,7 +61,7 @@ New SA* Commands (Network Administrator)
   - SAWHOIS    Set/clear custom WHOIS line
 
   All SA commands require +N (netadmin = yes in oper block).
-  SVS* commands remain as S2S protocol for X3/Atheme compatibility.
+  SA* commands remain as S2S protocol for X3/Atheme compatibility.
 
 Protocol Improvements
 ---------------------
