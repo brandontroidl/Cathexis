@@ -797,6 +797,62 @@ struct Message msgtab[] = {
     "<server> <+/-> - Toggle NOOP mode on a server. Requires +N (Network Administrator)."
   },
   {
+    MSG_SAMODE,
+    TOK_SAMODE,
+    0, MAXPARA, MFLG_SLOW, 0, NULL,
+    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
+    { m_ignore, m_not_oper, ms_samode, mo_samode, m_ignore },
+    "<nick|#channel> <modes> [params] - Force mode changes. Requires +N (Network Administrator)."
+  },
+  {
+    MSG_SAJOIN,
+    TOK_SAJOIN,
+    0, MAXPARA, MFLG_SLOW, 0, NULL,
+    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
+    { m_ignore, m_not_oper, ms_sajoin, mo_sajoin, m_ignore },
+    "<nick> <#channel> - Force a user to join channel(s). Requires +N (Network Administrator)."
+  },
+  {
+    MSG_SAPART,
+    TOK_SAPART,
+    0, MAXPARA, MFLG_SLOW, 0, NULL,
+    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
+    { m_ignore, m_not_oper, ms_sapart, mo_sapart, m_ignore },
+    "<nick> <#channel> [:<reason>] - Force a user to part channel(s). Requires +N (Network Administrator)."
+  },
+  {
+    MSG_SANICK,
+    TOK_SANICK,
+    0, MAXPARA, MFLG_SLOW, 0, NULL,
+    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
+    { m_ignore, m_not_oper, ms_sanick, mo_sanick, m_ignore },
+    "<nick> <newnick> - Force a user to change their nickname. Requires +N (Network Administrator)."
+  },
+  {
+    MSG_SAQUIT,
+    TOK_SAQUIT,
+    0, MAXPARA, MFLG_SLOW, 0, NULL,
+    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
+    { m_ignore, m_not_oper, ms_saquit, mo_saquit, m_ignore },
+    "<nick> [:<reason>] - Force a user to disconnect. Requires +N (Network Administrator)."
+  },
+  {
+    MSG_SATOPIC,
+    TOK_SATOPIC,
+    0, MAXPARA, MFLG_SLOW, 0, NULL,
+    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
+    { m_ignore, m_not_oper, m_ignore, mo_satopic, m_ignore },
+    "<#channel> :<topic> - Force a topic change. Requires +N (Network Administrator)."
+  },
+  {
+    MSG_SAWHOIS,
+    TOK_SAWHOIS,
+    0, MAXPARA, MFLG_SLOW, 0, NULL,
+    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
+    { m_ignore, m_not_oper, ms_sawhois, mo_sawhois, m_ignore },
+    "<nick> [:<text>] - Set or clear a custom WHOIS line. Requires +N (Network Administrator)."
+  },
+  {
     MSG_FAKE,
     TOK_FAKE,
     0, MAXPARA, MFLG_SLOW, 0, NULL,
