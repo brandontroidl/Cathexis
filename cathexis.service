@@ -1,0 +1,49 @@
+# ==========================================================================
+# Cathexis IRCd — systemd service unit
+# ==========================================================================
+# Install:
+#   sudo cp cathexis.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable cathexis
+#   sudo systemctl start cathexis
+#
+# Logs:
+#   sudo journalctl -u cathexis -f
+# ==========================================================================
+
+[Unit]
+Description=Cathexis IRC Daemon
+Documentation=file:///home/ircd/doc/example.conf
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=forking
+User=ircd
+Group=ircd
+
+# Paths — edit if your prefix is different
+WorkingDirectory=/home/ircd/lib
+ExecStart=/home/ircd/bin/ircd -f /home/ircd/lib/ircd.conf
+ExecReload=/bin/kill -HUP $MAINPID
+PIDFile=/home/ircd/lib/ircd.pid
+
+# File descriptor limits (tune for your expected connection count)
+LimitNOFILE=16384
+
+# Restart policy
+Restart=on-failure
+RestartSec=10
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=no
+ReadWritePaths=/home/ircd/lib
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+
+[Install]
+WantedBy=multi-user.target
