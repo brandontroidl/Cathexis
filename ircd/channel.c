@@ -811,7 +811,7 @@ int is_chan_op(struct Client *cptr, struct Channel *chptr)
   struct Membership* member;
   assert(chptr);
   if ((member = find_member_link(chptr, cptr)))
-    return (!IsZombie(member) && IsChanOp(member));
+    return (!IsZombie(member) && (IsChanOp(member) || IsOwner(member) || IsProtect(member)));
 
   return 0;
 }
@@ -4129,13 +4129,26 @@ mode_parse_client(struct ParseState *state, int *flag_p)
       !((*flag_p == MODE_VOICE) && (state->flags & MODE_PARSE_ISHALFOP)))
     notoper = 1;
 
-  /* +q (owner) and +a (protect) are services-only — only servers or
-   * SA* force commands (MODE_PARSE_FORCE) can set/unset them. Regular
-   * channel operators cannot toggle these modes. */
+  /* +q (owner) and +a (protect) hierarchy enforcement:
+   *   - Servers and SA* (MODE_PARSE_FORCE) can always set +q/+a
+   *   - +q (owner) users can set both +q and +a on others
+   *   - +a (protect) users can set +a on others, but NOT +q
+   *   - Regular channel operators (+o, +h) cannot set +q or +a */
   if ((*flag_p == MODE_OWNER || *flag_p == MODE_PROTECT) &&
       MyUser(state->sptr) && !(state->flags & MODE_PARSE_FORCE)) {
-    send_reply(state->sptr, ERR_CHANOPRIVSNEEDED, state->chptr->chname);
-    return;
+    if (*flag_p == MODE_OWNER) {
+      /* Only +q users (or servers/force) can set +q */
+      if (!state->member || !IsOwner(state->member)) {
+        send_reply(state->sptr, ERR_CHANOPRIVSNEEDED, state->chptr->chname);
+        return;
+      }
+    } else { /* MODE_PROTECT */
+      /* +q or +a users can set +a */
+      if (!state->member || (!IsOwner(state->member) && !IsProtect(state->member))) {
+        send_reply(state->sptr, ERR_CHANOPRIVSNEEDED, state->chptr->chname);
+        return;
+      }
+    }
   }
 
   if (notoper && (state->dir != MODE_DEL)) {

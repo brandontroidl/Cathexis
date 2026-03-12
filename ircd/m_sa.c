@@ -321,7 +321,17 @@ int mo_samode(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
     if (!(chptr = FindChannel(parv[1])))
       return send_reply(sptr, ERR_NOSUCHCHANNEL, parv[1]);
 
-    sendto_opmask_butone(0, SNO_OLDSNO, "%C used SAMODE on %s: %s", sptr, parv[1], parv[2]);
+    /* Build full mode string with parameters for the SNO notice */
+    {
+      char modeparams[512];
+      int len, j;
+      len = ircd_snprintf(0, modeparams, sizeof(modeparams), "%s", parv[2]);
+      for (j = 3; j < parc && len < (int)sizeof(modeparams) - 2; j++)
+        len += ircd_snprintf(0, modeparams + len, sizeof(modeparams) - len,
+                             " %s", parv[j]);
+      sendto_opmask_butone(0, SNO_OLDSNO, "%C used SAMODE on %s: %s",
+                            sptr, parv[1], modeparams);
+    }
 
     /* Call mode_parse directly with FORCE — bypasses all permission checks
      * including CONFIG_OPERCMDS and PRIV_OPMODE. This is the correct path
@@ -436,7 +446,8 @@ int mo_satopic(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
   if (!(chptr = FindChannel(parv[1])))
     return send_reply(sptr, ERR_NOSUCHCHANNEL, parv[1]);
 
-  sendto_opmask_butone(0, SNO_OLDSNO, "%C used SATOPIC on %s", sptr, chptr->chname);
+  sendto_opmask_butone(0, SNO_OLDSNO, "%C used SATOPIC on %s: %s",
+                        sptr, chptr->chname, parv[parc - 1]);
   ircd_strncpy(chptr->topic, parv[parc - 1], TOPICLEN);
   ircd_strncpy(chptr->topic_nick, cli_name(sptr), NICKLEN);
   chptr->topic_time = TStime();
