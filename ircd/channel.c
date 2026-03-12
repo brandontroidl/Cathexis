@@ -2343,7 +2343,7 @@ modebuf_flush_int(struct ModeBuf *mbuf, int all)
       }
 
       /* deal with clients... */
-      if (MB_TYPE(mbuf, i) & (MODE_CHANOP | MODE_HALFOP | MODE_VOICE))
+      if (MB_TYPE(mbuf, i) & (MODE_OWNER | MODE_PROTECT | MODE_CHANOP | MODE_HALFOP | MODE_VOICE))
 	build_string(strptr, strptr_i, cli_name(MB_CLIENT(mbuf, i)), 0, ' ');
 
       /* deal with bans... */
@@ -2467,7 +2467,7 @@ modebuf_flush_int(struct ModeBuf *mbuf, int all)
                                      " %s%s", NumNick(MB_CLIENT(mbuf, i)));
 
       /* deal with other modes that take clients */
-      } else if (MB_TYPE(mbuf, i) & (MODE_CHANOP | MODE_HALFOP | MODE_VOICE)) {
+      } else if (MB_TYPE(mbuf, i) & (MODE_OWNER | MODE_PROTECT | MODE_CHANOP | MODE_HALFOP | MODE_VOICE)) {
 	build_string(strptr, strptr_i, NumNick(MB_CLIENT(mbuf, i)), ' ');
         if (MB_TYPE(mbuf, i) & MODE_ADD)
           build_string(strptro, strptro_i, NumNick(MB_CLIENT(mbuf, i)), ' ');
@@ -4322,12 +4322,12 @@ mode_process_clients(struct ParseState *state)
         if (IsDelayedJoin(member) && !IsZombie(member))
           RevealDelayedJoin(member);
 	member->status |= (state->cli_change[i].flag &
-			   (MODE_CHANOP | MODE_HALFOP | MODE_VOICE));
+			   (MODE_OWNER | MODE_PROTECT | MODE_CHANOP | MODE_HALFOP | MODE_VOICE));
 	if (state->cli_change[i].flag & MODE_CHANOP)
 	  ClearDeopped(member);
       } else
 	member->status &= ~(state->cli_change[i].flag &
-			    (MODE_CHANOP | MODE_HALFOP | MODE_VOICE));
+			    (MODE_OWNER | MODE_PROTECT | MODE_CHANOP | MODE_HALFOP | MODE_VOICE));
     }
 
     /* accumulate the change */
