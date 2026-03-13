@@ -61,6 +61,15 @@ enum Feature {
   FEAT_TOPIC_BURST,
   FEAT_DISABLE_GLINES,
 
+  /* DNSBL (DNS Blacklist) checking */
+  FEAT_DNSBL,
+  FEAT_DNSBL_HOST,
+  FEAT_DNSBL_HOST2,
+  FEAT_DNSBL_HOST3,
+  FEAT_DNSBL_REJECT,
+  FEAT_DNSBL_REASON,
+  FEAT_DNSBL_MARK,
+
   /* features that probably should not be touched */
   FEAT_KILLCHASETIMELIMIT,
   FEAT_MAXCHANNELSPERUSER,

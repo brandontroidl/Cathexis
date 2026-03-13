@@ -565,6 +565,15 @@ static struct FeatureDesc {
   F_B(TOPIC_BURST, 0, 1, 0),
   F_B(DISABLE_GLINES, 0, 0, 0),
 
+  /* DNSBL features */
+  F_B(DNSBL, 0, 0, 0),
+  F_S(DNSBL_HOST, 0, "dnsbl.dronebl.org", 0),
+  F_S(DNSBL_HOST2, 0, 0, 0),
+  F_S(DNSBL_HOST3, 0, 0, 0),
+  F_B(DNSBL_REJECT, 0, 1, 0),
+  F_S(DNSBL_REASON, 0, "Your IP is listed in a DNS blacklist. Visit https://dronebl.org/lookup or https://rbl.efnetrbl.org for removal.", 0),
+  F_S(DNSBL_MARK, 0, "DNSBL", 0),
+
   /* features that probably should not be touched */
   F_I(KILLCHASETIMELIMIT, 0, 30, 0),
   F_I(MAXCHANNELSPERUSER, 0, 20, set_isupport_maxchannels),
