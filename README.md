@@ -128,9 +128,12 @@ Production config includes: connection classes, oper block with full privilege s
 
 ```
 ircd.conf              Production configuration (242 features)
+AUDIT.md               Security audit report
+CHANGELOG.md           Version history and all changes
+LICENSE.md             License summary (GPL v1+)
+README.md              This file
 doc/example.conf       Upstream reference configuration
 doc/ircd.conf          Copy of production config
-AUDIT.md               Full security audit report
 include/               Header files
 ircd/                  Source files
   m_sa.c               All 10 SA* commands
