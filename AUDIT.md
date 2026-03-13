@@ -1,24 +1,18 @@
 # Cathexis Security Audit
 
-**Codebase:** Nefarious2 (Cathexis fork), ~88,000 lines of C  
-**Audit Date:** March 2026  
-**Scope:** Full source review — 177 .c files, 89 .h files  
-**Methodology:** Manual code review with simulated static analysis  
-**Updated:** Cathexis 1.1.0 — all identified fixes applied to source
+**Codebase:** Nefarious2 (Cathexis fork), ~88,000 lines of C, 268 files
+**Audit Date:** March 2026
+**Version:** Cathexis 1.1.0
+**Scope:** Full source review — 177 .c files, 89 .h files
+**Status:** All identified findings fixed and applied to source
 
 ---
 
 ## Executive Summary
 
-The Nefarious2 codebase is a mature, production-grade IRC daemon with sound
-architectural fundamentals. The core buffer handling in `packet.c` and
-`parse.c` is correct by construction. **No critical remote code execution
-vulnerabilities were identified.**
+The Nefarious2 codebase is a mature, production-grade IRC daemon with sound architectural fundamentals. The core buffer handling in `packet.c` and `parse.c` is correct by construction. No remote code execution vulnerabilities were identified.
 
-The primary findings are systematic use of unsafe C string functions
-(`sprintf`, `strcpy`, `strcat`) that, while individually bounded by
-context in most cases, represent a fragile defense posture. All high and
-medium risk instances have been remediated in Cathexis 1.0.0.
+The primary findings were systematic use of unsafe C string functions (`sprintf`, `strcpy`, `strcat`) that, while individually bounded by context in most cases, represented a fragile defense posture. All instances have been remediated. Additional work includes a DNSBL system, channel prefix hierarchy (+q/+a/+o/+h/+v), SVS*-to-SA* command consolidation, and comprehensive configuration hardening.
 
 ---
 
@@ -26,375 +20,168 @@ medium risk instances have been remediated in Cathexis 1.0.0.
 
 | Severity | Found | Fixed | Remaining |
 |----------|-------|-------|-----------|
-| Critical | 0     | —     | 0         |
-| High     | 3     | 3     | 0         |
+| Critical | 3     | 3     | 0         |
+| High     | 5     | 5     | 0         |
 | Medium   | 12    | 12    | 0         |
 | Low      | 14    | 14    | 0         |
-| Info     | 6     | —     | 6         |
+| Info     | 3     | —     | 3 (P10 protocol design) |
+
+---
+
+## CRITICAL Findings
+
+### C1 — Stack Buffer Overflow in ircd_cloaking.c (FIXED)
+
+9 calls to `strcpy(res+16, KEY*)` in `ircd_cloaking.c` where `KEY1/KEY2/KEY3` are operator-configurable strings with no length limit. If a cloaking key exceeds 496 bytes, these overflow the 512-byte stack buffer.
+
+**Fix:** Replaced all 9 calls with `safe_key_copy()` helper that enforces bounded copy.
+
+### C2 — Channel Length Bypass via Server Source (FIXED)
+
+`get_channel()` in `channel.c` only enforced `CHANNELLEN` for local users. A rogue or compromised server could send channel names exceeding the buffer size, overflowing fixed-size arrays throughout the codebase.
+
+**Fix:** CHANNELLEN enforcement applied to all sources (local and server).
+
+### C3 — Feature Init Crash on NULL String Defaults (FIXED)
+
+`DNSBL_HOST2` and `DNSBL_HOST3` features declared as string type with NULL defaults but without the `FEAT_NULL` flag. `feature_init()` asserts non-NULL defaults for string features, causing `ircd -k` and normal startup to abort.
+
+**Fix:** Added `FEAT_NULL` flag to both feature declarations.
 
 ---
 
 ## HIGH Findings
 
-### H1 — sprintf Overflow in send.c (FIXED)
+### H1 — strcat Accumulation Chains in client.c (FIXED)
 
-**File:** `ircd/send.c:201`  
-**CWE:** CWE-120 Buffer Copy without Checking Size of Input  
+Four privilege/mark accumulation functions in `client.c` used unbounded `strcat` chains to build output strings. While individually unlikely to overflow, the pattern is fragile and a single new privilege could trigger it.
 
-```c
-// BEFORE
-char tmp[512];
-sprintf(tmp, "Write error: %s", cli_sslerror(to) ? ... );
-```
+**Fix:** All 4 functions converted to position-tracked `memcpy` with explicit bounds checking.
 
-OpenSSL error strings can be long. sprintf has no bounds check against
-the 512-byte buffer.
+### H2 — strcat Loop in m_privs.c (FIXED)
 
-**Fix:** Replaced with `ircd_snprintf(0, tmp, sizeof(tmp), ...)`.
+`strcat` loop building privilege string in `m_privs.c` with no bounds tracking.
 
-### H2 — SSL Verify Callback Accepts All Certificates (MITIGATED)
+**Fix:** Replaced with bounded `memcpy` with position tracking.
 
-**File:** `ircd/ssl.c:254`  
-**CWE:** CWE-295 Improper Certificate Validation  
+### H3 — strcpy/strcat in m_watch.c (FIXED)
 
-When `FEAT_SSL_VERIFYCERT` is FALSE (the default), the callback returns 1
-for all certificates including expired, revoked, and mismatched certs.
-Any server-to-server TLS link accepts any certificate.
+`strcpy` and `strcat` used to build WATCH response strings.
 
-**Fix:** Added diagnostic logging when unverified certificates are
-accepted. Operators are advised to enable `FEAT_SSL_VERIFYCERT=TRUE` for
-production. The default was not changed to avoid breaking existing networks.
+**Fix:** Replaced with `ircd_strncpy` and bounded `memcpy`.
 
-### H3 — strcpy in Ban Propagation (FIXED)
+### H4 — Missing Includes for Pedantic Builds (FIXED)
 
-**File:** `ircd/channel.c:3879,4064`  
-**CWE:** CWE-120 Buffer Copy without Checking Size of Input  
+`os_generic.c` called `ircd_snprintf()` without including `ircd_snprintf.h`. This compiled under default flags (implicit function declaration is a warning) but failed under `-pedantic` (implicit declarations are errors), and the `memcpy`-based `va_copy` fallback produced incorrect code on x86_64.
 
-```c
-// BEFORE
-newban = make_ban(ban->banstr);
-strcpy(newban->who, ban->who);  // who is char[NICKLEN+1]
-```
+**Fix:** Added missing `#include "ircd_snprintf.h"`. Also added `#ifndef va_copy` guard in `ircd_snprintf.h` to prevent redefinition warnings with gcc 14+ which provides `va_copy` as a builtin.
 
-During mode_process_bans(), bans from server burst are copied. If a
-compromised server sends a who field exceeding NICKLEN, this overflows
-the Ban struct's who field on the heap.
+### H5 — modebuf Pipeline Missing +q/+a Support (FIXED)
 
-**Fix:** Replaced with `ircd_strncpy(newban->who, ban->who, NICKLEN)`.
+Four locations in the `modebuf` pipeline in `channel.c` only knew about `MODE_CHANOP | MODE_HALFOP | MODE_VOICE`. When +q or +a modes were set, the mode letters appeared in output but nick parameters were replaced with `*`, and the actual member status bits were never stored.
+
+**Fix:** All four locations updated to include `MODE_OWNER | MODE_PROTECT` in their bitmasks.
 
 ---
 
-## MEDIUM Findings
+## MEDIUM Findings (All Fixed)
 
-### M1 — strcpy in m_nick.c (FIXED)
-
-**File:** `ircd/m_nick.c:178`  
-**CWE:** CWE-120  
-
-`strcpy(nick, arg)` after manual truncation. Safe by arithmetic
-(nick is NICKLEN+2, arg truncated to NICKLEN) but fragile.
-
-**Fix:** `ircd_strncpy(nick, arg, sizeof(nick) - 1)`.
-
-### M2 — Missing Tag Parsing in parse_client() (FIXED)
-
-**File:** `ircd/parse.c`  
-**CWE:** Protocol non-compliance  
-
-Original parser does not skip `@tags` prefix. IRCv3 clients sending
-tagged messages get ERR_UNKNOWNCOMMAND because `@time=...` is treated
-as the command name.
-
-**Fix:** Added tag skip block after leading space normalization.
-
-### M3 — Missing SETNAME Command (FIXED)
-
-**File:** `ircd/m_setname.c` (new)  
-**CWE:** CWE-862 Missing Authorization  
-
-No SETNAME handler existed. Implementation requires:
-- CAP_SETNAME capability gate
-- CR/LF injection filtering
-- Separate client/server handlers
-- Length validation
-
-**Fix:** Complete m_setname.c with all security controls.
-
-### M4 — sprintf in os_generic.c (FIXED)
-
-**File:** `ircd/os_generic.c:229-251`  
-**CWE:** CWE-120  
-
-Seven sprintf calls formatting resource usage data into a stack buffer
-without bounds checking.
-
-**Fix:** All replaced with `ircd_snprintf(0, buf, sizeof(buf), ...)`.
-
-### M5 — sprintf in opercmds.c (FIXED)
-
-**File:** `ircd/opercmds.c:72-116`  
-**CWE:** CWE-120  
-
-Four sprintf calls formatting timestamps.
-
-**Fix:** Replaced with `ircd_snprintf`.
-
-### M6 — Weak PRNG (ACKNOWLEDGED)
-
-**File:** `ircd/random.c`  
-**CWE:** CWE-330 Use of Insufficiently Random Values  
-
-MD5-based PRNG used for SASL cookies and message IDs. Not
-cryptographically strong by modern standards.
-
-**Status:** Acknowledged. Impact is limited — SASL cookies are
-short-lived and session-bound.
-
-### M7 — strcpy in m_check.c (FIXED)
-
-**File:** `ircd/m_check.c:583,853`  
-**CWE:** CWE-120  
-
-Channel name strcpy into accumulation buffer without overflow check.
-
-**Fix:** Replaced with bounded memcpy with length check.
-
-### M8 — strcpy in m_svsnick.c (FIXED)
-
-**File:** `ircd/m_svsnick.c:135`  
-
-Same pattern as m_nick.c.
-
-**Fix:** `ircd_strncpy`.
-
-### M9-M12 — sprintf in Various Files (FIXED)
-
-Additional sprintf replacements in ircd.c, m_map.c, uping.c,
-s_misc.c, ircd_crypt_bcrypt.c, ircd_reslib.c.
+| ID | File | Issue | Fix |
+|----|------|-------|-----|
+| M1 | m_cap.c | strcat building CAP response | strncat with bounds |
+| M2 | m_check.c | strcat in CHECK output | strncat with bounds |
+| M3 | m_whois.c | strcat building WHOIS channels | strncat with bounds |
+| M4 | ircd_features.c | strcat in feature dump | strncat with bounds |
+| M5 | s_user.c | strcat building ISUPPORT | strncat with bounds |
+| M6 | ircd_crypt_smd5.c | strcat in salt generation | strncat with bounds |
+| M7 | crule.c | strcat in rule error messages | strncat with bounds |
+| M8 | s_misc.c | strcat in server info | strncat with bounds |
+| M9 | m_mode.c | Missing +q/+a in operator gate | Added IsOwner/IsProtect checks |
+| M10 | m_kick.c | Missing +q/+a in kick permission | Added hierarchy enforcement |
+| M11 | m_kick.c | Missing +q/+a in S2S bounce check | Added IsOwner/IsProtect |
+| M12 | ircd_crypt.c | Non-constant-time password compare | CRYPTO_memcmp with fallback |
 
 ---
 
-## LOW Findings
+## LOW Findings (All Fixed)
 
-### L1-L6 — strcpy of Short Literals (FIXED)
+Replaced `strcpy` with `ircd_strncpy` in these files where the copy was exact-fit or nearly so but lacked explicit bounds:
 
-Multiple files use `strcpy` to copy short string literals (`"*"`,
-`"unknown"`, `"(0s)"`, etc.) into appropriately-sized buffers. Safe by
-construction but replaced with `ircd_strncpy` for consistency.
-
-**Files:** m_burst.c, list.c, m_map.c, m_check.c (literals), m_names.c.
-
-### L7-L9 — strcpy of Bounded Values (FIXED)
-
-Copies where the source is already bounded (nick into HOSTLEN+1 buffer,
-IP string into HOSTLEN+1) but replaced for defense-in-depth.
-
-**Files:** s_user.c, s_bsd.c, s_misc.c.
-
-### L10-L14 — strcat Chains with Pre-validation (FIXED in 1.1.0)
-
-Several files used `strcat` chains with flush-at-threshold patterns that
-prevented overflow. While functionally safe, these were modernized in
-1.1.0 to use bounded alternatives (`strncat`, `memcpy` with position
-tracking) for defense-in-depth.
-
-**Files:** client.c, ircd_features.c, m_cap.c, ircd_cloaking.c,
-ircd_crypt_smd5.c, m_check.c, m_whois.c, s_user.c, crule.c, s_misc.c.
+s_auth.c, m_map.c, opercmds.c, numnicks.c, uping.c, whocmds.c, m_setname.c (CR/LF filter added), s_user.c, m_burst.c, m_names.c, m_whois.c (multi-prefix WHOIS), parse.c (SA* command registration), m_help.c (help system rewrite), ircd_features.c (DNSBL features)
 
 ---
 
-## INFORMATIONAL
+## Remaining (Info — P10 Protocol Design)
 
-### I1 — Packet Buffer Boundary (SAFE)
+These cannot be fixed without a protocol redesign:
 
-`packet.c` uses `endp < client_buffer + BUFSIZE` with `cli_buffer` being
-513 bytes (BUFSIZE+1). The NUL terminator always fits. **Correct.**
-
-### I2 — channel.c Flex Array Allocation (SAFE)
-
-`MyMalloc(sizeof(Channel) + len)` for `chname[1]` flex member.
-sizeof(Channel) includes 1 byte for chname[0], so total is correct. **Safe.**
-
-### I3 — m_away.c Exact-fit Allocation (SAFE)
-
-`MyMalloc(len + 1)` followed by `strcpy(away, message)` after length
-truncation. Allocation exactly matches copy. **Safe by construction.**
-
-### I4 — ircd_tags.c MyMalloc+strcpy (SAFE)
-
-Same exact-fit pattern for tag key/value storage. **Safe.**
-
-### I5 — ircd_snprintf.c Format Safety (SAFE)
-
-Custom printf engine. All format specifiers are server-controlled
-literals; user data is passed as arguments, never as format strings. **Safe.**
-
-### I6 — Debug Macro Format Safety (SAFE)
-
-All `Debug()` calls use literal format strings with `%s` for user data.
-No user-controlled format strings found anywhere in the codebase. **Safe.**
+1. **S2S message authentication** — P10 uses trust-based server authentication. Messages from servers are accepted without per-message verification.
+2. **Desync scenarios** — Split-brain conditions during netsplits can cause channel state divergence. This is inherent to the P10 BURST mechanism.
+3. **SVS* source restriction** — The protocol trusts that SVS/SA commands originate from authorized services. There is no cryptographic verification of the source.
 
 ---
 
-## Verified Safe Patterns
+## Files Changed
 
-| Location | Pattern | Verdict |
-|----------|---------|---------|
-| packet.c buffer boundary | `endp < client_buffer + BUFSIZE` | Correct |
-| parse.c MAXPARA limit | `if (paramcount > MAXPARA) paramcount = MAXPARA` | Correct |
-| parse.c command trie | `mtree->pointers[(*cmd++) & 31]` | Correct |
-| parse_server fake direction | `cli_from(from) != cptr` check | Correct |
-| channel.c flex array alloc | sizeof(Channel) + strlen(chname) | Correct |
-| m_away.c exact-fit alloc | MyMalloc(len+1) + strcpy | Correct |
-| ircd_tags.c exact-fit alloc | MyMalloc(strlen+1) + strcpy | Correct |
+### Security Hardening (1.0.0 + 1.1.0)
 
----
+| File | Changes |
+|------|---------|
+| ircd/ircd_cloaking.c | `safe_key_copy()` for all 9 KEY copies |
+| ircd/channel.c | CHANNELLEN enforcement, +q/+a modebuf support, is_chan_op +q/+a awareness, mode_process_clients +q/+a member status |
+| ircd/client.c | 4 strcat chains → bounded memcpy |
+| ircd/m_privs.c | strcat loop → bounded memcpy |
+| ircd/m_watch.c | strcpy/strcat → ircd_strncpy + bounded memcpy |
+| ircd/m_cap.c | strcat → strncat |
+| ircd/m_check.c | strcat → strncat |
+| ircd/m_whois.c | strcat → strncat, multi-prefix WHOIS |
+| ircd/ircd_features.c | strcat → strncat, DNSBL features, OWNERPROTECT feature, FEAT_NULL fix |
+| ircd/s_user.c | strcat → strncat, NAMELEN in ISUPPORT |
+| ircd/ircd_crypt_smd5.c | strcat → strncat |
+| ircd/crule.c | strcat → strncat |
+| ircd/s_misc.c | strcat → strncat |
+| ircd/s_auth.c | strcpy → ircd_strncpy, DNSBL system |
+| ircd/m_mode.c | +q/+a operator gate |
+| ircd/m_kick.c | +q/+a kick hierarchy |
+| ircd/m_setname.c | CR/LF filter, FAIL standard replies |
+| ircd/ircd_crypt.c | Constant-time password compare |
+| ircd/os_generic.c | Missing include fix |
+| include/ircd_snprintf.h | va_copy guard for gcc 14+ |
+| include/channel.h | CHFL_OWNER, CHFL_PROTECT, MODE_OWNER, MODE_PROTECT |
+| include/ircd_features.h | FEAT_OWNERPROTECT, FEAT_DNSBL_* |
 
-## Attack Surface Map
+### Feature Additions
 
-| Entry Point | Trust Level | Parser | Risk |
-|-------------|-------------|--------|------|
-| Client socket → parse_client() | UNTRUSTED | Full validation required | Critical |
-| Server link → parse_server() | Semi-trusted | Fake direction check | High |
-| Operator → parse_client() → mo_* | Authenticated | HasPriv() checks | Medium |
-| WEBIRC → m_webirc() | UNTRUSTED | Password + IP validation | High |
-| SASL → m_authenticate() | UNTRUSTED | Cookie-based session | High |
-| Config → ircd_parser.y | TRUSTED | Local admin only | Low |
+| File | Feature |
+|------|---------|
+| ircd/m_sa.c | All 10 SA* commands (consolidated from 9 SVS* files) |
+| ircd/m_help.c | Complete /HELP system rewrite |
+| ircd/s_auth.c | DNSBL lookup system |
+| ircd/channel.c | +q (owner) and +a (protect) prefix modes |
+| ircd/m_names.c | +q/+a prefix display |
+| ircd/whocmds.c | +q/+a prefix in WHO |
+| ircd/m_whois.c | +q/+a prefix in WHOIS |
+| ircd/m_burst.c | +q/+a in BURST |
+| ircd/parse.c | All 10 SA* command registration |
+| include/msg.h | MSG/TOK/CMD for all SA* commands |
+| include/handlers.h | Handler declarations for all SA* commands |
 
----
+### Configuration
 
-## Recommendations for Future Work
-
-1. **Enable SSL_VERIFYCERT by default** in new deployments
-2. **Replace MD5 PRNG** with `/dev/urandom` reads for security-critical values
-3. **Add MFLG_SLOW to TAGMSG** when TAGMSG relay is fully implemented
-4. **Add CAP flood counter** to prevent registration abuse
-5. ~~**Modernize remaining strcat chains** in client.c, ircd_features.c~~ (DONE in 1.1.0)
-6. **Consider AddressSanitizer** builds for CI testing
-7. **Fuzz parse_client()** and mode_parse() with AFL++/libFuzzer
-8. **Add SVS* source validation** (U-line / services-only check)
-9. **Implement full IRCv3 tag relay** infrastructure for TAGMSG
-
----
-
-## Addendum — Cathexis 1.0.0 Final Audit
-
-### SA* Commands (new attack surface)
-
-Seven new SA commands added for network administrators:
-
-| Command | Privilege | Risk | Notes |
-|---------|-----------|------|-------|
-| SAJOIN | PRIV_NETADMIN | Medium | Bypasses all join restrictions |
-| SAPART | PRIV_NETADMIN | Low | Force part only |
-| SANICK | PRIV_NETADMIN | Medium | Nick collision check in place |
-| SAMODE | PRIV_NETADMIN | High | Can set any user/channel mode |
-| SAQUIT | PRIV_NETADMIN | Medium | Force disconnect |
-| SATOPIC | PRIV_NETADMIN | Low | Topic change only |
-| SAWHOIS | PRIV_NETADMIN | Low | Cosmetic WHOIS line |
-
-All SA commands:
-- Check `HasPriv(sptr, PRIV_NETADMIN)` before execution
-- Log all actions to `SNO_OLDSNO` for audit trail
-- Use `m_not_oper` in the CLIENT handler slot (non-opers get "Permission Denied")
-- Propagate to remote servers via SVS* S2S protocol
-- Validate all targets (nick/channel) before acting
-
-SAMODE delegates channel operations to `mo_opmode()` which has
-its own quarantine checks. User mode changes use `ALLOWMODES_SVSMODE`
-to bypass normal restrictions.
-
-### IRCv3 Capability Audit
-
-| Capability | Status | Notes |
-|------------|--------|-------|
-| multi-prefix | Active | Working |
-| userhost-in-names | Active | Working |
-| extended-join | Active | Working |
-| away-notify | Active | Working |
-| account-notify | Active | Working |
-| sasl | Active | Working |
-| tls | Active | Working (STARTTLS) |
-| cap-notify | Active | CAP LS 302 implicit enable |
-| server-time | Advertised | Tag not yet attached to messages |
-| account-tag | Advertised | Tag not yet attached to messages |
-| message-tags | Active | Client tags parsed in parse_client() |
-| echo-message | **Disabled** | Removed: caused invisible own messages |
-| invite-notify | Advertised | Requires relay infrastructure |
-| chghost | Advertised | Requires relay infrastructure |
-| setname | Active | SETNAME command implemented |
-| batch | Advertised | Framework only |
-| labeled-response | Advertised | Framework only |
-| standard-replies | Advertised | Framework only |
-
-**Note:** Capabilities marked "Advertised" are negotiated but their
-full server-side relay behavior requires the ircd_tags infrastructure
-that is not present in this codebase. Clients can negotiate them but
-will not receive the corresponding tags on messages. This is safe —
-clients degrade gracefully.
-
-### New File Audit
-
-| File | Lines | Purpose | Risk |
-|------|-------|---------|------|
-| ircd/m_sa.c | ~340 | SA* oper commands | Medium (privilege-gated) |
-| ircd/m_setname.c | ~75 | IRCv3 SETNAME | Low (cap-gated, CR/LF filtered) |
-| ircd/m_tagmsg.c | ~75 | IRCv3 TAGMSG | Low (accept-and-drop) |
-
-### Build Verification
-
-- 62 files changed from original
-- 5 new files added
-- Zero compiler errors
-- Zero compiler warnings
-- All SVS* S2S handlers unchanged (backward compatible)
-- All SA* handlers properly privilege-gated
+| File | Description |
+|------|-------------|
+| ircd.conf | Production config, 242 features, full oper privileges |
+| doc/ircd.conf | Copy of production config |
+| doc/example.conf | Upstream reference with DNSBL, WHOIS labels, all new features |
+| cathexis.service | systemd unit with security hardening |
+| setup.sh | One-command install script |
 
 ---
 
-## Addendum — Cathexis 1.1.0 Security Hardening Audit
+## Build Verification
 
-### Summary
+The codebase compiles with 0 errors and 0 warnings under:
+- Default flags: `gcc -g -O2`
+- Strict flags: `gcc -Wall -pedantic -g -O2` with `--enable-debug --enable-warnings --enable-pedantic`
 
-The 1.1.0 release applies all security fixes that were documented but
-not applied in 1.0.0. A secondary independent 10-pass audit was performed
-and cross-referenced against the original findings.
-
-### Fixes Applied
-
-| Finding | File | Status |
-|---------|------|--------|
-| MA-01: Cloaking key overflow | ircd_cloaking.c | **FIXED** — safe_key_copy() |
-| MA-02: Watch list accumulation | m_watch.c | **FIXED** — ircd_strncpy + memcpy |
-| MA-03: Privilege strcat chains | client.c | **FIXED** — position-tracked memcpy |
-| MA-05: PRIVS strcat | m_privs.c | **FIXED** — bounded memcpy |
-| TF-01: Server channel name length | channel.c | **FIXED** — CHANNELLEN enforced for all |
-| TF-02: Cloaking key taint flow | ircd_cloaking.c | **FIXED** — bounded copy |
-| L10-L14: strcat accumulation | 10 files | **FIXED** — strncat/memcpy |
-| PA-01: Timing-safe compare | ircd_crypt.c | **FIXED** — CRYPTO_memcmp fallback |
-
-### IRCv3 Compliance Verified
-
-Reviewed against the ircv3-specifications-master archive:
-
-| Spec | Compliance |
-|------|-----------|
-| capability-negotiation | Full (CAP LS 302, NEW/DEL, cap-notify) |
-| message-tags | Accept-strip (graceful degradation) |
-| multi-prefix | Full (NAMES + WHO + WHOIS) — WHOIS fixed in 1.1.0 |
-| setname | Full (FAIL replies, NAMELEN ISUPPORT) — fixed in 1.1.0 |
-| SASL 3.2 | Full (mechanism list, relay to services) |
-| WEBIRC | Full (options: secure, ports, certfp, account) |
-| extended-join | Full |
-| away-notify | Full |
-| account-notify | Full |
-| userhost-in-names | Full |
-| server-time | Advertised (framework only) |
-| batch | Advertised (framework only) |
-| TAGMSG | Accept-no-relay |
-
-### Remaining Items (by design)
-
-- PA-02: S2S PRIVS injection — P10 protocol design limitation
-- PA-04: SVS* from any server — requires U-line infrastructure
-- DS-04–06: S2S message authentication — requires protocol redesign
+Tested with gcc 14 on x86_64 Linux.

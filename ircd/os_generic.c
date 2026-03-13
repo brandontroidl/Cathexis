@@ -40,6 +40,7 @@
 #endif
 
 #include "ircd_osdep.h"
+#include "ircd_snprintf.h"
 #include "msgq.h"
 #include "ircd_log.h"
 #include "res.h"

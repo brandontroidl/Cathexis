@@ -92,8 +92,11 @@ CHANNEL MODES
 A - APASS
  Used with OPLEVEL
 
-a - Admin Only
- Marks a channel as admin restricted, allowing only IRC Administrators to join
+a - Admin Only / Channel Protect
+ When OWNERPROTECT is FALSE: Marks a channel as admin restricted, allowing only IRC Administrators to join
+ When OWNERPROTECT is TRUE: Sets +a (protect) on a user, granting channel protect status (& prefix).
+ Protect users can set +a +o +h +v but not +q. They cannot be kicked by +o or +h.
+ Can be set by +q users, services, or /SAMODE.
 
 b - Ban
  Sets a ban on the channel of the specified nick!user@host mask (wildcards permitted)
@@ -145,6 +148,11 @@ O - Oper Only
 
 o - Channel Operator
  Sets +o on the user granting them channel operator abilities
+
+q - Channel Owner
+ Sets +q on a user, granting channel owner status (~ prefix). Requires OWNERPROTECT=TRUE.
+ Owner users can set +q +a +o +h +v and cannot be kicked except by another +q.
+ Can be set by other +q users, services, or /SAMODE.
 
 p - Private
  Marks a channel as private

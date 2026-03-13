@@ -206,3 +206,67 @@ Target limiting:
   ERR_TARGETTOOFAST 349
 
 
+
+# =========================================================================
+# Cathexis 1.1.0 Features
+# =========================================================================
+
+DNSBL (DNS Blacklist):
+ Version: Cathexis 1.1.0
+
+ Built-in DNS blacklist checking during client registration. The server
+ queries up to 3 DNSBL zones in parallel alongside DNS reverse lookup
+ and ident queries. No extra registration delay for clean IPs.
+
+ If a client's IP is listed, the server either disconnects them
+ (DNSBL_REJECT=TRUE) or marks them for oper review (DNSBL_REJECT=FALSE).
+
+ Features:
+  DNSBL              TRUE/FALSE - enable/disable DNSBL checking
+  DNSBL_HOST         Primary DNSBL zone (default: dnsbl.dronebl.org)
+  DNSBL_HOST2        Secondary DNSBL zone (optional)
+  DNSBL_HOST3        Third DNSBL zone (optional)
+  DNSBL_REJECT       TRUE = disconnect listed IPs, FALSE = mark only
+  DNSBL_REASON       Disconnect message shown to listed clients
+  DNSBL_MARK         Mark name applied to listed clients
+
+ Oper visibility: DNSBL hits generate SNO_CONNEXIT notices (snomask c).
+ Marked users visible via /CHECK <nick>.
+
+Channel Owner (+q) and Protect (+a):
+ Version: Cathexis 1.1.0
+
+ Two new channel member prefix modes above operator:
+
+  ~ +q  Owner     Can set +q +a +o +h +v. Cannot be kicked except by +q.
+  & +a  Protect   Can set +a +o +h +v. Cannot be kicked by +o or +h.
+
+ These modes can be set by +q users, services, or /SAMODE. Regular
+ channel operators (+o) cannot set or remove +q/+a.
+
+ Features:
+  OWNERPROTECT       TRUE/FALSE - enable +q and +a modes
+  HALFOPS            TRUE/FALSE - enable +h mode
+
+ ISUPPORT PREFIX= adapts automatically to show enabled prefixes.
+ When OWNERPROTECT is FALSE, +a reverts to admin-only channel flag.
+
+SA* Commands (Network Administration):
+ Version: Cathexis 1.1.0
+
+ Ten commands consolidated from the original SVS* commands. All require
+ PRIV_NETADMIN (+N). All generate server notices (SNO_OLDSNO, snomask o)
+ showing the oper, the target, and full parameters.
+
+  SAJOIN  <nick> <#channel>          Force join
+  SAPART  <nick> <#channel> [reason] Force part
+  SANICK  <nick> <newnick>           Force nick change
+  SAMODE  <target> <modes> [params]  Force mode change
+  SAQUIT  <nick> [reason]            Force disconnect
+  SATOPIC <#channel> <topic>         Force topic change
+  SAWHOIS <nick> [text]              Set/clear WHOIS line
+  SAIDENT <nick> <ident>             Force ident change
+  SAINFO  <nick> <realname>          Force realname change
+  SANOOP  <server> <+/->             Toggle NOOP on server
+
+ Wire tokens preserved from SVS* for rolling upgrade compatibility.

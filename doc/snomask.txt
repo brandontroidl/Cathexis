@@ -36,7 +36,7 @@ Snomask Letter Reference
 
 Letter  Flag              Hex Value  Description
 ------  ----------------  ---------  -----------
-  o     SNO_OLDSNO            0x1    Unsorted old messages
+  o     SNO_OLDSNO            0x1    Oper actions (SA* commands, rehash, etc.)
   k     SNO_SERVKILL          0x2    Server kills (nick collisions)
   K     SNO_OPERKILL          0x4    Oper kills
   D     SNO_HACK2             0x8    Desyncs
@@ -50,7 +50,7 @@ Letter  Flag              Hex Value  Description
   i     SNO_IPMISMATCH      0x800    IP mismatches
   t     SNO_THROTTLE       0x1000    Host throttle add/remove notices
   r     SNO_OLDREALOP      0x2000    Old oper-only messages
-  c     SNO_CONNEXIT       0x4000    Client connect/exit (oper only)
+  c     SNO_CONNEXIT       0x4000    Client connect/exit, DNSBL hits (oper only)
   G     SNO_AUTO           0x8000    AUTO G-lines
   d     SNO_DEBUG         0x10000    Debugging messages (DEBUGMODE only)
   N     SNO_NICKCHG       0x20000    Nick change messages
