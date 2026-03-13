@@ -568,8 +568,8 @@ static struct FeatureDesc {
   /* DNSBL features */
   F_B(DNSBL, 0, 0, 0),
   F_S(DNSBL_HOST, 0, "dnsbl.dronebl.org", 0),
-  F_S(DNSBL_HOST2, 0, 0, 0),
-  F_S(DNSBL_HOST3, 0, 0, 0),
+  F_S(DNSBL_HOST2, FEAT_NULL, 0, 0),
+  F_S(DNSBL_HOST3, FEAT_NULL, 0, 0),
   F_B(DNSBL_REJECT, 0, 1, 0),
   F_S(DNSBL_REASON, 0, "Your IP is listed in a DNS blacklist. Visit https://dronebl.org/lookup or https://rbl.efnetrbl.org for removal.", 0),
   F_S(DNSBL_MARK, 0, "DNSBL", 0),
