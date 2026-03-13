@@ -1584,7 +1584,7 @@ int verify_sslclifp(struct Client* cptr, struct ConfItem* aconf)
   if (!(aconf->sslfp))
     return 1;
 
-  if (!cli_sslclifp(cptr))
+  if (EmptyString(cli_sslclifp(cptr)))
     return 0;
 
   if (ircd_strcmp(aconf->sslfp, cli_sslclifp(cptr)) != 0)

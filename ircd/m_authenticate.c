@@ -107,7 +107,7 @@ int m_authenticate(struct Client* cptr, struct Client* sptr, int parc, char* par
   struct Client* acptr;
   int first = 0;
   char realhost[HOSTLEN + 3];
-  char *hoststr = (cli_sockhost(cptr) ? cli_sockhost(cptr) : cli_sock_ip(cptr));
+  char *hoststr = cli_sockhost(cptr);
 
   if (!CapActive(cptr, CAP_SASL))
     return 0;

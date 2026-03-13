@@ -110,6 +110,7 @@ All notable changes to Cathexis IRCd, relative to upstream Nefarious2 (u2.10.12.
 - va_copy redefinition warnings with gcc 14+ (guard in ircd_snprintf.h)
 - +q/+a member status bits actually stored on membership (mode_process_clients bitmask fix)
 - Orphaned dependency lines in Makefile.in after SVS* file removal (39 lines)
+- engine_epoll.c crash with `_syscall1` fallback on modern Linux when `-pg`/`-pedantic` causes configure's epoll link test to fail (removed ancient fallback, uses proper glibc epoll functions)
 
 ## [1.0.0] — 2026-03-11
 

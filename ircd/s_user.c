@@ -589,8 +589,8 @@ int register_user(struct Client *cptr, struct Client *sptr)
       sendcmdto_serv_butone(&me, CMD_MARK, cptr, "%s %s :%s", cli_name(cptr), MARK_KILL, cli_killmark(sptr));
 
     if (IsGeoIP(sptr)) {
-      if (cli_countrycode(sptr) && !EmptyString(cli_countrycode(sptr)) &&
-          cli_continentcode(sptr) && !EmptyString(cli_continentcode(sptr)))
+      if (!EmptyString(cli_countrycode(sptr)) &&
+          !EmptyString(cli_continentcode(sptr)))
         sendcmdto_serv_butone(&me, CMD_MARK, cptr, "%s %s %s %s :%s",
                       cli_name(sptr), MARK_GEOIP, cli_countrycode(sptr),
                       cli_continentcode(sptr), cli_countryname(sptr));
@@ -2069,6 +2069,7 @@ void send_umode(struct Client *cptr, struct Client *sptr, struct Flags *old,
  * at least one digit and 2) The first digit occurs before the first
  * alphabetic character.
  * @param[in] word Word to check for sno_mask-ness.
+ */
 /** SNO flag to letter mapping table.
  * Letters follow modern IRC daemon conventions (UnrealIRCd, InspIRCd,
  * Charybdis) where possible, with Cathexis-specific assignments for

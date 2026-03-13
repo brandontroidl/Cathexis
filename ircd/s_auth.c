@@ -432,9 +432,9 @@ static void auth_loc_timeout_callback(struct Event* ev)
       return;
 
     sendcmdto_one(&me, CMD_NOTICE, cptr, "%s :Service '%s' is not available (timeout)",
-                  (cli_name(cptr) ? cli_name(cptr) : "*"), cli_loc(cptr)->service);
+                  (cli_name(cptr)[0] ? cli_name(cptr) : "*"), cli_loc(cptr)->service);
     sendcmdto_one(&me, CMD_NOTICE, cptr, "%s :Type \002/QUOTE PASS\002 to "
-                  "connect anyway", (cli_name(cptr) ? cli_name(cptr) : "*"));
+                  "connect anyway", (cli_name(cptr)[0] ? cli_name(cptr) : "*"));
   }
 }
 
@@ -464,18 +464,18 @@ static void auth_do_loc(struct Client *client, struct Client *service)
   } while (!cli_loc(client)->cookie);
 
   sendcmdto_one(&me, CMD_NOTICE, client, "%s :Attempting service login to %s",
-                (cli_name(client) ? cli_name(client) : "*"), cli_loc(client)->service);
+                (cli_name(client)[0] ? cli_name(client) : "*"), cli_loc(client)->service);
 
   if ( feature_bool(FEAT_LOC_SENDHOST) ) {
     char realhost[HOSTLEN + 3];
-    char *hoststr = (cli_sockhost(client) ? cli_sockhost(client) : cli_sock_ip(client));
+    char *hoststr = cli_sockhost(client);
 
     if (strchr(hoststr, ':') != NULL)
       ircd_snprintf(0, realhost, sizeof(realhost), "[%s]", hoststr);
     else
       ircd_strncpy(realhost, hoststr, sizeof(realhost));
 
-    if (cli_sslclifp(client) && !EmptyString(cli_sslclifp(client)) && feature_bool(FEAT_LOC_SENDSSLFP)) {
+    if (!EmptyString(cli_sslclifp(client)) && feature_bool(FEAT_LOC_SENDSSLFP)) {
       sendcmdto_one(&me, CMD_ACCOUNT, service, "%C S .%u.%u %s@%s:%s %s %s :%s", service,
                     cli_fd(client), cli_loc(client)->cookie, cli_username(client),
                     realhost, cli_sock_ip(client), cli_sslclifp(client), cli_loc(client)->account,
@@ -529,10 +529,10 @@ static int check_auth_finished(struct AuthRequest *auth)
       return 0;
     } else {
       sendcmdto_one(&me, CMD_NOTICE, cptr, "%s :Service '%s' is not available (%s)",
-                    (cli_name(cptr) ? cli_name(cptr) : "*"), cli_loc(cptr)->service,
+                    (cli_name(cptr)[0] ? cli_name(cptr) : "*"), cli_loc(cptr)->service,
                     (acptr ? "not a service" : "no such service"));
       sendcmdto_one(&me, CMD_NOTICE, cptr, "%s :Type \002/QUOTE PASS\002 to "
-                    "connect anyway", (cli_name(cptr) ? cli_name(cptr) : "*"));
+                    "connect anyway", (cli_name(cptr)[0] ? cli_name(cptr) : "*"));
       return 0;
     }
   }
@@ -1340,7 +1340,7 @@ static void start_iauth_query(struct AuthRequest *auth)
     return;
   }
 
-  if (IAuthHas(iauth, IAUTH_SSLFP) && cli_sslclifp(auth->client) && !EmptyString(cli_sslclifp(auth->client)))
+  if (IAuthHas(iauth, IAUTH_SSLFP) && !EmptyString(cli_sslclifp(auth->client)))
     sendto_iauth(auth->client, "F %s", cli_sslclifp(auth->client));
 }
 
