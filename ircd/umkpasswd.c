@@ -385,7 +385,8 @@ const char* options = "a:d:lm:u:y:5";
     if(umkpasswd_conf->flags & ACT_ADDOPER)
     {
      fprintf(stderr, "-a and -u are mutually exclusive.  Use either or neither.\n");
-     abort(); /* b0rk b0rk b0rk */
+     show_help();
+     exit(1);
     }
 
     umkpasswd_conf->flags |= ACT_UPDOPER;
@@ -416,7 +417,8 @@ const char* options = "a:d:lm:u:y:5";
     if(umkpasswd_conf->flags & ACT_UPDOPER) 
     {
      fprintf(stderr, "-a and -u are mutually exclusive.  Use either or neither.\n");
-     abort(); /* b0rk b0rk b0rk */
+     show_help();
+     exit(1);
     }
 
     umkpasswd_conf->flags |= ACT_ADDOPER;
@@ -474,7 +476,8 @@ char* pw, *crypted_pw;
  if (NULL == umkpasswd_conf->mech)
  {
   fprintf(stderr, "No mechanism specified.\n");
-  abort();
+  show_help();
+  exit(1);
  }
 
  if (NULL == pw)
