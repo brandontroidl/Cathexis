@@ -321,3 +321,47 @@ Cryptography Modernization (Quantum-Ready):
   The new implementation reads from /dev/urandom directly, and
   uses OpenSSL RAND_bytes() when available. This affects PING
   cookies, nonce generation, and all security-critical randomness.
+
+Authentication Hardening:
+ Version: Cathexis 1.2.0
+
+ OPER Brute Force Protection:
+  Failed OPER attempts incur a 10-second flood penalty (cli_since += 10).
+  This stacks with the general message flood control (~2 sec/msg).
+  After 3 rapid failures the client is effectively throttled for 30+ seconds.
+  Prevents both brute force password guessing and hash amplification DoS.
+
+ Credential Enumeration Prevention:
+  Both "no such operator" and "wrong password" return ERR_NOOPERHOST (491).
+  Attackers cannot distinguish valid operator names from invalid ones.
+  The server-side SNO_OLDREALOP notice still logs the actual failure reason.
+
+ Client Password Buffer:
+  PASSWDLEN increased from 20 to 128 characters. Client connection
+  passwords (used in Client {} auth blocks) are no longer truncated
+  to 20 characters. OPER passwords are unaffected (passed directly
+  from parv[] without truncation).
+
+ Constant-Time Comparisons:
+  All password, channel key, and credential comparisons use
+  ircd_constcmp() from include/ircd_crypto.h. This function uses
+  OpenSSL CRYPTO_memcmp() when available, with a volatile-pointer
+  fallback otherwise. Full-length comparison prevents timing leaks.
+
+  Files using ircd_constcmp():
+    ircd_crypt.c   — OPER password verification
+    m_server.c     — server link password
+    s_conf.c       — WebIRC and SHost passwords
+    s_auth.c       — client connection password
+    m_join.c       — APASS, UPASS, channel +k key
+
+ Secret Memory Clearing:
+  ircd_clearsecret() is called before MyFree() on all hashed
+  password buffers in oper_password_match() and s_conf.c.
+  Uses volatile pointer to prevent compiler optimization.
+
+ Cloaking Key Startup Check:
+  The daemon warns at startup if HOST_HIDING is enabled and
+  cloaking keys match the compiled-in defaults or are empty.
+  Default keys are public (in the source code) and provide
+  zero security. Generate unique keys with: openssl rand -hex 32

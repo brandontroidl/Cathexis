@@ -124,7 +124,9 @@ All fixes applied to source — no patches or external dependencies.
 
 **Input validation:** `get_channel()` enforces CHANNELLEN for all sources (local + server). SETNAME filters CR/LF injection. Channel name length validated on BURST.
 
-**Cryptographic:** Constant-time password comparison via `CRYPTO_memcmp()` with fallback for non-SSL builds.
+**Cryptographic:** Constant-time comparison (`ircd_constcmp()` from `ircd_crypto.h`) on all passwords, channel keys, and server link credentials. Secure memory clearing (`ircd_clearsecret()`) before freeing credential buffers.
+
+**OPER hardening:** Failed OPER attempts incur a 10-second flood penalty, preventing brute force. Error responses are uniform (`ERR_NOOPERHOST`) for both missing operator and wrong password, preventing credential enumeration.
 
 See `AUDIT.md` for the complete security audit with findings and remediation details.
 

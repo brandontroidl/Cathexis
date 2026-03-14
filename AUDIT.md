@@ -121,6 +121,10 @@ Six files used `strcmp()` to compare passwords, channel keys, or hashed credenti
 | M10 | m_kick.c | Missing +q/+a in kick permission | Added hierarchy enforcement |
 | M11 | m_kick.c | Missing +q/+a in S2S bounce check | Added IsOwner/IsProtect |
 | M12 | ircd_crypt.c | Non-constant-time password compare | CRYPTO_memcmp with fallback |
+| M13 | m_oper.c | Credential enumeration via different error codes | Uniform ERR_NOOPERHOST for both paths |
+| M14 | m_oper.c | No OPER brute force protection | 10-second cli_since penalty per failure |
+| M15 | ircd.c | Default cloaking keys are public | Startup warning if keys match defaults or empty |
+| M16 | ircd_defs.h | Client PASSWDLEN truncation at 20 chars | Increased to 128 |
 
 ---
 
@@ -128,7 +132,10 @@ Six files used `strcmp()` to compare passwords, channel keys, or hashed credenti
 
 Replaced `strcpy` with `ircd_strncpy` in these files where the copy was exact-fit or nearly so but lacked explicit bounds:
 
-s_auth.c, m_map.c, opercmds.c, numnicks.c, uping.c, whocmds.c, m_setname.c (CR/LF filter added), s_user.c, m_burst.c, m_names.c, m_whois.c (multi-prefix WHOIS), parse.c (SA* command registration), m_help.c (help system rewrite), ircd_features.c (DNSBL features)
+s_auth.c, m_map.c, opercmds.c, numnicks.c, uping.c, whocmds.c, m_setname.c (CR/LF filter added), s_user.c, m_burst.c, m_names.c, m_whois.c (multi-prefix WHOIS), parse.c (SA* command registration), m_help.c (help system rewrite, array size 30→40), ircd_features.c (DNSBL features)
+
+Additional low-severity fixes:
+- `umkpasswd.c`: Three `abort()` calls replaced with `show_help(); exit(1);` — missing `-m` flag or conflicting options no longer produce a core dump
 
 ---
 
@@ -271,7 +278,7 @@ The cipher defaults prioritize 256-bit symmetric keys (AES-256-GCM first) which 
 | `ircd/ircd_cloaking.c` | Added HMAC-SHA512 cloaking (64-bit segments) |
 | `include/ircd_cloaking.h` | Added HMAC cloaking declarations |
 | `ircd/ircd_crypt.c` | Registered SHA, weak password gates, deprecation warnings |
-| `ircd/umkpasswd.c` | Registered SHA mechanisms |
+| `ircd/umkpasswd.c` | Registered SHA mechanisms, crash fix (abort → exit) |
 | `ircd/s_user.c` | HMAC-SHA512 cloaking dispatch |
 | `include/ircd_features.h` | FEAT_HOST_HIDING_HMAC, FEAT_CRYPT_ALLOW_PLAIN/SMD5 |
 | `ircd/ircd_features.c` | Feature entries, quantum-ready TLS cipher defaults |
@@ -281,6 +288,10 @@ The cipher defaults prioritize 256-bit symmetric keys (AES-256-GCM first) which 
 | `ircd/s_auth.c` | Constant-time client connection password comparison |
 | `ircd/m_join.c` | Constant-time APASS/UPASS/channel key comparisons |
 | `ircd/Makefile.in` | Added ircd_crypt_sha.c to build |
+| `ircd/m_oper.c` | OPER brute force penalty, credential enumeration fix |
+| `ircd/ircd.c` | Cloaking key startup safety check |
+| `include/ircd_defs.h` | PASSWDLEN increased from 20 to 128 |
+| `ircd/m_help.c` | HelpEntry array increased from 30 to 40 |
 
 ---
 
@@ -289,5 +300,6 @@ The cipher defaults prioritize 256-bit symmetric keys (AES-256-GCM first) which 
 The codebase compiles with 0 errors and 0 warnings under:
 - Default flags: `gcc -g -O2`
 - Strict flags: `gcc -Wall -pedantic -g -O2` with `--enable-debug --enable-warnings --enable-pedantic`
+- Hardened flags: `gcc -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -Wformat -Wformat-security`
 
 Tested with gcc 14 on x86_64 Linux.
