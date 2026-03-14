@@ -296,6 +296,20 @@ Cryptography Modernization (Quantum-Ready):
   When rejected, an SNO_OLDSNO notice tells opers which mechanism was
   blocked. When allowed, a deprecation warning is still sent.
 
+  Implementation files:
+    ircd/ircd_crypt_sha.c     — SHA-256/SHA-512 mechanism via system crypt()
+    include/ircd_crypt_sha.h  — SHA mechanism declarations
+    include/ircd_crypto.h     — Portable ircd_constcmp(), ircd_clearsecret()
+
+  Bug fixes applied to password system:
+    - bcrypt sizeof(salt) bug: snprintf used pointer size (8) instead of
+      buffer size (30). Fixed to explicit snprintf(salt, 30, ...).
+    - ircd_crypt() dispatch loop: strncmp("", x, 0) always returned 0,
+      causing empty-token mechanisms (bcrypt/sha) to match everything.
+      Fixed by skipping crypt_token_size == 0 in the loop.
+    - umkpasswd crash: abort() on missing -m flag replaced with
+      show_help(); exit(1).
+
  Host Cloaking:
   Feature HOST_HIDING_HMAC (default: TRUE).
   Uses HMAC-SHA512 instead of double-MD5 for host cloaking.

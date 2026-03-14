@@ -46,7 +46,7 @@ Letter  Flag              Hex Value  Description
   f     SNO_TOOMANY          0x80    Too many connections
   h     SNO_HACK4           0x100    Uworld actions on channels
   g     SNO_GLINE           0x200    G-lines
-  n     SNO_NETWORK         0x400    Net join/break, etc
+  n     SNO_NETWORK         0x400    Net join/break, S2S-HMAC authentication
   i     SNO_IPMISMATCH      0x800    IP mismatches
   t     SNO_THROTTLE       0x1000    Host throttle add/remove notices
   r     SNO_OLDREALOP      0x2000    Old oper-only messages
@@ -143,6 +143,14 @@ Snomask o (SNO_OLDSNO) — Oper actions and password security:
   brandon is rehashing Server config file
   REJECTED: Plaintext password ($PLAIN$) is disabled.
   WARNING: Salted MD5 password ($SMD5$) in use.
+  S2S-AUTH: Rejected SAJOIN from evil.server (not services hub AB)
+
+Snomask n (SNO_NETWORK) — Network events and S2S authentication:
+  Net junction: irc.example.com hub.example.com
+  Net break: leaf.example.com hub.example.com (reason)
+  S2S-HMAC: Cryptographic authentication active on link to hub.example.com
+  S2S-HMAC: Rejected message from evil.server (invalid HMAC)
+  S2S-HMAC: WARNING — key derivation failed for link to hub.example.com
 
 Snomask c (SNO_CONNEXIT) — Connections and DNSBL:
   DNSBL: 198.51.100.3 listed in dnsbl.dronebl.org (result: 127.0.0.19)

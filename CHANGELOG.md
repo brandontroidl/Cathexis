@@ -18,7 +18,7 @@ All notable changes to Cathexis IRCd, relative to upstream Nefarious2 (u2.10.12.
 - **Per-message HMAC-SHA256 authentication** — new `S2S_HMAC` feature. When enabled, every S2S message is signed with HMAC-SHA256 using keys derived from the link password. Inbound messages without valid tags are silently dropped. Outbound messages are signed per-destination in `sendcmdto_serv_butone()`.
 - **SA* source restriction** — new `SERVICES_HUB_NUMERIC` feature. When set, only the server with the specified P10 numeric can send SA* commands. All 9 `ms_sa*` handlers (`SAJOIN`, `SAPART`, `SANICK`, `SAMODE`, `SAQUIT`, `SATOPIC`, `SAWHOIS`, `SAIDENT`, `SAINFO`, `SANOOP`) verify source authorization. Replaces legacy P10 trust model.
 - **Channel state hashing** — new `S2S_CSYNC` feature. SHA-256 hash of channel state (modes, members, bans, topic) for desync detection after BURST/EOB.
-- **New files:** `include/s2s_crypto.h`, `ircd/s2s_crypto.c`, `include/msgq.h` accessors (`msgq_text`, `msgq_msglen`).
+- **New files:** `include/s2s_crypto.h`, `ircd/s2s_crypto.c`, `include/ircd_crypto.h` (constant-time utilities), `ircd/ircd_crypt_sha.c`, `include/ircd_crypt_sha.h` (SHA password mechanisms), `include/msgq.h` accessors (`msgq_text`, `msgq_msglen`).
 
 **Build & Documentation**
 - CHANGELOG.md and LICENSE.md
@@ -46,6 +46,8 @@ All notable changes to Cathexis IRCd, relative to upstream Nefarious2 (u2.10.12.
 - **Cloaking key startup check** — warns at startup if `HOST_HIDING` is enabled with default or empty cloaking keys.
 - **Client password truncation** — `PASSWDLEN` increased from 20 to 128 characters.
 - **`umkpasswd` core dump on missing `-m` flag** — three `abort()` calls replaced with `show_help(); exit(1);`.
+- **`m_help.c` HelpEntry array overflow** — FEATURES help text exceeded 30-line array limit after adding HMAC/CRYPT_ALLOW entries. Increased `HelpEntry.lines` from 30 to 40.
+- **`s2s_crypto.c` linker error in umkpasswd** — `s2s_crypto.c` was in `CRYPTO_SRC` which feeds `UMKPASSWD_SRC`. Moved to `IRCD_SRC` since umkpasswd doesn't link `ircd_snprintf.o`.
 - 9 `-Waddress` warnings across `s_auth.c`, `m_authenticate.c`, `s_conf.c`, `s_serv.c`, `s_user.c` (char array compared to NULL)
 - 1 `-Wcomment` warning in `s_user.c` (unclosed Doxygen comment block)
 - `engine_epoll.c` `_syscall1` fallback removed (broke with modern gcc/pedantic)

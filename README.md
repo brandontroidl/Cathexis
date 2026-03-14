@@ -19,7 +19,7 @@ cp doc/ircd.conf $HOME/ircd/lib/ircd.conf
 $HOME/ircd/bin/ircd
 ```
 
-Generate cloaking keys with `openssl rand -hex 32`. All three `HOST_HIDING_KEY` values must be unique and must match across all servers on the network.
+Generate cloaking keys with `openssl rand -hex 32`. All three `HOST_HIDING_KEY` values must be unique and must match across all servers on the network. The daemon warns at startup if keys are still set to the compiled-in defaults.
 
 ## Build Options
 
@@ -119,6 +119,8 @@ All fixes applied to source — no patches or external dependencies.
 **Weak password rejection:** `$PLAIN$` and `$SMD5$` passwords are rejected by default. Set `CRYPT_ALLOW_PLAIN` or `CRYPT_ALLOW_SMD5` to TRUE only during migration from legacy configs.
 
 **TLS hardening:** Default cipher lists prioritize 256-bit symmetric keys (AES-256-GCM, ChaCha20) with ECDHE forward secrecy. TLS 1.0/1.1 disabled by default. Post-quantum ML-KEM key exchange activates automatically when OpenSSL 3.5+ is available.
+
+**S2S authentication:** Optional per-message HMAC-SHA256 on server links (`S2S_HMAC = TRUE`). Keys derived from link passwords. Prevents message injection and tampering. Channel state hashing (`S2S_CSYNC`) detects desync after netsplits. SA* commands restricted to authorized services hub (`SERVICES_HUB_NUMERIC`).
 
 **Memory safety:** Zero `strcat()` calls remain in the codebase. All `sprintf()` replaced with bounded `ircd_snprintf()`. All dangerous `strcpy()` replaced with `ircd_strncpy()` across 20+ files. Cloaking key copy uses bounded `safe_key_copy()` helper.
 
