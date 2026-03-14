@@ -79,8 +79,7 @@ CRYPTO_SRC = \
 	ircd_crypt_smd5.c \
 	ircd_crypt_native.c \
 	ircd_crypt_bcrypt.c \
-	ircd_crypt_sha.c \
-	s2s_crypto.c
+	ircd_crypt_sha.c
 
 UMKPASSWD_SRC = ${CRYPTO_SRC} \
 	ircd_alloc.c \
@@ -243,6 +242,7 @@ IRCD_SRC = \
 	send.c \
 	shun.c \
 	ssl.c \
+	s2s_crypto.c \
 	uping.c \
 	userload.c \
 	watch.c \

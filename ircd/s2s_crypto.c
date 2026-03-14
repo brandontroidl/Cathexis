@@ -93,17 +93,6 @@ static int compute_hmac_sha256(unsigned char *mac,
   return 0;
 }
 
-/** Compute SHA-256 hash.
- * @param[out] hash   32-byte output.
- * @param[in]  data   Data to hash.
- * @param[in]  len    Data length.
- */
-static void compute_sha256(unsigned char *hash,
-                           const unsigned char *data, size_t len)
-{
-  SHA256(data, len, hash);
-}
-
 /* ================================================================
  * Key Derivation
  * ================================================================ */
