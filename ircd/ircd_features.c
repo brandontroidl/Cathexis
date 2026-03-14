@@ -857,6 +857,11 @@ static struct FeatureDesc {
   F_B(UPING_ENABLE, FEAT_READ, 1, 0),
   F_I(UPING_PORT, FEAT_READ, UDP_PORT, 0),
 
+  F_B(S2S_HMAC, 0, 0, 0),
+  F_B(S2S_CSYNC, 0, 0, 0),
+  F_S(SERVICES_HUB_NUMERIC, FEAT_NULL, 0, 0),
+  F_S(SERVICES_KEY, FEAT_NULL, 0, 0),
+
 #undef F_S
 #undef F_B
 #undef F_I

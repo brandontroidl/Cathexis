@@ -39,6 +39,8 @@
 #include "ircd_string.h"
 #include "ircd_snprintf.h"
 #include "ircd_crypt.h"
+#include "ircd_features.h"
+#include "s2s_crypto.h"
 #include "jupe.h"
 #include "list.h"
 #include "mark.h"
@@ -148,6 +150,28 @@ int server_estab(struct Client *cptr, struct ConfItem *aconf)
   cli_handler(cptr) = SERVER_HANDLER;
   Count_unknownbecomesserver(UserStats);
   SetBurst(cptr);
+
+  /* Cathexis 1.2.0: Derive S2S cryptographic keys from the link password.
+   * When S2S_HMAC is enabled, every message on this link will be
+   * HMAC-SHA256 signed and verified. */
+  cli_serv(cptr)->s2s_active = 0;
+  if (feature_bool(FEAT_S2S_HMAC) && aconf->passwd && *aconf->passwd) {
+    struct S2SKey tmpkey;
+    if (s2s_derive_keys(&tmpkey, aconf->passwd) == 0) {
+      memcpy(cli_serv(cptr)->s2s_hmac_key, tmpkey.hmac_key, 32);
+      memcpy(cli_serv(cptr)->s2s_sacert_key, tmpkey.sacert_key, 32);
+      cli_serv(cptr)->s2s_active = 1;
+      sendto_opmask_butone(0, SNO_NETWORK,
+        "S2S-HMAC: Cryptographic authentication active on link to %s",
+        cli_name(cptr));
+    } else {
+      sendto_opmask_butone(0, SNO_NETWORK,
+        "S2S-HMAC: WARNING — key derivation failed for link to %s",
+        cli_name(cptr));
+    }
+    /* Clear temporary key material */
+    memset(&tmpkey, 0, sizeof(tmpkey));
+  }
 
 /*    nextping = CurrentTime; */
 

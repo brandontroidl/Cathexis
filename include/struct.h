@@ -61,6 +61,13 @@ struct Server {
 
   char *last_error_msg;         /**< Allocated memory with last message receive with an ERROR */
   char by[NICKLEN + 1];         /**< Numnick of client who requested the link */
+
+  /** S2S cryptographic authentication keys (Cathexis 1.2.0+).
+   * Derived from the link password using HMAC-SHA256 as KDF.
+   * When active, every S2S message is HMAC-signed and verified. */
+  unsigned char s2s_hmac_key[32];   /**< HMAC key for per-message auth */
+  unsigned char s2s_sacert_key[32]; /**< HMAC key for SA* command signing */
+  int           s2s_active;         /**< 1 if S2S crypto is active on this link */
 };
 
 /** Describes a user on the network. */

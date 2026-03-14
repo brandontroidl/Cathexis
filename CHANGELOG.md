@@ -14,6 +14,12 @@ All notable changes to Cathexis IRCd, relative to upstream Nefarious2 (u2.10.12.
 - **Weak password gates** — new features `CRYPT_ALLOW_PLAIN` and `CRYPT_ALLOW_SMD5` (both default FALSE). `$PLAIN$` and `$SMD5$` passwords are rejected by default. When enabled, deprecation warnings still fire.
 - **Quantum-ready TLS cipher defaults** — TLS 1.2 ciphers default to `ECDHE+AESGCM:ECDHE+CHACHA20` with 256-bit symmetric preference. TLS 1.3 ciphersuites default to `TLS_AES_256_GCM_SHA384` first. TLS 1.0/1.1 disabled by default. ML-KEM (post-quantum) activates automatically when OpenSSL 3.5+ is available.
 
+**Server-to-Server Protocol Security**
+- **Per-message HMAC-SHA256 authentication** — new `S2S_HMAC` feature. When enabled, every S2S message is signed with HMAC-SHA256 using keys derived from the link password. Inbound messages without valid tags are silently dropped. Outbound messages are signed per-destination in `sendcmdto_serv_butone()`.
+- **SA* source restriction** — new `SERVICES_HUB_NUMERIC` feature. When set, only the server with the specified P10 numeric can send SA* commands. All 9 `ms_sa*` handlers (`SAJOIN`, `SAPART`, `SANICK`, `SAMODE`, `SAQUIT`, `SATOPIC`, `SAWHOIS`, `SAIDENT`, `SAINFO`, `SANOOP`) verify source authorization. Replaces legacy P10 trust model.
+- **Channel state hashing** — new `S2S_CSYNC` feature. SHA-256 hash of channel state (modes, members, bans, topic) for desync detection after BURST/EOB.
+- **New files:** `include/s2s_crypto.h`, `ircd/s2s_crypto.c`, `include/msgq.h` accessors (`msgq_text`, `msgq_msglen`).
+
 **Build & Documentation**
 - CHANGELOG.md and LICENSE.md
 - Complete `doc/features.txt` section for cryptography

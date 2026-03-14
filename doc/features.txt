@@ -365,3 +365,64 @@ Authentication Hardening:
   cloaking keys match the compiled-in defaults or are empty.
   Default keys are public (in the source code) and provide
   zero security. Generate unique keys with: openssl rand -hex 32
+
+Server-to-Server Protocol Security:
+ Version: Cathexis 1.2.0
+
+ Per-Message HMAC Authentication (S2S_HMAC):
+  When enabled, every server-to-server message is authenticated with
+  HMAC-SHA256. Keys are derived from the link password using labeled
+  HMAC-SHA256 as a KDF:
+    hmac_key   = HMAC-SHA256(password, "cathexis-s2s-hmac-v1")
+    sacert_key = HMAC-SHA256(password, "cathexis-s2s-sacert-v1")
+
+  Wire format: @hmac=<64hex> <original P10 message>
+
+  The inbound parser (parse_server) verifies the HMAC tag on every
+  message. Invalid or missing tags cause the message to be silently
+  dropped with an SNO_NETWORK notice.
+
+  The outbound send path (sendcmdto_serv_butone) signs each message
+  per-destination with the link-specific HMAC key.
+
+  Features:
+    S2S_HMAC          FALSE    Enable per-message HMAC on all S2S links
+    SERVICES_KEY      (null)   Optional shared key for SA* command signing
+
+  WARNING: Breaks compatibility with non-Cathexis servers.
+  Link passwords must be strong when S2S_HMAC is enabled:
+    openssl rand -hex 32
+
+ Channel State Verification (S2S_CSYNC):
+  After BURST/EOB, servers exchange SHA-256 hashes of channel state
+  (name, modes, key, limit, topic, bans, members with status bits).
+  If hashes mismatch, the receiving server can request a re-burst of
+  the specific channel via CRESYNC.
+
+  Feature:
+    S2S_CSYNC         FALSE    Enable channel state verification
+
+ SA* Source Restriction (SERVICES_HUB_NUMERIC):
+  When set, only the server with the specified 2-character P10 numeric
+  can originate SA* commands (SAJOIN, SAPART, SAMODE, SANICK, SATOPIC,
+  SAQUIT, SAWHOIS, SAIDENT, SAINFO, SANOOP). All other servers' SA*
+  commands are rejected with an SNO_OLDSNO notice.
+
+  This replaces the legacy P10 trust model where any linked server
+  could execute SA* commands on behalf of any user.
+
+  Feature:
+    SERVICES_HUB_NUMERIC  (null)  Server numeric authorized for SA*
+
+  All 9 ms_sa* handlers in m_sa.c include the s2s_sa_authorized() check.
+
+ Implementation Files:
+  include/s2s_crypto.h   — API declarations
+  ircd/s2s_crypto.c      — HMAC signing, verification, channel hashing
+  ircd/s_serv.c          — Key derivation at link establishment
+  ircd/parse.c           — Inbound HMAC verification in parse_server
+  ircd/send.c            — Outbound HMAC signing in sendcmdto_serv_butone
+  ircd/m_sa.c            — SA* source authorization in all 9 handlers
+  include/struct.h       — S2S key storage in Server struct
+  include/msgq.h         — msgq_text/msgq_msglen accessors
+  ircd/msgq.c            — MsgBuf text accessor implementations

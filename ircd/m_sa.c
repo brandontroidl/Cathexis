@@ -26,6 +26,8 @@
 #include "ircd_reply.h"
 #include "ircd_string.h"
 #include "ircd_snprintf.h"
+#include "s2s_crypto.h"
+#include "numnicks.h"
 #include "list.h"
 #include "msg.h"
 #include "numeric.h"
@@ -39,6 +41,47 @@
 
 #include <string.h>
 #include <stdlib.h>
+
+/** Verify that a server is authorized to send SA* commands.
+ *
+ * When SERVICES_HUB_NUMERIC is configured, only the server with that
+ * numeric can originate SA* commands. This replaces the P10 trust model
+ * where any server could send SA* commands.
+ *
+ * When SERVICES_HUB_NUMERIC is not set, the legacy behavior applies
+ * (any server's SA* commands are accepted).
+ *
+ * @param[in] sptr Source server of the SA* command.
+ * @param[in] cmd  Command name for logging.
+ * @return 1 if authorized, 0 if rejected.
+ */
+static int s2s_sa_authorized(struct Client *sptr, const char *cmd)
+{
+  const char *hub_numeric;
+
+  /* If no services hub configured, fall back to legacy trust */
+  hub_numeric = feature_str(FEAT_SERVICES_HUB_NUMERIC);
+  if (!hub_numeric || !*hub_numeric)
+    return 1;
+
+  /* Find the originating server */
+  if (IsServer(sptr)) {
+    /* sptr is the server itself — check its numeric */
+    if (!strncmp(cli_yxx(sptr), hub_numeric, 2))
+      return 1;
+  } else if (cli_user(sptr) && cli_user(sptr)->server) {
+    /* sptr is a pseudo-client on the services hub */
+    struct Client *srv = cli_user(sptr)->server;
+    if (!strncmp(cli_yxx(srv), hub_numeric, 2))
+      return 1;
+  }
+
+  /* Rejected — log it */
+  sendto_opmask_butone(0, SNO_OLDSNO,
+    "S2S-AUTH: Rejected %s from %s (not services hub %s)",
+    cmd, cli_name(sptr), hub_numeric);
+  return 0;
+}
 
 /* ================================================================
  * SAJOIN — Force a user to join channel(s)
@@ -113,6 +156,7 @@ int ms_sajoin(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
   struct Client *acptr;
   if (parc < 3)
     return need_more_params(sptr, "SAJOIN");
+  if (!s2s_sa_authorized(sptr, "SAJOIN")) return 0;
   if (!(acptr = findNUser(parv[1])))
     return 0;
   if (!MyUser(acptr)) {
@@ -211,6 +255,7 @@ int ms_sapart(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
 {
   struct Client *acptr;
   if (parc < 3) return need_more_params(sptr, "SAPART");
+  if (!s2s_sa_authorized(sptr, "SAPART")) return 0;
   if (!(acptr = findNUser(parv[1]))) return 0;
   if (!MyUser(acptr)) {
     if (parc > 3 && !EmptyString(parv[parc - 1]))
@@ -288,6 +333,7 @@ int ms_sanick(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
   char nick[NICKLEN + 2];
 
   if (parc < 3) return need_more_params(sptr, "SANICK");
+  if (!s2s_sa_authorized(sptr, "SANICK")) return 0;
   if (!(acptr = findNUser(parv[1]))) return 0;
   ircd_strncpy(nick, parv[2], NICKLEN);
   nick[NICKLEN] = '\0';
@@ -368,6 +414,7 @@ int ms_samode(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
   struct ModeBuf mbuf;
 
   if (parc < 3) return need_more_params(sptr, "SAMODE");
+  if (!s2s_sa_authorized(sptr, "SAMODE")) return 0;
 
   /* Channel mode from server */
   if (IsChannelName(parv[1])) {
@@ -422,6 +469,7 @@ int ms_saquit(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
   struct Client *acptr;
   char *comment;
   if (parc < 2) return need_more_params(sptr, "SAQUIT");
+  if (!s2s_sa_authorized(sptr, "SAQUIT")) return 0;
   if (!(acptr = findNUser(parv[1]))) return 0;
   comment = (parc > 2 && !BadPtr(parv[parc - 1])) ? parv[parc - 1] : "Quit";
   if (MyConnect(acptr))
@@ -488,6 +536,7 @@ int ms_sawhois(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
 {
   struct Client *acptr;
   char *swhois = "";
+  if (!s2s_sa_authorized(sptr, "SAWHOIS")) return 0;
   if (!(acptr = findNUser(parv[1]))) return 0;
   if (parc > 2 && !EmptyString(parv[2])) swhois = parv[2];
   ircd_strncpy(cli_user(acptr)->swhois, swhois, BUFSIZE + 1);
@@ -542,6 +591,7 @@ int ms_saident(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
   char *s;
 
   if (parc < 3) return need_more_params(sptr, "SAIDENT");
+  if (!s2s_sa_authorized(sptr, "SAIDENT")) return 0;
   if (!(acptr = findNUser(parv[1]))) return 0;
   if (IsChannelService(acptr)) return 0;
   if (strlen(parv[2]) > USERLEN)
@@ -587,6 +637,7 @@ int ms_sainfo(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
 {
   struct Client *acptr;
   if (parc < 3) return need_more_params(sptr, "SAINFO");
+  if (!s2s_sa_authorized(sptr, "SAINFO")) return 0;
   if (!(acptr = findNUser(parv[1]))) return 0;
   ircd_strncpy(cli_info(acptr), parv[parc - 1], REALLEN);
   sendcmdto_serv_butone(sptr, CMD_SAINFO, cptr, "%C :%s", acptr, acptr->cli_info);
@@ -629,6 +680,7 @@ int ms_sanoop(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
 {
   struct Client *acptr;
   if (parc < 3) return need_more_params(sptr, "SANOOP");
+  if (!s2s_sa_authorized(sptr, "SANOOP")) return 0;
   if (!(acptr = FindNServer(parv[1]))) return 0;
   if (!IsMe(acptr)) {
     sendcmdto_serv_butone(sptr, CMD_SANOOP, cptr, "%s %s", parv[1], parv[2]);

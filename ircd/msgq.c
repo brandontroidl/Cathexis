@@ -608,6 +608,35 @@ msgq_bufleft(struct MsgBuf *mb)
   return bufsize(mb) - mb->length; /* \r\n counted in mb->length */
 }
 
+/** Return pointer to the message text in a MsgBuf.
+ * Used by the S2S HMAC signing layer to read message content
+ * before sending. The returned string is NOT null-terminated
+ * (it ends with \r\n); use msgq_msglen() for the length.
+ * @param[in] mb MsgBuf to read.
+ * @return Pointer to message text.
+ */
+const char *
+msgq_text(struct MsgBuf *mb)
+{
+  assert(0 != mb);
+  if (mb->real)
+    return mb->real->msg;
+  return mb->msg;
+}
+
+/** Return the length of the message in a MsgBuf (including \r\n).
+ * @param[in] mb MsgBuf to measure.
+ * @return Message length.
+ */
+unsigned int
+msgq_msglen(struct MsgBuf *mb)
+{
+  assert(0 != mb);
+  if (mb->real)
+    return mb->real->length;
+  return mb->length;
+}
+
 /** Send histogram of message lengths to a client.
  * @param[in] cptr Client requesting statistics.
  * @param[in] sd Stats descriptor for request (ignored).

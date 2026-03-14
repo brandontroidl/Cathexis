@@ -79,7 +79,8 @@ CRYPTO_SRC = \
 	ircd_crypt_smd5.c \
 	ircd_crypt_native.c \
 	ircd_crypt_bcrypt.c \
-	ircd_crypt_sha.c
+	ircd_crypt_sha.c \
+	s2s_crypto.c
 
 UMKPASSWD_SRC = ${CRYPTO_SRC} \
 	ircd_alloc.c \
@@ -511,6 +512,10 @@ ircd_crypt_bcrypt.o: ircd_crypt_bcrypt.c ../config.h ../include/ircd_crypt.h \
 ircd_crypt_sha.o: ircd_crypt_sha.c ../config.h ../include/ircd_crypt.h \
   ../include/ircd_crypt_sha.h ../include/ircd_log.h ../include/s_debug.h \
   ../include/ircd_alloc.h
+s2s_crypto.o: s2s_crypto.c ../config.h ../include/s2s_crypto.h \
+  ../include/channel.h ../include/client.h ../include/ircd_alloc.h \
+  ../include/ircd_log.h ../include/ircd_snprintf.h ../include/ircd_string.h \
+  ../include/ircd_crypto.h ../include/s_debug.h
 ircd_events.o: ircd_events.c ../config.h ../include/ircd_events.h \
   ../include/ircd.h ../include/ircd_alloc.h ../include/ircd_log.h \
   ../include/ircd_snprintf.h ../include/s_debug.h

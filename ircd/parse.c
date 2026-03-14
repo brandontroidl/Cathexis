@@ -36,6 +36,8 @@
 #include "ircd_log.h"
 #include "ircd_reply.h"
 #include "ircd_string.h"
+#include "ircd_crypto.h"
+#include "s2s_crypto.h"
 #include "msg.h"
 #include "numeric.h"
 #include "numnicks.h"
@@ -1392,6 +1394,51 @@ int parse_server(struct Client *cptr, char *buffer, char *bufend)
 
   if (IsDead(cptr))
     return 0;
+
+  /* Cathexis 1.2.0: Per-message HMAC verification.
+   * If S2S_HMAC is active on this link, every incoming message must
+   * carry a valid @hmac= tag. Messages without a tag or with an
+   * invalid HMAC are silently dropped and logged.
+   *
+   * The tag is stripped after verification so the rest of the parser
+   * sees a normal P10 message. */
+  if (cli_serv(cptr) && cli_serv(cptr)->s2s_active)
+  {
+    struct S2SKey tmpkey;
+    const char *verified_content = NULL;
+
+    /* Build a temporary key struct from the stored key material */
+    memcpy(tmpkey.hmac_key, cli_serv(cptr)->s2s_hmac_key, 32);
+    memcpy(tmpkey.sacert_key, cli_serv(cptr)->s2s_sacert_key, 32);
+    tmpkey.active = 1;
+
+    if (!s2s_verify_message(buffer, &tmpkey, &verified_content))
+    {
+      /* HMAC verification failed — drop the message */
+      sendto_opmask_butone(0, SNO_NETWORK,
+        "S2S-HMAC: Rejected message from %s (invalid HMAC)",
+        cli_name(cptr));
+      Debug((DEBUG_ERROR, "S2S-HMAC: bad HMAC from %s: %s",
+             cli_name(cptr), buffer));
+      /* Clear key material from stack */
+      ircd_clearsecret(&tmpkey, sizeof(tmpkey));
+      return 0; /* Drop silently */
+    }
+
+    /* Clear key material from stack */
+    ircd_clearsecret(&tmpkey, sizeof(tmpkey));
+
+    /* Shift the verified content to the start of the buffer.
+     * This strips the @hmac=... tag so the parser sees clean P10. */
+    if (verified_content != buffer)
+    {
+      size_t content_len = bufend - verified_content;
+      memmove(buffer, verified_content, content_len);
+      buffer[content_len] = '\0';
+      bufend = buffer + content_len;
+      ch = buffer;
+    }
+  }
 
   para[0] = cli_name(from);
 

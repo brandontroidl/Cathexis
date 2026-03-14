@@ -33,6 +33,9 @@
 #include "ircd_log.h"
 #include "ircd_snprintf.h"
 #include "ircd_string.h"
+#include "ircd_crypto.h"
+#include "s2s_crypto.h"
+#include "struct.h"
 #include "list.h"
 #include "match.h"
 #include "msg.h"
@@ -432,9 +435,51 @@ void sendcmdto_serv_butone(struct Client *from, const char *cmd,
 
   /* send it to our downlinks */
   for (lp = cli_serv(&me)->down; lp; lp = lp->next) {
-    if (one && lp->value.cptr == cli_from(one))
+    struct Client *dest = lp->value.cptr;
+    if (one && dest == cli_from(one))
       continue;
-    send_buffer(lp->value.cptr, mb, 0);
+
+    /* Cathexis 1.2.0: Per-link HMAC signing.
+     * If S2S_HMAC is active on this link, sign the message with the
+     * link-specific HMAC key and send the tagged version. */
+    if (cli_serv(dest) && cli_serv(dest)->s2s_active)
+    {
+      const char *raw = msgq_text(mb);
+      unsigned int rawlen = msgq_msglen(mb);
+      char msgbuf[BUFSIZE + 80]; /* raw message sans \r\n */
+      char signed_buf[BUFSIZE + 150]; /* signed with @hmac= tag */
+      struct S2SKey tmpkey;
+      struct MsgBuf *signed_mb;
+
+      /* Extract raw message, strip trailing \r\n */
+      if (rawlen > sizeof(msgbuf) - 1)
+        rawlen = sizeof(msgbuf) - 1;
+      memcpy(msgbuf, raw, rawlen);
+      while (rawlen > 0 && (msgbuf[rawlen-1] == '\r' || msgbuf[rawlen-1] == '\n'))
+        rawlen--;
+      msgbuf[rawlen] = '\0';
+
+      /* Build temporary key from stored material */
+      memcpy(tmpkey.hmac_key, cli_serv(dest)->s2s_hmac_key, 32);
+      tmpkey.active = 1;
+
+      if (s2s_sign_message(signed_buf, sizeof(signed_buf), msgbuf, &tmpkey) > 0)
+      {
+        signed_mb = msgq_make(dest, "%s", signed_buf);
+        send_buffer(dest, signed_mb, 0);
+        msgq_clean(signed_mb);
+      }
+      else
+      {
+        /* Signing failed — send unsigned (should not happen) */
+        send_buffer(dest, mb, 0);
+      }
+      ircd_clearsecret(&tmpkey, sizeof(tmpkey));
+    }
+    else
+    {
+      send_buffer(dest, mb, 0);
+    }
   }
 
   msgq_clean(mb);

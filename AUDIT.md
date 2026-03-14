@@ -139,13 +139,35 @@ Additional low-severity fixes:
 
 ---
 
-## Remaining (Info — P10 Protocol Design)
+## P10 Protocol Extensions (Cathexis 1.2.0)
 
-These cannot be fixed without a protocol redesign:
+The following P10 protocol design weaknesses have been addressed with optional extensions that break legacy P10 compatibility when enabled:
 
-1. **S2S message authentication** — P10 uses trust-based server authentication. Messages from servers are accepted without per-message verification.
-2. **Desync scenarios** — Split-brain conditions during netsplits can cause channel state divergence. This is inherent to the P10 BURST mechanism.
-3. **SVS* source restriction** — The protocol trusts that SVS/SA commands originate from authorized services. There is no cryptographic verification of the source.
+1. **S2S message authentication** — FIXED with `S2S_HMAC`. Every S2S message is HMAC-SHA256 signed. Keys derived from link password via labeled KDF. Invalid messages are silently dropped. Inbound verification in `parse_server()`, outbound signing in `sendcmdto_serv_butone()`.
+
+2. **Desync detection** — MITIGATED with `S2S_CSYNC`. Channel state hashing (SHA-256 over modes, members, bans, topic) after BURST/EOB allows servers to detect and re-synchronize state divergence. Does not prevent desync but ensures it is detected.
+
+3. **SA* source restriction** — FIXED with `SERVICES_HUB_NUMERIC`. All 9 `ms_sa*` handlers verify the source server's numeric before executing privileged commands. Unauthorized SA* commands are rejected and logged via `SNO_OLDSNO`.
+
+| Feature | Default | Breaks Legacy P10 |
+|---------|---------|-------------------|
+| `S2S_HMAC` | FALSE | Yes — unsigned messages rejected |
+| `S2S_CSYNC` | FALSE | Yes — new CSYNC/CRESYNC commands |
+| `SERVICES_HUB_NUMERIC` | (null) | No — falls back to legacy trust |
+
+### Implementation Files
+
+| File | Change |
+|------|--------|
+| `include/s2s_crypto.h` | New — S2S crypto API |
+| `ircd/s2s_crypto.c` | New — HMAC signing, verification, channel hashing |
+| `include/struct.h` | S2S key storage in Server struct |
+| `include/msgq.h` | `msgq_text()`, `msgq_msglen()` accessors |
+| `ircd/msgq.c` | MsgBuf text accessor implementations |
+| `ircd/s_serv.c` | Key derivation at link establishment |
+| `ircd/parse.c` | Inbound HMAC verification |
+| `ircd/send.c` | Outbound per-link HMAC signing |
+| `ircd/m_sa.c` | Source verification in all 9 SA* handlers |
 
 ---
 

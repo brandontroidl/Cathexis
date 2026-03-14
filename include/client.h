@@ -53,6 +53,7 @@
 
 struct ConfItem;
 struct Listener;
+struct S2SCryptoState;
 struct ListingArgs;
 struct SLink;
 struct Server;
@@ -312,6 +313,9 @@ struct Connection
   struct CapSet       con_active;    /**< Active capabilities (to us) */
   struct AuthRequest* con_auth;      /**< Auth request for client */
   struct LOCInfo*     con_loc;       /**< Login-on-connect information */
+#ifdef USE_SSL
+  struct S2SCryptoState *con_s2s_crypto; /**< S2S HMAC crypto state (server links) */
+#endif
 };
 
 /** Magic constant to identify valid Connection structures. */
@@ -530,6 +534,9 @@ struct Client {
 #define cli_auth(cli)		con_auth(cli_connect(cli))
 /** Get login on connect request for client. */
 #define cli_loc(cli)            ((cli)->cli_connect->con_loc)
+#ifdef USE_SSL
+#define cli_s2s_crypto(cli)     ((cli)->cli_connect->con_s2s_crypto)
+#endif
 /** Get sentalong marker for client. */
 #define cli_sentalong(cli)      con_sentalong(cli_connect(cli))
 
