@@ -2417,19 +2417,36 @@ user_setcloaked(struct Client *cptr)
   components = client_get_hidehostcomponents(cptr);
 
   if (!IsCloakIP(cptr)) {
-    if (irc_in_addr_is_ipv4(&(cli_ip(cptr))))
-      ircd_snprintf(0, cli_user(cptr)->cloakip, HOSTLEN+1, hidehost_ipv4(&(cli_ip(cptr))));
-    else
-      ircd_snprintf(0, cli_user(cptr)->cloakip, HOSTLEN+1, hidehost_ipv6(&(cli_ip(cptr))));
+#ifdef USE_SSL
+    if (feature_bool(FEAT_HOST_HIDING_HMAC)) {
+      if (irc_in_addr_is_ipv4(&(cli_ip(cptr))))
+        ircd_snprintf(0, cli_user(cptr)->cloakip, HOSTLEN+1, hidehost_ipv4_hmac(&(cli_ip(cptr))));
+      else
+        ircd_snprintf(0, cli_user(cptr)->cloakip, HOSTLEN+1, hidehost_ipv6_hmac(&(cli_ip(cptr))));
+    } else
+#endif
+    {
+      if (irc_in_addr_is_ipv4(&(cli_ip(cptr))))
+        ircd_snprintf(0, cli_user(cptr)->cloakip, HOSTLEN+1, hidehost_ipv4(&(cli_ip(cptr))));
+      else
+        ircd_snprintf(0, cli_user(cptr)->cloakip, HOSTLEN+1, hidehost_ipv6(&(cli_ip(cptr))));
+    }
     SetCloakIP(cptr);
   }
 
   if (!IsCloakHost(cptr)) {
     if (!ircd_strncmp(cli_sock_ip(cptr), cli_user(cptr)->host, HOSTLEN+1))
       ircd_snprintf(0, cli_user(cptr)->cloakhost, HOSTLEN+1, cli_user(cptr)->cloakip);
-    else
-      ircd_snprintf(0, cli_user(cptr)->cloakhost, HOSTLEN+1,
-                    hidehost_normalhost(cli_user(cptr)->realhost, components));
+    else {
+#ifdef USE_SSL
+      if (feature_bool(FEAT_HOST_HIDING_HMAC))
+        ircd_snprintf(0, cli_user(cptr)->cloakhost, HOSTLEN+1,
+                      hidehost_normalhost_hmac(cli_user(cptr)->realhost, components));
+      else
+#endif
+        ircd_snprintf(0, cli_user(cptr)->cloakhost, HOSTLEN+1,
+                      hidehost_normalhost(cli_user(cptr)->realhost, components));
+    }
     SetCloakHost(cptr);
   }
 }

@@ -56,6 +56,9 @@
 #include "ircd_crypt_plain.h"
 #include "ircd_crypt_smd5.h"
 #include "ircd_crypt_bcrypt.h"
+#include "ircd_crypt_sha.h"
+#include "client.h"
+#include "send.h"
 
 /* #include <assert.h> -- Now using assert in ircd_log.h */
 #include <unistd.h>
@@ -275,6 +278,8 @@ void ircd_crypt_init(void)
  ircd_register_crypt_plain();
  ircd_register_crypt_native();
  ircd_register_crypt_bcrypt();
+ ircd_register_crypt_sha256();
+ ircd_register_crypt_sha512();
 
 return;
 }
@@ -295,10 +300,39 @@ int oper_password_match(const char* to_match, const char* passwd)
   /* we no longer do a CRYPT_OPER_PASSWORD check because a clear
      text passwords just handled by a fallback mechanism called
      crypt_clear if it's enabled -- hikari */
+  /* Reject disabled weak password mechanisms */
+  if (passwd[0] == '$' && passwd[1] == 'P' && passwd[2] == 'L'
+      && !feature_bool(FEAT_CRYPT_ALLOW_PLAIN)) {
+    sendto_opmask_butone(0, SNO_OLDSNO,
+      "REJECTED: Plaintext password ($PLAIN$) is disabled. "
+      "Set CRYPT_ALLOW_PLAIN=TRUE or upgrade to bcrypt/SHA-512.");
+    return 0;
+  }
+  if (passwd[0] == '$' && passwd[1] == 'S' && passwd[2] == 'M'
+      && passwd[3] == 'D' && passwd[4] == '5'
+      && !feature_bool(FEAT_CRYPT_ALLOW_SMD5)) {
+    sendto_opmask_butone(0, SNO_OLDSNO,
+      "REJECTED: Salted MD5 password ($SMD5$) is disabled. "
+      "Set CRYPT_ALLOW_SMD5=TRUE or upgrade to bcrypt/SHA-512.");
+    return 0;
+  }
+
   crypted = ircd_crypt(to_match, passwd);
 
   if (!crypted)
    return 0;
+
+  /* Log deprecation warnings for weak password mechanisms that are
+   * still allowed (feature gate is TRUE but mechanism is weak) */
+  if (passwd[0] == '$' && passwd[1] == 'P' && passwd[2] == 'L')
+    sendto_opmask_butone(0, SNO_OLDSNO,
+      "WARNING: Plaintext password ($PLAIN$) in use. "
+      "Upgrade to bcrypt, SHA-256, or SHA-512.");
+  else if (passwd[0] == '$' && passwd[1] == 'S' && passwd[2] == 'M'
+           && passwd[3] == 'D' && passwd[4] == '5')
+    sendto_opmask_butone(0, SNO_OLDSNO,
+      "WARNING: Salted MD5 password ($SMD5$) in use. "
+      "Upgrade to bcrypt, SHA-256, or SHA-512.");
 
   /* Use constant-time comparison to prevent timing attacks.
    * Always perform comparison to avoid leaking length info. */

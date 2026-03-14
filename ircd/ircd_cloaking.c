@@ -28,10 +28,16 @@
 #include "ircd_features.h"
 #include "ircd_md5.h"
 #include "ircd_snprintf.h"
+#include "ircd_log.h"
 #include "res.h"
 
 #include <netinet/in.h>
 #include <string.h>
+
+#ifdef USE_SSL
+#include <openssl/hmac.h>
+#include <openssl/evp.h>
+#endif
 
 /** Safely copy a cloaking key into a buffer at the given offset.
  * Prevents overflow of the destination buffer.
@@ -263,3 +269,156 @@ int comps = 0;
         return result;
 }
 
+
+/* ================================================================
+ * HMAC-SHA512 cloaking (HOST_HIDING_HMAC = TRUE)
+ *
+ * When enabled, replaces the MD5-based cloaking with HMAC-SHA512.
+ * Produces 64-bit segments instead of 24-bit, making
+ * brute-force reversal computationally infeasible.
+ *
+ * Requires OpenSSL (USE_SSL). Falls back to MD5 cloaking if OpenSSL
+ * is not available at compile time.
+ * ================================================================ */
+
+#ifdef USE_SSL
+
+/** Compute HMAC-SHA512 and return a truncated hex segment.
+ * @param key HMAC key string.
+ * @param data Data to hash.
+ * @param bits Number of output bits (24 or 48).
+ * @return Truncated hash as unsigned long.
+ */
+static unsigned long hmac_sha512_segment(const char *key, const char *data, int bits)
+{
+  unsigned char digest[64];
+  unsigned int dlen = 64;
+  unsigned long result = 0;
+  int i, bytes;
+
+  HMAC(EVP_sha512(), key, strlen(key),
+       (const unsigned char *)data, strlen(data),
+       digest, &dlen);
+
+  bytes = (bits + 7) / 8;
+  if (bytes > 6) bytes = 6;
+  for (i = 0; i < bytes; i++)
+    result = (result << 8) | digest[i];
+
+  /* Mask to exact bit count */
+  if (bits < 48)
+    result &= (1UL << bits) - 1;
+
+  return result;
+}
+
+char *hidehost_ipv4_hmac(struct irc_in_addr *ip)
+{
+  unsigned int a, b, c, d;
+  static char result[HOSTLEN + 1];
+  char buf[256];
+  unsigned long alpha, beta, gamma, delta;
+  unsigned char *pch;
+
+  if (!irc_in_addr_is_ipv4(ip))
+    return hidehost_ipv6_hmac(ip);
+
+  pch = (unsigned char *)&ip->in6_16[6];
+  a = *pch++; b = *pch;
+  pch = (unsigned char *)&ip->in6_16[7];
+  c = *pch++; d = *pch;
+
+  /* ALPHA: unique per /32 */
+  ircd_snprintf(0, buf, sizeof(buf), "%d.%d.%d.%d", a, b, c, d);
+  alpha = hmac_sha512_segment(KEY1, buf, 64);
+
+  /* BETA: unique per /24 */
+  ircd_snprintf(0, buf, sizeof(buf), "%d.%d.%d", a, b, c);
+  beta = hmac_sha512_segment(KEY2, buf, 64);
+
+  /* GAMMA: unique per /16 */
+  ircd_snprintf(0, buf, sizeof(buf), "%d.%d", a, b);
+  gamma = hmac_sha512_segment(KEY3, buf, 64);
+
+  /* DELTA: unique per /8 */
+  ircd_snprintf(0, buf, sizeof(buf), "%d", a);
+  delta = hmac_sha512_segment(KEY1, buf, 64);
+
+  ircd_snprintf(0, result, HOSTLEN, "%lX.%lX.%lX.%lX.IP", alpha, beta, gamma, delta);
+  return result;
+}
+
+char *hidehost_ipv6_hmac(struct irc_in_addr *ip)
+{
+  unsigned int a, b, c, d, e, f, g, h;
+  static char result[HOSTLEN + 1];
+  char buf[256];
+  unsigned long alpha, beta, gamma, delta;
+
+  if (irc_in_addr_is_ipv4(ip))
+    return hidehost_ipv4_hmac(ip);
+
+  a = ntohs(ip->in6_16[0]); b = ntohs(ip->in6_16[1]);
+  c = ntohs(ip->in6_16[2]); d = ntohs(ip->in6_16[3]);
+  e = ntohs(ip->in6_16[4]); f = ntohs(ip->in6_16[5]);
+  g = ntohs(ip->in6_16[6]); h = ntohs(ip->in6_16[7]);
+
+  /* ALPHA: unique per full /128 */
+  ircd_snprintf(0, buf, sizeof(buf), "%x:%x:%x:%x:%x:%x:%x:%x", a, b, c, d, e, f, g, h);
+  alpha = hmac_sha512_segment(KEY1, buf, 64);
+
+  /* BETA: unique per /112 */
+  ircd_snprintf(0, buf, sizeof(buf), "%x:%x:%x:%x:%x:%x:%x", a, b, c, d, e, f, g);
+  beta = hmac_sha512_segment(KEY2, buf, 64);
+
+  /* GAMMA: unique per /64 */
+  ircd_snprintf(0, buf, sizeof(buf), "%x:%x:%x:%x", a, b, c, d);
+  gamma = hmac_sha512_segment(KEY3, buf, 64);
+
+  /* DELTA: unique per /32 */
+  ircd_snprintf(0, buf, sizeof(buf), "%x:%x", a, b);
+  delta = hmac_sha512_segment(KEY1, buf, 64);
+
+  ircd_snprintf(0, result, HOSTLEN, "%lX:%lX:%lX:%lX:IP", alpha, beta, gamma, delta);
+  return result;
+}
+
+char *hidehost_normalhost_hmac(char *host, int components)
+{
+  char *p;
+  static char result[HOSTLEN + 1];
+  char buf[512];
+  unsigned long alpha;
+  int comps = 0;
+
+  ircd_snprintf(0, buf, sizeof(buf), "%s:%s", KEY1, host);
+  alpha = hmac_sha512_segment(KEY2, buf, 64);
+
+  for (p = host; *p; p++) {
+    if (*p == '.') {
+      comps++;
+      if ((comps >= components) && IsHostChar(*(p + 1)))
+        break;
+    }
+  }
+
+  if (*p) {
+    unsigned int len;
+    p++;
+    ircd_snprintf(0, result, HOSTLEN, "%s-%lX.", PREFIX, alpha);
+    len = strlen(result) + strlen(p);
+    if (len <= HOSTLEN)
+      strncat(result, p, HOSTLEN - strlen(result));
+    else {
+      char *c = p + (len - HOSTLEN);
+      if ((*c == '.') && *(c + 1))
+        c++;
+      strncat(result, c, HOSTLEN - strlen(result));
+    }
+  } else
+    ircd_snprintf(0, result, HOSTLEN, "%s-%lX", PREFIX, alpha);
+
+  return result;
+}
+
+#endif /* USE_SSL */

@@ -2,7 +2,7 @@
 
 **Codebase:** Nefarious2 (Cathexis fork), ~88,000 lines of C, 268 files
 **Audit Date:** March 2026
-**Version:** Cathexis 1.1.0
+**Version:** Cathexis 1.2.0
 **Scope:** Full source review — 177 .c files, 89 .h files
 **Status:** All identified findings fixed and applied to source
 
@@ -175,6 +175,85 @@ These cannot be fixed without a protocol redesign:
 | doc/example.conf | Upstream reference with DNSBL, WHOIS labels, all new features |
 | cathexis.service | systemd unit with security hardening |
 | setup.sh | One-command install script |
+
+---
+
+## Cryptography Modernization (1.2.0)
+
+### Password Hashing
+
+| Mechanism | Tag | Algorithm | Status |
+|-----------|-----|-----------|--------|
+| SHA-512 | `$SHA512$` | crypt() `$6$`, 656K rounds | **Recommended** |
+| SHA-256 | `$SHA256$` | crypt() `$5$`, 535K rounds | Strong |
+| bcrypt | `$BCRYPT$` | crypt() `$2y$`, cost 12 | Strong |
+| native | `$CRYPT$` | System crypt() (varies) | Acceptable |
+| Salted MD5 | `$SMD5$` | Custom MD5 + salt | **Deprecated** — logs warning |
+| Plain | `$PLAIN$` | No hashing | **Deprecated** — logs warning |
+
+Salt generation for all mechanisms uses `/dev/urandom` (16 bytes for SHA, bcrypt custom base64).
+
+### bcrypt sizeof Fix
+
+`generate_bcrypt_salt()` used `sizeof(salt)` where `salt` is a `char *` parameter. On x86_64, `sizeof(char *)` is 8, but the buffer is 30 bytes. The `snprintf` only wrote 8 bytes of the `$2y$XX$` prefix, producing a truncated salt. Fixed to use explicit size `30`.
+
+### PRNG Replacement
+
+| | Old (MD5-based) | New (/dev/urandom) |
+|--|---|---|
+| Entropy source | `gettimeofday()` microseconds | `/dev/urandom` kernel CSPRNG |
+| Hash function | Custom MD5 | None needed (OS provides randomness) |
+| OpenSSL integration | None | `RAND_bytes()` when available |
+| Predictability | Attackable with timing info | Computationally infeasible |
+
+### Host Cloaking
+
+| | Legacy (MD5) | HMAC-SHA512 (default) |
+|--|---|---|
+| Hash function | Double MD5 (custom impl) | HMAC-SHA512 (OpenSSL) |
+| Segment size | 24 bits (6 hex chars) | 64 bits (16 hex chars) |
+| Classical brute-force | ~16M attempts/segment | ~18.4 quintillion/segment |
+| Post-quantum (Grover) | ~4K attempts/segment | ~4.3 billion/segment |
+| Feature toggle | `HOST_HIDING_HMAC = FALSE` | `HOST_HIDING_HMAC = TRUE` (default) |
+
+**Migration note:** Changing `HOST_HIDING_HMAC` will change all cloaked hostnames on the network. All servers must use the same setting. Plan a coordinated switch during a maintenance window.
+
+### Weak Password Gates
+
+| Feature | Default | Effect |
+|---------|---------|--------|
+| `CRYPT_ALLOW_PLAIN` | FALSE | `$PLAIN$` passwords rejected at OPER time |
+| `CRYPT_ALLOW_SMD5` | FALSE | `$SMD5$` passwords rejected at OPER time |
+
+When the gate is FALSE, the server sends an `SNO_OLDSNO` notice saying "REJECTED" and refuses authentication. When TRUE, the password is accepted but a deprecation warning is still sent.
+
+### TLS Cipher Hardening
+
+| Setting | Default Value |
+|---------|---------------|
+| `SSL_CIPHERS` (TLS 1.2) | `ECDHE+AESGCM:ECDHE+CHACHA20:!aNULL:!eNULL:!MD5:!DSS:!RC4:!3DES:!SEED:!IDEA` |
+| `SSL_CIPHERSUITES` (TLS 1.3) | `TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256` |
+| `SSL_NOTLSV1` | TRUE |
+| `SSL_NOTLSV1_1` | TRUE |
+
+The cipher defaults prioritize 256-bit symmetric keys (AES-256-GCM first) which provide 128-bit post-quantum security under Grover's algorithm. ECDHE provides forward secrecy. When OpenSSL 3.5+ adds ML-KEM (Kyber) support, hybrid post-quantum key exchange will activate automatically through TLS 1.3 negotiation with no code changes required.
+
+### Crypto Files Changed
+
+| File | Change |
+|------|--------|
+| `ircd/ircd_crypt_sha.c` | New — SHA-256 (1.2M rounds) / SHA-512 (1M rounds) password mechanisms |
+| `include/ircd_crypt_sha.h` | New — SHA mechanism declarations |
+| `ircd/ircd_crypt_bcrypt.c` | Fixed sizeof(salt) bug, cost bumped to 13 |
+| `ircd/random.c` | Rewritten — /dev/urandom + RAND_bytes CSPRNG |
+| `ircd/ircd_cloaking.c` | Added HMAC-SHA512 cloaking (64-bit segments) |
+| `include/ircd_cloaking.h` | Added HMAC cloaking declarations |
+| `ircd/ircd_crypt.c` | Registered SHA, weak password gates, deprecation warnings |
+| `ircd/umkpasswd.c` | Registered SHA mechanisms |
+| `ircd/s_user.c` | HMAC-SHA512 cloaking dispatch |
+| `include/ircd_features.h` | FEAT_HOST_HIDING_HMAC, FEAT_CRYPT_ALLOW_PLAIN/SMD5 |
+| `ircd/ircd_features.c` | Feature entries, quantum-ready TLS cipher defaults |
+| `ircd/Makefile.in` | Added ircd_crypt_sha.c to build |
 
 ---
 

@@ -573,6 +573,8 @@ static struct FeatureDesc {
   F_B(DNSBL_REJECT, 0, 1, 0),
   F_S(DNSBL_REASON, 0, "Your IP is listed in a DNS blacklist. Visit https://dronebl.org/lookup or https://rbl.efnetrbl.org for removal.", 0),
   F_S(DNSBL_MARK, 0, "DNSBL", 0),
+  F_B(CRYPT_ALLOW_PLAIN, 0, 0, 0),
+  F_B(CRYPT_ALLOW_SMD5, 0, 0, 0),
 
   /* features that probably should not be touched */
   F_I(KILLCHASETIMELIMIT, 0, 30, 0),
@@ -789,6 +791,7 @@ static struct FeatureDesc {
   F_S(HOST_HIDING_KEY3, 0, "KJklJSDFLkjLKDFJSLKjlKJFlkjS", 0),
   F_A(HOST_HIDING_COMPONANTS, HOST_HIDING_COMPONENTS),
   F_I(HOST_HIDING_COMPONENTS, 0, 1, 0),
+  F_B(HOST_HIDING_HMAC, 0, 1, 0),
 
   /* CTCP VERSION FEAT_'s */
   F_B(CTCP_VERSIONING, 0, 0, 0),
@@ -815,7 +818,12 @@ static struct FeatureDesc {
   F_B(SSL_NOSSLV2, 0, 1, 0),
   F_B(SSL_NOSSLV3, 0, 1, 0),
   F_B(SSL_NOTLSV1, 0, 1, 0),
-  F_S(SSL_CIPHERS, FEAT_NULL, 0, 0),
+  F_B(SSL_NOTLSV1_1, 0, 1, 0),
+  F_B(SSL_NOTLSV1_2, 0, 0, 0),
+  F_S(SSL_CIPHERS, FEAT_NULL, "ECDHE+AESGCM:ECDHE+CHACHA20:!aNULL:!eNULL:!MD5:!DSS:!RC4:!3DES:!SEED:!IDEA", 0),
+  F_S(SSL_CIPHERSUITES, FEAT_NULL, "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256", 0),
+  F_S(SSL_GROUPS, FEAT_NULL, 0, 0),
+  F_B(CRYPTO_REFUSE_PLAIN, 0, 1, 0),
 
   /* ZLINE FEAT_'s */
   F_B(DISABLE_ZLINES, 0, 0, 0),

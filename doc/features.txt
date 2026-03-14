@@ -270,3 +270,38 @@ SA* Commands (Network Administration):
   SANOOP  <server> <+/->             Toggle NOOP on server
 
  Wire tokens preserved from SVS* for rolling upgrade compatibility.
+
+Cryptography Modernization:
+ Version: Cathexis 1.2.0
+
+ Password Hashing:
+  New mechanisms: SHA-256 ($SHA256$) and SHA-512 ($SHA512$).
+  Generate with: umkpasswd -m sha256 <password>
+                 umkpasswd -m sha512 <password>
+  Both use the system crypt() function with configurable rounds
+  (535K for SHA-256, 656K for SHA-512).
+
+  Recommended strength order (strongest first):
+    bcrypt ($BCRYPT$)   — cost factor 12, adaptive
+    SHA-512 ($SHA512$)  — 656K rounds, fast verification
+    SHA-256 ($SHA256$)  — 535K rounds, fast verification
+    native crypt        — depends on system (may be DES)
+    Salted MD5 ($SMD5$) — DEPRECATED, weak
+    Plain ($PLAIN$)     — DEPRECATED, no hashing at all
+
+  The server logs warnings (snomask o) when deprecated $PLAIN$ or
+  $SMD5$ passwords are used during OPER authentication.
+
+ Host Cloaking:
+  New feature HOST_HIDING_HMAC (default: FALSE).
+  When TRUE, uses HMAC-SHA512 instead of double-MD5 for host
+  cloaking. Produces 64-bit segments (vs 24-bit with MD5).
+  Requires OpenSSL. All servers on the network must use the
+  same setting. Changing it will change all cloaked hostnames.
+
+ Random Number Generator:
+  The PRNG has been replaced. The old implementation used MD5 +
+  gettimeofday() which is cryptographically weak and predictable.
+  The new implementation reads from /dev/urandom directly, and
+  uses OpenSSL RAND_bytes() when available. This affects PING
+  cookies, nonce generation, and all security-critical randomness.

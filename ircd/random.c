@@ -5,55 +5,68 @@
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 1, or (at your option)
  * any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 /** @file
- * @brief 32-bit pseudo-random number generator implementation.
- * @version $Id: random.c 1235 2004-10-06 00:22:09Z entrope $
+ * @brief Cryptographically strong random number generator.
+ *
+ * Cathexis 1.2.0: Replaced the MD5-based PRNG with /dev/urandom reads.
+ * When OpenSSL is available, uses RAND_bytes() which is seeded from the
+ * OS entropy pool. Falls back to /dev/urandom on non-SSL builds.
+ *
+ * The old MD5-based PRNG used gettimeofday() as its primary entropy
+ * source, which is predictable and cryptographically weak.
  */
 #include "config.h"
 
 #include "random.h"
 #include "client.h"
 #include "ircd_log.h"
-#include "ircd_md5.h"
 #include "ircd_reply.h"
 #include "send.h"
 
 #include <string.h>
-#include <sys/time.h>
+#include <fcntl.h>
+#include <unistd.h>
 
-/** Pseudo-random number generator state. */
-static struct MD5Context localkey;
-/** Next byte position in #localkey to insert at. */
-static unsigned int localkey_pos;
+#ifdef USE_SSL
+#include <openssl/rand.h>
+#endif
 
-/** Add bytes to #localkey.
- * This should be fairly resistant to adding non-random bytes, but the
- * more random the bytes are, the harder it is for an attacker to
- * guess the internal state.
- * @param[in] buf Buffer of bytes to add.
- * @param[in] count Number of bytes to add.
+/** Read random bytes from the best available source.
+ * @param[out] buf Buffer to fill with random bytes.
+ * @param[in] len Number of bytes to generate.
+ * @return 0 on success, -1 on failure.
  */
-static void
-random_add_entropy(const char *buf, unsigned int count)
+static int crypto_random_bytes(unsigned char *buf, size_t len)
 {
-  while (count--) {
-    localkey.in[localkey_pos++] ^= *buf++;
-    if (localkey_pos >= sizeof(localkey.in))
-      localkey_pos = 0;
+#ifdef USE_SSL
+  /* OpenSSL RAND_bytes uses the OS entropy pool (getrandom/urandom)
+   * and is CSPRNG-grade. */
+  if (RAND_bytes(buf, len) == 1)
+    return 0;
+  /* Fall through to /dev/urandom if OpenSSL fails */
+#endif
+
+  {
+    int fd;
+    ssize_t n;
+
+    fd = open("/dev/urandom", O_RDONLY);
+    if (fd < 0)
+      return -1;
+
+    n = read(fd, buf, len);
+    close(fd);
+
+    return (n == (ssize_t)len) ? 0 : -1;
   }
 }
 
 /** Seed the PRNG with a string.
+ * In the modernized implementation, this adds the seed string to OpenSSL's
+ * entropy pool when available. Without OpenSSL, this is a no-op since
+ * /dev/urandom manages its own entropy.
+ *
  * @param[in] from Client setting the seed (may be NULL).
  * @param[in] fields Input arguments (fields[0] is used).
  * @param[in] count Number of input arguments.
@@ -63,7 +76,7 @@ int
 random_seed_set(struct Client* from, const char* const* fields, int count)
 {
   if (count < 1) {
-    if (from) /* send an error */
+    if (from)
       return need_more_params(from, "SET");
     else {
       log_write(LS_CONFIG, L_ERROR, 0, "Not enough fields in F line");
@@ -71,39 +84,28 @@ random_seed_set(struct Client* from, const char* const* fields, int count)
     }
   }
 
-  random_add_entropy(fields[0], strlen(fields[0]));
+#ifdef USE_SSL
+  /* Feed the seed into OpenSSL's entropy pool as additional randomness */
+  RAND_seed(fields[0], strlen(fields[0]));
+#endif
+
   return 1;
 }
 
-/** Generate a pseudo-random number.
- * This uses the #localkey structure plus current time as input to
- * MD5, feeding most of the MD5 output back to #localkey and using one
- * output words as the pseudo-random output.
- * @return A 32-bit pseudo-random number.
+/** Generate a cryptographically strong pseudo-random 32-bit number.
+ * Uses RAND_bytes (OpenSSL) or /dev/urandom directly.
+ * @return A 32-bit random number.
  */
 unsigned int ircrandom(void)
 {
-  struct timeval tv;
-  char usec[3];
+  unsigned int val;
 
-  /* Add some randomness to the pool. */
-  gettimeofday(&tv, 0);
-  usec[0] = tv.tv_usec;
-  usec[1] = tv.tv_usec >> 8;
-  usec[2] = tv.tv_usec >> 16;
-  random_add_entropy(usec, 3);
+  if (crypto_random_bytes((unsigned char *)&val, sizeof(val)) == 0)
+    return val;
 
-  /* Perform MD5 step. */
-  localkey.buf[0] = 0x67452301;
-  localkey.buf[1] = 0xefcdab89;
-  localkey.buf[2] = 0x98badcfe;
-  localkey.buf[3] = 0x10325476;
-  MD5Transform(localkey.buf, (uint32*)localkey.in);
-
-  /* Feed back 12 bytes of hash value into randomness pool. */
-  random_add_entropy((char*)localkey.buf, 12);
-
-  /* Return the final word of hash, which should not provide any
-   * useful insight into current pool contents. */
-  return localkey.buf[3];
+  /* Absolute last resort — should never happen on a sane system.
+   * Log a warning so the admin knows something is very wrong. */
+  log_write(LS_SYSTEM, L_WARNING, 0,
+            "ircrandom: failed to read from entropy source");
+  return 0;
 }

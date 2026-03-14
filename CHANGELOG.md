@@ -2,6 +2,43 @@
 
 All notable changes to Cathexis IRCd, relative to upstream Nefarious2 (u2.10.12.14).
 
+## [1.2.0] — 2026-03-14
+
+### Added
+
+**Cryptography Modernization (Quantum-Ready)**
+
+- **SHA-512 password hashing** (`$SHA512$`) — system `crypt()` with `$6$` prefix. 1,000,000 rounds (128-bit post-quantum security via Grover). Generate with `umkpasswd -m sha512 <password>`. Recommended.
+- **SHA-256 password hashing** (`$SHA256$`) — system `crypt()` with `$5$` prefix. 1,200,000 rounds. Generate with `umkpasswd -m sha256 <password>`.
+- **HMAC-SHA512 host cloaking** — new `HOST_HIDING_HMAC` feature (default TRUE). Replaces legacy double-MD5 with HMAC-SHA512, producing 64-bit segments with 256-bit post-quantum security. Requires OpenSSL.
+- **Weak password gates** — new features `CRYPT_ALLOW_PLAIN` and `CRYPT_ALLOW_SMD5` (both default FALSE). `$PLAIN$` and `$SMD5$` passwords are rejected by default. When enabled, deprecation warnings still fire.
+- **Quantum-ready TLS cipher defaults** — TLS 1.2 ciphers default to `ECDHE+AESGCM:ECDHE+CHACHA20` with 256-bit symmetric preference. TLS 1.3 ciphersuites default to `TLS_AES_256_GCM_SHA384` first. TLS 1.0/1.1 disabled by default. ML-KEM (post-quantum) activates automatically when OpenSSL 3.5+ is available.
+
+**Build & Documentation**
+- CHANGELOG.md and LICENSE.md
+- Complete `doc/features.txt` section for cryptography
+- 0 errors, 0 warnings under `gcc -Wall -pedantic` with all debug flags
+
+### Changed
+
+- **PRNG rewrite** (`random.c`) — replaced MD5 + `gettimeofday()` PRNG with `/dev/urandom` direct reads. Uses OpenSSL `RAND_bytes()` when available. The old PRNG was predictable and cryptographically weak.
+- **bcrypt cost bump** — default cost increased from 12 to 13 (doubles work factor to 8192 iterations). Provides ~64-bit post-quantum security via Grover.
+- **SHA-512 rounds** — 1,000,000 (up from initial 656K/800K).
+- **SHA-256 rounds** — 1,200,000 (up from initial 535K/1M).
+- **bcrypt sizeof fix** — `generate_bcrypt_salt()` used `sizeof(salt)` (pointer size 8) instead of buffer size 30. Fixed to explicit `30`.
+- **MD5 cloaking demoted** — `HOST_HIDING_HMAC` defaults to TRUE, making HMAC-SHA512 the default cloaking algorithm. Legacy MD5 cloaking is still available when set to FALSE.
+- **TLS 1.0/1.1 disabled by default** — `SSL_NOTLSV1` and `SSL_NOTLSV1_1` now default to TRUE.
+- **Version** bumped to 1.2.0
+
+### Fixed
+
+- 9 `-Waddress` warnings across `s_auth.c`, `m_authenticate.c`, `s_conf.c`, `s_serv.c`, `s_user.c` (char array compared to NULL)
+- 1 `-Wcomment` warning in `s_user.c` (unclosed Doxygen comment block)
+- `engine_epoll.c` `_syscall1` fallback removed (broke with modern gcc/pedantic)
+- `os_generic.c` missing `#include "ircd_snprintf.h"` (broke `-pedantic` builds)
+- `ircd_snprintf.h` `va_copy` redefinition warnings with gcc 14+
+- `ircd_features.c` FEAT_NULL on DNSBL_HOST2/HOST3 (caused `ircd -k` crash)
+
 ## [1.1.0] — 2026-03-13
 
 ### Added

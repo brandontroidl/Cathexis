@@ -121,7 +121,14 @@ SSL_CTX *ssl_init_server_ctx(void)
   SSL_CTX *server_ctx = NULL;
   int vrfyopts = SSL_VERIFY_PEER|SSL_VERIFY_CLIENT_ONCE;
 
+  /* Use TLS_server_method() (modern) or SSLv23_server_method() (legacy).
+   * TLS_server_method() negotiates the highest TLS version supported by
+   * both endpoints. Version restrictions are applied via SSL_OP_NO_* below. */
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+  server_ctx = SSL_CTX_new(TLS_server_method());
+#else
   server_ctx = SSL_CTX_new(SSLv23_server_method());
+#endif
   if (!server_ctx)
   {
     sslfail("Error creating new server context");
@@ -131,12 +138,24 @@ SSL_CTX *ssl_init_server_ctx(void)
   if (feature_bool(FEAT_SSL_REQUIRECLIENTCERT))
     vrfyopts |= SSL_VERIFY_FAIL_IF_NO_PEER_CERT;
 
+  /* Protocol version restrictions.
+   * For quantum readiness: disable everything below TLS 1.2.
+   * TLS 1.3 with post-quantum key exchange is the target. */
   if (feature_bool(FEAT_SSL_NOSSLV2))
     SSL_CTX_set_options(server_ctx, SSL_OP_NO_SSLv2);
   if (feature_bool(FEAT_SSL_NOSSLV3))
     SSL_CTX_set_options(server_ctx, SSL_OP_NO_SSLv3);
   if (feature_bool(FEAT_SSL_NOTLSV1))
     SSL_CTX_set_options(server_ctx, SSL_OP_NO_TLSv1);
+#ifdef SSL_OP_NO_TLSv1_1
+  if (feature_bool(FEAT_SSL_NOTLSV1_1))
+    SSL_CTX_set_options(server_ctx, SSL_OP_NO_TLSv1_1);
+#endif
+#ifdef SSL_OP_NO_TLSv1_2
+  if (feature_bool(FEAT_SSL_NOTLSV1_2))
+    SSL_CTX_set_options(server_ctx, SSL_OP_NO_TLSv1_2);
+#endif
+
   SSL_CTX_set_verify(server_ctx, vrfyopts, ssl_verify_callback);
   SSL_CTX_set_session_cache_mode(server_ctx, SSL_SESS_CACHE_OFF);
 
@@ -169,6 +188,38 @@ SSL_CTX *ssl_init_server_ctx(void)
       return NULL;
     }
   }
+
+  /* TLS 1.3 ciphersuites (separate from TLS 1.2 cipher list).
+   * These control which symmetric ciphers are used in TLS 1.3.
+   * Default: AES-256-GCM and CHACHA20-POLY1305 (both quantum-safe symmetric). */
+#if OPENSSL_VERSION_NUMBER >= 0x10101000L
+  if (!EmptyString(feature_str(FEAT_SSL_CIPHERSUITES)))
+  {
+    if (SSL_CTX_set_ciphersuites(server_ctx, feature_str(FEAT_SSL_CIPHERSUITES)) == 0)
+    {
+      sslfail("Error setting TLS 1.3 ciphersuites");
+      SSL_CTX_free(server_ctx);
+      return NULL;
+    }
+  }
+#endif
+
+  /* Key exchange groups — controls ECDHE curves and post-quantum hybrids.
+   * When OpenSSL 3.5+ is available with ML-KEM support, setting this to
+   * "X25519MLKEM768:X25519:P-256" enables post-quantum hybrid key exchange.
+   * The first group listed is preferred. Clients that don't support ML-KEM
+   * will fall back to X25519 or P-256 automatically. */
+#if OPENSSL_VERSION_NUMBER >= 0x10101000L
+  if (!EmptyString(feature_str(FEAT_SSL_GROUPS)))
+  {
+    if (SSL_CTX_set1_groups_list(server_ctx, feature_str(FEAT_SSL_GROUPS)) == 0)
+    {
+      sslfail("Error setting TLS key exchange groups");
+      SSL_CTX_free(server_ctx);
+      return NULL;
+    }
+  }
+#endif
 
   if (!EmptyString(feature_str(FEAT_SSL_CACERTFILE)))
   {

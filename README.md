@@ -4,7 +4,7 @@ Security-hardened fork of Nefarious2 with modern IRC features.
 
 |  |  |
 |--|--|
-| **Version** | 1.1.0 |
+| **Version** | 1.2.0 |
 | **Base** | Nefarious2 (u2.10.12.14) |
 | **Protocol** | P10 |
 | **License** | GNU General Public License v1+ |
@@ -109,6 +109,16 @@ Two modes: `DNSBL_REJECT=TRUE` disconnects listed IPs; `DNSBL_REJECT=FALSE` mark
 ### Security Hardening
 
 All fixes applied to source — no patches or external dependencies.
+
+**Password hashing:** Six mechanisms available. SHA-512, SHA-256, and bcrypt are recommended. Salted MD5 and plaintext are deprecated — the server logs warnings when they're used. Generate passwords with `umkpasswd -m sha512 <password>`.
+
+**PRNG:** Replaced the MD5 + `gettimeofday()` PRNG with `/dev/urandom` direct reads and OpenSSL `RAND_bytes()` when available. Affects PING cookies, nonces, and all security-critical randomness.
+
+**Host cloaking:** HMAC-SHA512 cloaking is the default (`HOST_HIDING_HMAC = TRUE`). Replaces the legacy double-MD5 algorithm with 64-bit segments providing 256-bit post-quantum security. Requires OpenSSL. All servers must match. Set to FALSE for legacy MD5 cloaking.
+
+**Weak password rejection:** `$PLAIN$` and `$SMD5$` passwords are rejected by default. Set `CRYPT_ALLOW_PLAIN` or `CRYPT_ALLOW_SMD5` to TRUE only during migration from legacy configs.
+
+**TLS hardening:** Default cipher lists prioritize 256-bit symmetric keys (AES-256-GCM, ChaCha20) with ECDHE forward secrecy. TLS 1.0/1.1 disabled by default. Post-quantum ML-KEM key exchange activates automatically when OpenSSL 3.5+ is available.
 
 **Memory safety:** Zero `strcat()` calls remain in the codebase. All `sprintf()` replaced with bounded `ircd_snprintf()`. All dangerous `strcpy()` replaced with `ircd_strncpy()` across 20+ files. Cloaking key copy uses bounded `safe_key_copy()` helper.
 

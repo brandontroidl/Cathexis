@@ -47,7 +47,7 @@ static const char bcrypt_base64[] =
   "./ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
 /* Default cost factor (2^12 = 4096 iterations) */
-#define BCRYPT_DEFAULT_COST 12
+#define BCRYPT_DEFAULT_COST 13
 
 /** Generate random bytes from /dev/urandom
  * @param buf Buffer to fill
@@ -87,7 +87,7 @@ static char* generate_bcrypt_salt(char* salt, int cost)
     return NULL;
 
   /* Format: $2y$XX$ followed by 22 base64 characters */
-  snprintf(salt, sizeof(salt), "$2y$%02d$", cost);
+  snprintf(salt, 30, "$2y$%02d$", cost);
 
   /* Encode 16 bytes (128 bits) into 22 base64 characters */
   /* Each group of 3 bytes becomes 4 base64 chars, with padding handled specially */

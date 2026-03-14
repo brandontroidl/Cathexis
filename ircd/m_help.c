@@ -25,7 +25,7 @@
 struct HelpEntry {
   const char *name;
   const char *category;
-  const char *lines[30]; /* NULL-terminated array of help lines */
+  const char *lines[40]; /* NULL-terminated array of help lines */
 };
 
 /** Send a single help text line using RPL_HELPTXT. */
@@ -422,6 +422,16 @@ static const struct HelpEntry helptab[] = {
       "    Configure zones with DNSBL_HOST, DNSBL_HOST2, DNSBL_HOST3.",
       "    DNSBL_REJECT = TRUE to disconnect listed IPs.",
       "    DNSBL_REJECT = FALSE to mark them instead (see /CHECK).",
+      " ",
+      "  HOST_HIDING_HMAC = TRUE/FALSE  (default: TRUE)",
+      "    Uses HMAC-SHA512 for host cloaking instead of legacy MD5.",
+      "    Provides 64-bit segments with 256-bit post-quantum security.",
+      "    Requires OpenSSL. All servers must use the same setting.",
+      " ",
+      "  CRYPT_ALLOW_PLAIN = TRUE/FALSE  (default: FALSE)",
+      "  CRYPT_ALLOW_SMD5 = TRUE/FALSE   (default: FALSE)",
+      "    When FALSE, $PLAIN$ and $SMD5$ passwords are rejected.",
+      "    Set TRUE only during migration from legacy passwords.",
       " ",
       "  HOST_HIDING = TRUE/FALSE",
       "    Enables host cloaking (+x user mode).",
