@@ -80,7 +80,7 @@
 #define VERSIONLEN      250
 /** Maximum length for a password used for connecting servers and clients.
  */
-#define PASSWDLEN       20
+#define PASSWDLEN       128
 /** Maximum length for a password used with the login-on-connect feature, and
  * it should match the length used by your service bot (e.g. gnuworld)
  */

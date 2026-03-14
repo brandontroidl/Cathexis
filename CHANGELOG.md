@@ -35,6 +35,10 @@ All notable changes to Cathexis IRCd, relative to upstream Nefarious2 (u2.10.12.
 - **CRITICAL: `ircd_crypt()` dispatch loop matched all passwords to bcrypt** — empty-token mechanisms (`crypt_token_size == 0`) caused `strncmp("", x, 0) == 0` to match everything. SHA-256/SHA-512 passwords always returned "Password mismatch". Fixed by skipping empty-token mechanisms in the dispatch loop.
 - **Timing-vulnerable password comparisons in 6 files** — `strcmp()` on server link passwords (`m_server.c`), WebIRC/SHost passwords (`s_conf.c`), client passwords (`s_auth.c`), and channel keys (`m_join.c`). All replaced with constant-time `ircd_constcmp()`.
 - **Password hashes not cleared from memory** — `oper_password_match()` and `s_conf.c` freed hashed password buffers without clearing them first. Added `ircd_clearsecret()` before all `MyFree()` calls on credential data.
+- **OPER credential enumeration** — failed OPER returned different errors for missing name vs wrong password, allowing operator name enumeration. Now returns `ERR_NOOPERHOST` for both cases.
+- **OPER brute force** — no penalty for failed OPER attempts. Now adds 10-second flood penalty per failure, stacking with general flood control.
+- **Cloaking key startup check** — warns at startup if `HOST_HIDING` is enabled with default or empty cloaking keys.
+- **Client password truncation** — `PASSWDLEN` increased from 20 to 128 characters.
 - **`umkpasswd` core dump on missing `-m` flag** — three `abort()` calls replaced with `show_help(); exit(1);`.
 - 9 `-Waddress` warnings across `s_auth.c`, `m_authenticate.c`, `s_conf.c`, `s_serv.c`, `s_user.c` (char array compared to NULL)
 - 1 `-Wcomment` warning in `s_user.c` (unclosed Doxygen comment block)

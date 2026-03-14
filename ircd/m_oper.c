@@ -316,11 +316,17 @@ int can_oper(struct Client *cptr, struct Client *sptr, char *name,
   }
   else
   {
-    send_reply(sptr, ERR_PASSWDMISMATCH);
+    send_reply(sptr, ERR_NOOPERHOST);
     sendto_opmask_butone_global(&me, SNO_OLDREALOP, "Failed %sOPER attempt by %s (%s@%s) "
                                  "(password mis-match)", (!MyUser(sptr) ? "remote " : ""),
                                  cli_name(sptr), cli_user(sptr)->username,
                                  cli_user(sptr)->realhost);
+    /* Penalize failed OPER attempts heavily to prevent brute force.
+     * Each failure adds 10 seconds of flood penalty, stacking with
+     * the general message flood control. After 3 rapid failures the
+     * client is effectively throttled for 30+ seconds. */
+    if (MyUser(sptr))
+      cli_since(sptr) += 10;
     return 0;
   }
 }

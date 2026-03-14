@@ -726,6 +726,28 @@ int main(int argc, char **argv) {
     return 0;
   }
 
+  /* Cathexis 1.2.0: Warn if cloaking keys are still set to compiled-in defaults.
+   * These defaults are public (in the source code) and provide zero security. */
+  if (feature_bool(FEAT_HOST_HIDING)) {
+    const char *k1 = feature_str(FEAT_HOST_HIDING_KEY1);
+    const char *k2 = feature_str(FEAT_HOST_HIDING_KEY2);
+    const char *k3 = feature_str(FEAT_HOST_HIDING_KEY3);
+    int weak = 0;
+    if (!k1 || !*k1 || !strcmp(k1, "aoAr1HnR6gl3sJ7hVz4Zb7x4YwpW")) weak = 1;
+    if (!k2 || !*k2 || !strcmp(k2, "sdfjkLJKHlkjdkfjsdklfjlkjKLJ")) weak = 1;
+    if (!k3 || !*k3 || !strcmp(k3, "KJklJSDFLkjLKDFJSLKjlKJFlkjS")) weak = 1;
+    if (weak) {
+      fprintf(stderr,
+        "WARNING: HOST_HIDING is enabled but cloaking keys are default/empty!\n"
+        "  Default keys are PUBLIC — any user's real IP can be recovered.\n"
+        "  Generate unique keys:  openssl rand -hex 32\n"
+        "  Set HOST_HIDING_KEY1, KEY2, KEY3 in ircd.conf Features block.\n");
+      log_write(LS_CONFIG, L_WARNING, 0,
+        "HOST_HIDING enabled with default/empty cloaking keys — "
+        "user IPs are NOT protected. Set unique HOST_HIDING_KEY1/2/3.");
+    }
+  }
+
   debug_init(thisServer.bootopt & BOOT_TTY);
   if (check_pid()) {
     Debug((DEBUG_FATAL, "Failed to acquire PID file lock after fork"));

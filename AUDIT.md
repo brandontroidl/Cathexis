@@ -21,10 +21,10 @@ The primary findings were systematic use of unsafe C string functions (`sprintf`
 | Severity | Found | Fixed | Remaining |
 |----------|-------|-------|-----------|
 | Critical | 4     | 4     | 0         |
-| High     | 6     | 6     | 0         |
-| Medium   | 13    | 13    | 0         |
+| High     | 7     | 7     | 0         |
+| Medium   | 15    | 15    | 0         |
 | Low      | 14    | 14    | 0         |
-| Info     | 3     | —     | 3 (P10 protocol design) |
+| Info     | 4     | —     | 4 (design notes) |
 
 ---
 
