@@ -733,9 +733,12 @@ int main(int argc, char **argv) {
     const char *k2 = feature_str(FEAT_HOST_HIDING_KEY2);
     const char *k3 = feature_str(FEAT_HOST_HIDING_KEY3);
     int weak = 0;
-    if (!k1 || !*k1 || !strcmp(k1, "aoAr1HnR6gl3sJ7hVz4Zb7x4YwpW")) weak = 1;
-    if (!k2 || !*k2 || !strcmp(k2, "sdfjkLJKHlkjdkfjsdklfjlkjKLJ")) weak = 1;
-    if (!k3 || !*k3 || !strcmp(k3, "KJklJSDFLkjLKDFJSLKjlKJFlkjS")) weak = 1;
+    if (!k1 || !*k1 || !strcmp(k1, "aoAr1HnR6gl3sJ7hVz4Zb7x4YwpW")
+        || !strncmp(k1, "CHANGE_ME", 9)) weak = 1;
+    if (!k2 || !*k2 || !strcmp(k2, "sdfjkLJKHlkjdkfjsdklfjlkjKLJ")
+        || !strncmp(k2, "CHANGE_ME", 9)) weak = 1;
+    if (!k3 || !*k3 || !strcmp(k3, "KJklJSDFLkjLKDFJSLKjlKJFlkjS")
+        || !strncmp(k3, "CHANGE_ME", 9)) weak = 1;
     if (weak) {
       fprintf(stderr,
         "WARNING: HOST_HIDING is enabled but cloaking keys are default/empty!\n"

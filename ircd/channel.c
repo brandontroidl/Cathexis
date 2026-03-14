@@ -652,7 +652,22 @@ void add_user_to_channel(struct Channel* chptr, struct Client* who,
   assert(0 != who);
 
   if (cli_user(who)) {
-   
+    struct Membership* existing;
+
+    /* Cathexis 1.2.0: Prevent duplicate membership entries.
+     * If the user is already in the channel, update their status bits
+     * instead of creating a second membership struct. Duplicate entries
+     * cause channels to appear twice in WHOIS and corrupt the
+     * membership linked list. */
+    if ((existing = find_member_link(chptr, who))) {
+      existing->status |= (flags & (CHFL_OWNER | CHFL_PROTECT | CHFL_CHANOP |
+                                     CHFL_HALFOP | CHFL_VOICE));
+      if (oplevel <= MAXOPLEVEL)
+        SetOpLevel(existing, oplevel);
+      return;
+    }
+
+    {
     struct Membership* member = membershipFreeList;
     if (member)
       membershipFreeList = member->next_member;
@@ -686,6 +701,7 @@ void add_user_to_channel(struct Channel* chptr, struct Client* who,
     if (!IsSSL(who) && !IsChannelService(who))
       ++chptr->nonsslusers;
     ++((cli_user(who))->joined);
+    }
   }
 }
 

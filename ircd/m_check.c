@@ -193,7 +193,9 @@ void checkUsers(struct Client *sptr, struct Channel *chptr, int flags) {
    int cntr = 0, opcntr = 0, hopcntr = 0, vcntr = 0, clones = 0, bans = 0, c = 0, authed = 0, delayed = 0;
 
    if (flags & CHECK_SHOWUSERS) {
-     if (feature_bool(FEAT_HALFOPS))
+     if (feature_bool(FEAT_OWNERPROTECT) && feature_bool(FEAT_HALFOPS))
+       send_reply(sptr, RPL_DATASTR, "Users (~ = owner, & = protect, @ = op, % = halfop, + = voice, < = delayed)");
+     else if (feature_bool(FEAT_HALFOPS))
        send_reply(sptr, RPL_DATASTR, "Users (@ = op, % = halfop, + = voice, < = delayed)");
      else
        send_reply(sptr, RPL_DATASTR, "Users (@ = op, + = voice, < = delayed)");
@@ -224,6 +226,20 @@ void checkUsers(struct Client *sptr, struct Channel *chptr, int flags) {
       {
          strncat(ustat, "<", sizeof(ustat) - strlen(ustat) - 1);
          delayed++;
+      }
+
+      else if (chptr && feature_bool(FEAT_OWNERPROTECT) && IsOwner(lp))
+      {
+         strncat(ustat, "~", sizeof(ustat) - strlen(ustat) - 1);
+         opcntr++;
+         opped = 1;
+      }
+
+      else if (chptr && feature_bool(FEAT_OWNERPROTECT) && IsProtect(lp))
+      {
+         strncat(ustat, "&", sizeof(ustat) - strlen(ustat) - 1);
+         opcntr++;
+         opped = 1;
       }
 
       else if (chptr && IsChanOp(lp))
