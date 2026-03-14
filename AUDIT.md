@@ -184,11 +184,12 @@ These cannot be fixed without a protocol redesign:
 
 | Mechanism | Tag | Algorithm | Status |
 |-----------|-----|-----------|--------|
-| SHA-512 | `$SHA512$` | crypt() `$6$`, 656K rounds | **Recommended** |
-| SHA-256 | `$SHA256$` | crypt() `$5$`, 535K rounds | Strong |
-| bcrypt | `$BCRYPT$` | crypt() `$2y$`, cost 12 | Strong |
+| SHA-512 | `$SHA512$` | crypt() `$6$`, 1M rounds | **Recommended** |
+| SHA-256 | `$SHA256$` | crypt() `$5$`, 1.2M rounds | Strong |
+| bcrypt | `$BCRYPT$` | crypt() `$2y$`, cost 13 | Strong |
 | native | `$CRYPT$` | System crypt() (varies) | Acceptable |
-| Salted MD5 | `$SMD5$` | Custom MD5 + salt | **Deprecated** — logs warning |
+| Salted MD5 | `$SMD5$` | Custom MD5 + salt | **Rejected by default** |
+| Plain | `$PLAIN$` | No hashing | **Rejected by default** |
 | Plain | `$PLAIN$` | No hashing | **Deprecated** — logs warning |
 
 Salt generation for all mechanisms uses `/dev/urandom` (16 bytes for SHA, bcrypt custom base64).

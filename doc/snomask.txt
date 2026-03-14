@@ -36,7 +36,7 @@ Snomask Letter Reference
 
 Letter  Flag              Hex Value  Description
 ------  ----------------  ---------  -----------
-  o     SNO_OLDSNO            0x1    Oper actions (SA* commands, rehash, etc.)
+  o     SNO_OLDSNO            0x1    Oper actions (SA*, rehash, password warnings)
   k     SNO_SERVKILL          0x2    Server kills (nick collisions)
   K     SNO_OPERKILL          0x4    Oper kills
   D     SNO_HACK2             0x8    Desyncs
@@ -130,6 +130,24 @@ When your snomask changes, the server sends numeric 008:
 
 The letter display shows which notices are active. The hex value is
 shown in parentheses for debugging purposes.
+
+-----------------------------
+
+Cathexis Notice Examples
+========================
+
+Snomask o (SNO_OLDSNO) — Oper actions and password security:
+  brandon used SAMODE on #channel: +aq brandon brandon
+  brandon used SAJOIN to force User into #channel
+  brandon used SAQUIT on Spammer (flooding)
+  brandon is rehashing Server config file
+  REJECTED: Plaintext password ($PLAIN$) is disabled.
+  WARNING: Salted MD5 password ($SMD5$) in use.
+
+Snomask c (SNO_CONNEXIT) — Connections and DNSBL:
+  DNSBL: 198.51.100.3 listed in dnsbl.dronebl.org (result: 127.0.0.19)
+  Client connecting: nick (user@host) [IP] class
+  Client exiting: nick (user@host) [reason]
 
 -----------------------------
 

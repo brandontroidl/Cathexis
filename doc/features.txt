@@ -208,11 +208,11 @@ Target limiting:
 
 
 # =========================================================================
-# Cathexis 1.1.0 Features
+# Cathexis Features
 # =========================================================================
 
 DNSBL (DNS Blacklist):
- Version: Cathexis 1.1.0
+ Version: Cathexis 1.1.0+
 
  Built-in DNS blacklist checking during client registration. The server
  queries up to 3 DNSBL zones in parallel alongside DNS reverse lookup
@@ -234,7 +234,7 @@ DNSBL (DNS Blacklist):
  Marked users visible via /CHECK <nick>.
 
 Channel Owner (+q) and Protect (+a):
- Version: Cathexis 1.1.0
+ Version: Cathexis 1.1.0+
 
  Two new channel member prefix modes above operator:
 
@@ -252,7 +252,7 @@ Channel Owner (+q) and Protect (+a):
  When OWNERPROTECT is FALSE, +a reverts to admin-only channel flag.
 
 SA* Commands (Network Administration):
- Version: Cathexis 1.1.0
+ Version: Cathexis 1.1.0+
 
  Ten commands consolidated from the original SVS* commands. All require
  PRIV_NETADMIN (+N). All generate server notices (SNO_OLDSNO, snomask o)
@@ -271,33 +271,49 @@ SA* Commands (Network Administration):
 
  Wire tokens preserved from SVS* for rolling upgrade compatibility.
 
-Cryptography Modernization:
+Cryptography Modernization (Quantum-Ready):
  Version: Cathexis 1.2.0
 
  Password Hashing:
   New mechanisms: SHA-256 ($SHA256$) and SHA-512 ($SHA512$).
-  Generate with: umkpasswd -m sha256 <password>
-                 umkpasswd -m sha512 <password>
-  Both use the system crypt() function with configurable rounds
-  (535K for SHA-256, 656K for SHA-512).
+  Generate with: umkpasswd -m sha512 <password>
+                 umkpasswd -m sha256 <password>
+  Both use the system crypt() function with high iteration counts
+  for post-quantum resistance (Grover's algorithm halves effective
+  security, so higher rounds compensate).
 
   Recommended strength order (strongest first):
-    bcrypt ($BCRYPT$)   — cost factor 12, adaptive
-    SHA-512 ($SHA512$)  — 656K rounds, fast verification
-    SHA-256 ($SHA256$)  — 535K rounds, fast verification
-    native crypt        — depends on system (may be DES)
-    Salted MD5 ($SMD5$) — DEPRECATED, weak
-    Plain ($PLAIN$)     — DEPRECATED, no hashing at all
+    SHA-512 ($SHA512$)  — 1,000,000 rounds. Recommended.
+    SHA-256 ($SHA256$)  — 1,200,000 rounds.
+    bcrypt ($BCRYPT$)   — cost factor 13 (8192 iterations).
+    native crypt        — depends on system (may be DES).
+    Salted MD5 ($SMD5$) — REJECTED by default. Set CRYPT_ALLOW_SMD5=TRUE to allow.
+    Plain ($PLAIN$)     — REJECTED by default. Set CRYPT_ALLOW_PLAIN=TRUE to allow.
 
-  The server logs warnings (snomask o) when deprecated $PLAIN$ or
-  $SMD5$ passwords are used during OPER authentication.
+  Features:
+    CRYPT_ALLOW_PLAIN   FALSE  Reject $PLAIN$ passwords at OPER time
+    CRYPT_ALLOW_SMD5    FALSE  Reject $SMD5$ passwords at OPER time
+  When rejected, an SNO_OLDSNO notice tells opers which mechanism was
+  blocked. When allowed, a deprecation warning is still sent.
 
  Host Cloaking:
-  New feature HOST_HIDING_HMAC (default: FALSE).
-  When TRUE, uses HMAC-SHA512 instead of double-MD5 for host
-  cloaking. Produces 64-bit segments (vs 24-bit with MD5).
-  Requires OpenSSL. All servers on the network must use the
-  same setting. Changing it will change all cloaked hostnames.
+  Feature HOST_HIDING_HMAC (default: TRUE).
+  Uses HMAC-SHA512 instead of double-MD5 for host cloaking.
+  Produces 64-bit segments (vs 24-bit with MD5), providing 256-bit
+  post-quantum security. Requires OpenSSL.
+  WARNING: All servers on the network must use the same setting.
+  Changing it will change all cloaked hostnames.
+  Set to FALSE only for backward compatibility with legacy MD5 cloaking.
+
+ TLS Cipher Defaults:
+  TLS 1.2 cipher list:
+    ECDHE+AESGCM:ECDHE+CHACHA20:!aNULL:!eNULL:!MD5:!DSS:!RC4:!3DES:!SEED:!IDEA
+  TLS 1.3 ciphersuites:
+    TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256
+  256-bit symmetric keys preferred for 128-bit post-quantum security.
+  TLS 1.0 and 1.1 disabled by default (SSL_NOTLSV1, SSL_NOTLSV1_1).
+  When OpenSSL 3.5+ adds ML-KEM (Kyber) support, hybrid post-quantum
+  key exchange will activate automatically through TLS 1.3.
 
  Random Number Generator:
   The PRNG has been replaced. The old implementation used MD5 +

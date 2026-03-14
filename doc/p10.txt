@@ -234,8 +234,16 @@ X	WHOWAS
 XQ	XQUERY
 XR	XREPLY
 
-SN	SVSNICK
-SJ	SVSJOIN
+SN	SANICK (was SVSNICK)
+SJ	SAJOIN (was SVSJOIN)
+SP	SAPART
+SM	SAMODE
+SX	SAQUIT
+ST	SATOPIC
+SW	SAWHOIS
+SID	SAIDENT
+SI	SAINFO
+SO	SANOOP
 SH	SETHOST
 
 ======================================
@@ -1044,22 +1052,24 @@ remote whois request.
 the search string parameter can be a single nick or nick mask with wildcards, and it can be a comma separated list.
 
 --------------------------
-{7SJ} *** SVSJOIN (non undernet)
+{7SJ} *** SAJOIN (was SVSJOIN, non undernet)
 
 1 <target numeric>
 2 <channel>
 
-cause someone else to join a channel. this command is not used on undernet. optional.
-channel may be a comma separated list
-servers propagate this message until it reaches the target server, which then broadcasts a normal join (J) for the target user.
+Force someone else to join a channel. Renamed from SVSJOIN to SAJOIN in Cathexis 1.1.0.
+Wire token SJ preserved for backward compatibility.
+Channel may be a comma separated list.
+Servers propagate this message until it reaches the target server, which then broadcasts a normal join (J) for the target user.
 
 --------------------------
-{7SN} *** SVSNICK (non undernet)
+{7SN} *** SANICK (was SVSNICK, non undernet)
 
 1 <target numeric>
 2 <new nick>
 
-change someone else's nick. this command is not used on undernet. optional.
+Force someone else's nick change. Renamed from SVSNICK to SANICK in Cathexis 1.1.0.
+Wire token SN preserved for backward compatibility.
 
 servers propagate this message until it reaches the target server, which then broadcasts a normal nickchange (N) for the target user. in case of a collision, the target server first kills the existing user.
 
