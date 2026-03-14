@@ -165,10 +165,12 @@ A `cathexis.service` unit file and `setup.sh` installer are included. The servic
 
 Cathexis is wire-compatible with Nefarious2 and the P10 protocol. SA* commands use the same wire tokens as the original SVS* commands for rolling upgrade compatibility. Servers without `OWNERPROTECT` silently strip +q/+a from BURST/mode messages.
 
-## Known Limitations
+## P10 Protocol Extensions
 
-These are structural to the P10 protocol and cannot be fixed without protocol redesign:
+Cathexis 1.2.0 addresses three structural weaknesses in the P10 protocol with optional extensions. These are disabled by default for backward compatibility.
 
-- S2S message authentication is not cryptographic
-- Server-to-server desync scenarios exist under netsplit conditions
-- SVS* source restriction relies on trust, not verification
+**S2S message authentication** (`S2S_HMAC = TRUE`) — Every server-to-server message is HMAC-SHA256 signed using keys derived from the link password. Messages with invalid or missing signatures are silently dropped. Breaks compatibility with non-Cathexis servers.
+
+**Desync detection** (`S2S_CSYNC = TRUE`) — Servers exchange SHA-256 hashes of channel state after BURST/EOB. Mismatches trigger re-synchronization requests, ensuring state divergence from netsplits is detected rather than silently accepted.
+
+**SA\* source restriction** (`SERVICES_HUB_NUMERIC = "AB"`) — Only the server with the configured P10 numeric can send SA\* commands. All 9 server-side SA\* handlers verify source authorization. Unauthorized commands are rejected and logged. Falls back to legacy trust when unset.
