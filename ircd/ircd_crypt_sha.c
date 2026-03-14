@@ -175,8 +175,10 @@ void ircd_register_crypt_sha256(void)
   crypt_mech->shortname = "crypt_sha256";
   crypt_mech->description = "SHA-256 password hash ($5$) via system crypt().";
   crypt_mech->crypt_function = &ircd_crypt_sha256;
-  crypt_mech->crypt_token = "$SHA256$";
-  crypt_mech->crypt_token_size = 8;
+  /* SHA-256 hashes are detected directly by their $5$ prefix in
+   * ircd_crypt(), like bcrypt. No tag wrapper needed. */
+  crypt_mech->crypt_token = "";
+  crypt_mech->crypt_token_size = 0;
 
   ircd_crypt_register_mech(crypt_mech);
 }
@@ -193,8 +195,10 @@ void ircd_register_crypt_sha512(void)
   crypt_mech->shortname = "crypt_sha512";
   crypt_mech->description = "SHA-512 password hash ($6$) via system crypt(). Recommended.";
   crypt_mech->crypt_function = &ircd_crypt_sha512;
-  crypt_mech->crypt_token = "$SHA512$";
-  crypt_mech->crypt_token_size = 8;
+  /* SHA-512 hashes are detected directly by their $6$ prefix in
+   * ircd_crypt(), like bcrypt. No tag wrapper needed. */
+  crypt_mech->crypt_token = "";
+  crypt_mech->crypt_token_size = 0;
 
   ircd_crypt_register_mech(crypt_mech);
 }

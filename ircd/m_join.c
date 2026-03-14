@@ -33,6 +33,7 @@
 #include "ircd.h"
 #include "ircd_chattr.h"
 #include "ircd_features.h"
+#include "ircd_crypto.h"
 #include "ircd_log.h"
 #include "ircd_reply.h"
 #include "ircd_string.h"
@@ -173,9 +174,9 @@ void do_join(struct Client *cptr, struct Client *sptr, struct JoinBuf *join,
      * "key" per channel now, this hampers brute force attacks. */
     if (feature_bool(FEAT_CHMODE_Z_STRICT) && (chptr->mode.exmode & EXMODE_SSLONLY) && !IsSSL(sptr))
       err = ERR_SSLONLYCHAN;
-    else if (key && !strcmp(key, chptr->mode.apass))
+    else if (key && !ircd_constcmp(key, chptr->mode.apass))
       flags = CHFL_CHANOP | CHFL_CHANNEL_MANAGER;
-    else if (key && !strcmp(key, chptr->mode.upass))
+    else if (key && !ircd_constcmp(key, chptr->mode.upass))
       flags = CHFL_CHANOP;
     else if (chptr->users == 0 && !chptr->mode.apass[0] && !(chptr->mode.exmode & EXMODE_PERSIST)) {
       /* Joining a zombie channel (zannel): give ops and increment TS. */
@@ -187,9 +188,9 @@ void do_join(struct Client *cptr, struct Client *sptr, struct JoinBuf *join,
       err = ERR_SSLONLYCHAN;
     else if (IsInvited(sptr, chptr)) {
       /* Invites bypass these other checks. */
-    } else if (*chptr->mode.key && (!key || strcmp(key, chptr->mode.key)) && !exceptkli)
+    } else if (*chptr->mode.key && (!key || ircd_constcmp(key, chptr->mode.key)) && !exceptkli)
       err = ERR_BADCHANNELKEY;
-    else if (*chptr->mode.key && feature_bool(FEAT_FLEXIBLEKEYS) && (key && !strcmp(key, chptr->mode.key))) {
+    else if (*chptr->mode.key && feature_bool(FEAT_FLEXIBLEKEYS) && (key && !ircd_constcmp(key, chptr->mode.key))) {
       /* Assume key checked by previous condition was found to be correct
          and allow join because FEAT_FLEXIBLEKEYS was enabled */
     } else if ((chptr->mode.mode & MODE_INVITEONLY) && !exceptkli)

@@ -20,9 +20,9 @@ The primary findings were systematic use of unsafe C string functions (`sprintf`
 
 | Severity | Found | Fixed | Remaining |
 |----------|-------|-------|-----------|
-| Critical | 3     | 3     | 0         |
-| High     | 5     | 5     | 0         |
-| Medium   | 12    | 12    | 0         |
+| Critical | 4     | 4     | 0         |
+| High     | 6     | 6     | 0         |
+| Medium   | 13    | 13    | 0         |
 | Low      | 14    | 14    | 0         |
 | Info     | 3     | —     | 3 (P10 protocol design) |
 
@@ -47,6 +47,12 @@ The primary findings were systematic use of unsafe C string functions (`sprintf`
 `DNSBL_HOST2` and `DNSBL_HOST3` features declared as string type with NULL defaults but without the `FEAT_NULL` flag. `feature_init()` asserts non-NULL defaults for string features, causing `ircd -k` and normal startup to abort.
 
 **Fix:** Added `FEAT_NULL` flag to both feature declarations.
+
+### C4 — Empty-Token Mechanism Dispatch Matches All Passwords (FIXED)
+
+The `ircd_crypt()` mechanism dispatch loop calls `ircd_strncmp(token, salt, token_size)`. When `token_size == 0` (bcrypt, sha256, sha512 use empty tokens), `strncmp("", anything, 0)` always returns 0, matching every password hash to the first empty-token mechanism (bcrypt). Bcrypt's handler receives a `$6$` hash it doesn't recognize, generates a new bcrypt hash, and the comparison with the stored `$6$` hash fails. **This caused all SHA-256/SHA-512 passwords to produce "Password mismatch".**
+
+**Fix:** Added `crypt_token_size == 0` skip in the dispatch loop. SHA/bcrypt are detected only by their dedicated `$5$`/`$6$`/`$2y$` prefix checks after the loop.
 
 ---
 
@@ -81,6 +87,21 @@ Four privilege/mark accumulation functions in `client.c` used unbounded `strcat`
 Four locations in the `modebuf` pipeline in `channel.c` only knew about `MODE_CHANOP | MODE_HALFOP | MODE_VOICE`. When +q or +a modes were set, the mode letters appeared in output but nick parameters were replaced with `*`, and the actual member status bits were never stored.
 
 **Fix:** All four locations updated to include `MODE_OWNER | MODE_PROTECT` in their bitmasks.
+
+### H6 — Timing-Vulnerable Password Comparisons Across Codebase (FIXED)
+
+Six files used `strcmp()` to compare passwords, channel keys, or hashed credentials. `strcmp()` exits on first mismatch, leaking information about how many leading characters match through execution time. An attacker with precise network timing could progressively recover secrets character by character.
+
+| File | Comparison | Risk |
+|------|-----------|------|
+| `m_server.c:619` | Server link password | Server-to-server auth bypass |
+| `s_conf.c:877` | WebIRC password | WebIRC spoofing |
+| `s_conf.c:969` | SHost password | Host spoof bypass |
+| `s_auth.c:570` | Client connection password | Auth block bypass |
+| `m_join.c:176-178` | APASS/UPASS channel keys | Channel takeover |
+| `m_join.c:191-193` | Channel mode +k key | Key recovery |
+
+**Fix:** Created `include/ircd_crypto.h` with portable `ircd_constcmp()` (constant-time string comparison using `CRYPTO_memcmp` or volatile fallback) and `ircd_clearsecret()` (secure memory clearing). All six files updated. Password buffers cleared before `MyFree()`.
 
 ---
 
@@ -184,9 +205,9 @@ These cannot be fixed without a protocol redesign:
 
 | Mechanism | Tag | Algorithm | Status |
 |-----------|-----|-----------|--------|
-| SHA-512 | `$SHA512$` | crypt() `$6$`, 1M rounds | **Recommended** |
-| SHA-256 | `$SHA256$` | crypt() `$5$`, 1.2M rounds | Strong |
-| bcrypt | `$BCRYPT$` | crypt() `$2y$`, cost 13 | Strong |
+| SHA-512 | `$6$` | crypt() `$6$`, 1M rounds | **Recommended** |
+| SHA-256 | `$5$` | crypt() `$5$`, 1.2M rounds | Strong |
+| bcrypt | `$2y$` | crypt() `$2y$`, cost 13 | Strong |
 | native | `$CRYPT$` | System crypt() (varies) | Acceptable |
 | Salted MD5 | `$SMD5$` | Custom MD5 + salt | **Rejected by default** |
 | Plain | `$PLAIN$` | No hashing | **Rejected by default** |
@@ -254,6 +275,11 @@ The cipher defaults prioritize 256-bit symmetric keys (AES-256-GCM first) which 
 | `ircd/s_user.c` | HMAC-SHA512 cloaking dispatch |
 | `include/ircd_features.h` | FEAT_HOST_HIDING_HMAC, FEAT_CRYPT_ALLOW_PLAIN/SMD5 |
 | `ircd/ircd_features.c` | Feature entries, quantum-ready TLS cipher defaults |
+| `include/ircd_crypto.h` | New — portable `ircd_constcmp()`, `ircd_clearsecret()` |
+| `ircd/m_server.c` | Constant-time server link password comparison |
+| `ircd/s_conf.c` | Constant-time WebIRC/SHost password comparison + secret clearing |
+| `ircd/s_auth.c` | Constant-time client connection password comparison |
+| `ircd/m_join.c` | Constant-time APASS/UPASS/channel key comparisons |
 | `ircd/Makefile.in` | Added ircd_crypt_sha.c to build |
 
 ---

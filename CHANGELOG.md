@@ -8,8 +8,8 @@ All notable changes to Cathexis IRCd, relative to upstream Nefarious2 (u2.10.12.
 
 **Cryptography Modernization (Quantum-Ready)**
 
-- **SHA-512 password hashing** (`$SHA512$`) — system `crypt()` with `$6$` prefix. 1,000,000 rounds (128-bit post-quantum security via Grover). Generate with `umkpasswd -m sha512 <password>`. Recommended.
-- **SHA-256 password hashing** (`$SHA256$`) — system `crypt()` with `$5$` prefix. 1,200,000 rounds. Generate with `umkpasswd -m sha256 <password>`.
+- **SHA-512 password hashing** (`$6$`) — system `crypt()` with `$6$` prefix. 1,000,000 rounds (128-bit post-quantum security via Grover). Generate with `umkpasswd -m sha512 <password>`. Recommended.
+- **SHA-256 password hashing** (`$5$`) — system `crypt()` with `$5$` prefix. 1,200,000 rounds. Generate with `umkpasswd -m sha256 <password>`.
 - **HMAC-SHA512 host cloaking** — new `HOST_HIDING_HMAC` feature (default TRUE). Replaces legacy double-MD5 with HMAC-SHA512, producing 64-bit segments with 256-bit post-quantum security. Requires OpenSSL.
 - **Weak password gates** — new features `CRYPT_ALLOW_PLAIN` and `CRYPT_ALLOW_SMD5` (both default FALSE). `$PLAIN$` and `$SMD5$` passwords are rejected by default. When enabled, deprecation warnings still fire.
 - **Quantum-ready TLS cipher defaults** — TLS 1.2 ciphers default to `ECDHE+AESGCM:ECDHE+CHACHA20` with 256-bit symmetric preference. TLS 1.3 ciphersuites default to `TLS_AES_256_GCM_SHA384` first. TLS 1.0/1.1 disabled by default. ML-KEM (post-quantum) activates automatically when OpenSSL 3.5+ is available.
@@ -32,6 +32,10 @@ All notable changes to Cathexis IRCd, relative to upstream Nefarious2 (u2.10.12.
 
 ### Fixed
 
+- **CRITICAL: `ircd_crypt()` dispatch loop matched all passwords to bcrypt** — empty-token mechanisms (`crypt_token_size == 0`) caused `strncmp("", x, 0) == 0` to match everything. SHA-256/SHA-512 passwords always returned "Password mismatch". Fixed by skipping empty-token mechanisms in the dispatch loop.
+- **Timing-vulnerable password comparisons in 6 files** — `strcmp()` on server link passwords (`m_server.c`), WebIRC/SHost passwords (`s_conf.c`), client passwords (`s_auth.c`), and channel keys (`m_join.c`). All replaced with constant-time `ircd_constcmp()`.
+- **Password hashes not cleared from memory** — `oper_password_match()` and `s_conf.c` freed hashed password buffers without clearing them first. Added `ircd_clearsecret()` before all `MyFree()` calls on credential data.
+- **`umkpasswd` core dump on missing `-m` flag** — three `abort()` calls replaced with `show_help(); exit(1);`.
 - 9 `-Waddress` warnings across `s_auth.c`, `m_authenticate.c`, `s_conf.c`, `s_serv.c`, `s_user.c` (char array compared to NULL)
 - 1 `-Wcomment` warning in `s_user.c` (unclosed Doxygen comment block)
 - `engine_epoll.c` `_syscall1` fallback removed (broke with modern gcc/pedantic)

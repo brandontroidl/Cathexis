@@ -32,6 +32,7 @@
 #include "ircd.h"
 #include "ircd_log.h"
 #include "ircd_features.h"
+#include "ircd_crypto.h"
 #include "ircd_reply.h"
 #include "ircd_string.h"
 #include "jupe.h"
@@ -616,7 +617,7 @@ int mr_server(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
                            "No Access (SSL fingerprint mismatch) %s", cli_name(cptr));
   }
 
-  if (*aconf->passwd && !!strcmp(aconf->passwd, cli_passwd(cptr))) {
+  if (*aconf->passwd && !!ircd_constcmp(aconf->passwd, cli_passwd(cptr))) {
     ++ServerStats->is_ref;
     sendto_opmask_butone(0, SNO_OLDSNO, "Access denied (passwd mismatch) %s",
                          cli_name(cptr));

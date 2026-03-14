@@ -29,6 +29,7 @@
 #include "client.h"
 #include "crule.h"
 #include "ircd_crypt.h"
+#include "ircd_crypto.h"
 #include "ircd_features.h"
 #include "ircd_geoip.h"
 #include "fileio.h"
@@ -874,7 +875,8 @@ struct WebIRCConf* find_webirc_conf(struct Client *cptr, char *passwd, int* stat
     if (!crypted)
       continue;
 
-    res = strcmp(crypted, wconf->passwd);
+    res = ircd_constcmp(crypted, wconf->passwd);
+    ircd_clearsecret(crypted, strlen(crypted));
     MyFree(crypted);
 
     if (0 == res) {
@@ -966,7 +968,8 @@ struct SHostConf* find_shost_conf(struct Client *cptr, char *host, char *passwd,
       if (!crypted)
         continue;
 
-      res = strcmp(crypted, sconf->passwd);
+      res = ircd_constcmp(crypted, sconf->passwd);
+      ircd_clearsecret(crypted, strlen(crypted));
       MyFree(crypted);
     }
 

@@ -59,25 +59,13 @@
 #include "ircd_crypt_sha.h"
 #include "client.h"
 #include "send.h"
+#include "ircd_crypto.h"
 
 /* #include <assert.h> -- Now using assert in ircd_log.h */
 #include <unistd.h>
 #include <string.h>
-
-#ifdef USE_SSL
-#include <openssl/crypto.h>
-#else
-/* Constant-time memory comparison (fallback when OpenSSL is not available) */
-static int CRYPTO_memcmp(const void *a, const void *b, size_t len)
-{
-  const unsigned char *pa = (const unsigned char *)a;
-  const unsigned char *pb = (const unsigned char *)b;
-  unsigned char diff = 0;
-  size_t i;
-  for (i = 0; i < len; i++)
-    diff |= pa[i] ^ pb[i];
-  return diff;
-}
+#ifdef HAVE_CRYPT_H
+#include <crypt.h>
 #endif
 
 /* evil global */
@@ -166,6 +154,16 @@ crypt_mechs_t* crypt_mech;
   * can discover what kind of password it is.  hopefully. */
  for (;crypt_mech;)
  {
+  /* Skip mechanisms with no token (bcrypt, sha256, sha512).
+   * These are detected by their $2y$/$5$/$6$ prefix in dedicated
+   * code blocks after this loop. An empty token would match
+   * everything via strncmp(x, y, 0)==0. */
+  if (crypt_mech->mech->crypt_token_size == 0)
+  {
+   crypt_mech = crypt_mech->next;
+   continue;
+  }
+
   if (strlen(salt) < crypt_mech->mech->crypt_token_size)
   {
    /* try the next mechanism instead */
@@ -234,6 +232,47 @@ crypt_mechs_t* crypt_mech;
    }
  }
 
+ /* try SHA-256 ($5$) or SHA-512 ($6$) - pass directly to system crypt */
+ if (strlen(salt) > 4 && salt[0] == '$' &&
+     (salt[1] == '5' || salt[1] == '6') && salt[2] == '$')
+ {
+   char *s;
+   Debug((DEBUG_DEBUG, "ircd_crypt: detected SHA-%s hash",
+          salt[1] == '5' ? "256" : "512"));
+   if (NULL == (temp_hashed_pass = (char*)crypt(key, salt)))
+     return NULL;
+   if (!ircd_strcmp(temp_hashed_pass, salt))
+   {
+     DupString(s, temp_hashed_pass);
+     return s;
+   }
+ }
+
+ /* backward compat: old $SHA256$/$SHA512$ tagged format from Cathexis <1.2.0 */
+ if (strlen(salt) > 12 && salt[0] == '$' && salt[1] == 'S' && salt[2] == 'H' && salt[3] == 'A')
+ {
+   const char *inner = NULL;
+   if (!strncmp(salt, "$SHA256$", 8))
+     inner = salt + 8;
+   else if (!strncmp(salt, "$SHA512$", 8))
+     inner = salt + 8;
+   if (inner && strlen(inner) > 4 && inner[0] == '$' &&
+       (inner[1] == '5' || inner[1] == '6') && inner[2] == '$')
+   {
+     char *s;
+     Debug((DEBUG_DEBUG, "ircd_crypt: detected legacy tagged SHA hash"));
+     if (NULL == (temp_hashed_pass = (char*)crypt(key, inner)))
+       return NULL;
+     if (!ircd_strcmp(temp_hashed_pass, inner))
+     {
+       /* Return the full tagged string so comparison with stored passwd works */
+       s = (char*)MyMalloc(strlen(salt) + 1);
+       strcpy(s, salt);
+       return s;
+     }
+   }
+ }
+
  /* try to use native crypt for an old-style (untagged) password */
  if (strlen(salt) > 2)
  {
@@ -288,7 +327,6 @@ int oper_password_match(const char* to_match, const char* passwd)
 {
   char *crypted;
   int res;
-  size_t crypted_len, passwd_len, cmp_len;
   /*
    * use first two chars of the password they send in as salt
    *
@@ -335,14 +373,12 @@ int oper_password_match(const char* to_match, const char* passwd)
       "Upgrade to bcrypt, SHA-256, or SHA-512.");
 
   /* Use constant-time comparison to prevent timing attacks.
-   * Always perform comparison to avoid leaking length info. */
-  crypted_len = strlen(crypted);
-  passwd_len = strlen(passwd);
-  cmp_len = (crypted_len < passwd_len) ? crypted_len : passwd_len;
-  res = CRYPTO_memcmp(crypted, passwd, cmp_len);
-  /* Lengths must also match - XOR is non-zero if different */
-  res |= (crypted_len ^ passwd_len);
+   * ircd_constcmp compares full length of both strings without
+   * early exit, preventing side-channel leakage. */
+  res = ircd_constcmp(crypted, passwd);
 
+  /* Securely clear the hashed password before freeing */
+  ircd_clearsecret(crypted, strlen(crypted));
   MyFree(crypted);
   return 0 == res;
 }

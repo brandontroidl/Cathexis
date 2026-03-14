@@ -275,7 +275,7 @@ Cryptography Modernization (Quantum-Ready):
  Version: Cathexis 1.2.0
 
  Password Hashing:
-  New mechanisms: SHA-256 ($SHA256$) and SHA-512 ($SHA512$).
+  New mechanisms: SHA-256 ($5$) and SHA-512 ($6$).
   Generate with: umkpasswd -m sha512 <password>
                  umkpasswd -m sha256 <password>
   Both use the system crypt() function with high iteration counts
@@ -283,9 +283,9 @@ Cryptography Modernization (Quantum-Ready):
   security, so higher rounds compensate).
 
   Recommended strength order (strongest first):
-    SHA-512 ($SHA512$)  — 1,000,000 rounds. Recommended.
-    SHA-256 ($SHA256$)  — 1,200,000 rounds.
-    bcrypt ($BCRYPT$)   — cost factor 13 (8192 iterations).
+    SHA-512 ($6$)  — 1,000,000 rounds. Recommended.
+    SHA-256 ($5$)  — 1,200,000 rounds.
+    bcrypt ($2y$)   — cost factor 13 (8192 iterations).
     native crypt        — depends on system (may be DES).
     Salted MD5 ($SMD5$) — REJECTED by default. Set CRYPT_ALLOW_SMD5=TRUE to allow.
     Plain ($PLAIN$)     — REJECTED by default. Set CRYPT_ALLOW_PLAIN=TRUE to allow.

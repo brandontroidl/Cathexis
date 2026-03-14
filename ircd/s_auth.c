@@ -45,6 +45,7 @@
 #include "ircd_chattr.h"
 #include "ircd_events.h"
 #include "ircd_features.h"
+#include "ircd_crypto.h"
 #include "ircd_geoip.h"
 #include "ircd_log.h"
 #include "ircd_osdep.h"
@@ -567,7 +568,7 @@ static int check_auth_finished(struct AuthRequest *auth)
 
     if (aconf
         && !EmptyString(aconf->passwd)
-        && strcmp(cli_passwd(auth->client), aconf->passwd))
+        && ircd_constcmp(cli_passwd(auth->client), aconf->passwd))
     {
       ServerStats->is_ref++;
       send_reply(auth->client, ERR_PASSWDMISMATCH);
