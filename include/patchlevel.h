@@ -15,7 +15,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
-#define PATCHLEVEL "14+Nefarious2+Cathexis(1.1.0)"
+#define PATCHLEVEL "14+Nefarious2+Cathexis(1.2.0)"
 
 #define RELEASE ".12."
 
