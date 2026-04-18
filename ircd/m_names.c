@@ -128,15 +128,15 @@ void do_names(struct Client* sptr, struct Channel* chptr, int filter)
 
   /* Tag Pub/Secret channels accordingly. */
 
-  strcpy(buf, "* ");
+  ircd_strncpy(buf, "* ", sizeof(buf) - 1);
   if (PubChannel(chptr))
     *buf = '=';
   else if (SecretChannel(chptr))
     *buf = '@';
  
   len = strlen(chptr->chname);
-  strcpy(buf + 2, chptr->chname);
-  strcpy(buf + 2 + len, " :");
+  ircd_strncpy(buf + 2, chptr->chname, sizeof(buf) - 3);
+  ircd_strncpy(buf + 2 + len, " :", sizeof(buf) - 3 - len);
 
   idx = len + 4;
   flag = 1;
@@ -176,6 +176,18 @@ void do_names(struct Client* sptr, struct Channel* chptr, int filter)
         done_prefix = 1;
       }
     }
+    if (feature_bool(FEAT_OWNERPROTECT) && IsOwner(member)) {
+      if ((IsNamesX(sptr) || CapActive(sptr, CAP_NAMESX)) || !done_prefix) {
+        buf[idx++] = '~';
+        done_prefix = 1;
+      }
+    }
+    if (feature_bool(FEAT_OWNERPROTECT) && IsProtect(member)) {
+      if ((IsNamesX(sptr) || CapActive(sptr, CAP_NAMESX)) || !done_prefix) {
+        buf[idx++] = '&';
+        done_prefix = 1;
+      }
+    }
     if (IsChanOp(member)) {
       if ((IsNamesX(sptr) || CapActive(sptr, CAP_NAMESX)) || !done_prefix) {
         buf[idx++] = '@';
@@ -194,18 +206,18 @@ void do_names(struct Client* sptr, struct Channel* chptr, int filter)
         done_prefix = 1;
       }
     }
-    strcpy(buf + idx, cli_name(c2ptr));
+    ircd_strncpy(buf + idx, cli_name(c2ptr), sizeof(buf) - idx - 1);
     idx += strlen(cli_name(c2ptr));
 
     if ((feature_bool(FEAT_UHNAMES) && IsUHNames(sptr)) ||
         CapActive(sptr, CAP_UHNAMES)) {
-      strcpy(buf + idx, "!");
+      if (idx < sizeof(buf) - 2) { buf[idx] = '!'; buf[idx+1] = '\0'; }
       idx += 1;
-      strcpy(buf + idx, cli_user(c2ptr)->username);
+      ircd_strncpy(buf + idx, cli_user(c2ptr)->username, sizeof(buf) - idx - 1);
       idx += strlen(cli_user(c2ptr)->username);
-      strcpy(buf + idx, "@");
+      if (idx < sizeof(buf) - 2) { buf[idx] = '@'; buf[idx+1] = '\0'; }
       idx += 1;
-      strcpy(buf + idx, cli_user(c2ptr)->host);
+      ircd_strncpy(buf + idx, cli_user(c2ptr)->host, sizeof(buf) - idx - 1);
       idx += strlen(cli_user(c2ptr)->host);
     }
 
@@ -287,7 +299,7 @@ int m_names(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
 
       /* List all remaining users on channel '*' */
 
-      strcpy(buf, "* * :");
+      ircd_strncpy(buf, "* * :", sizeof(buf) - 1);
       idx = 5;
       flag = 0;
 
@@ -313,7 +325,7 @@ int m_names(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
         if (showflag)               /* Have we already shown them? */
           continue;
  
-        strcpy(buf + idx, cli_name(c2ptr));
+        ircd_strncpy(buf + idx, cli_name(c2ptr), sizeof(buf) - idx - 1);
         idx += strlen(cli_name(c2ptr));
         buf[idx++] = ' ';
         flag = 1;
@@ -322,7 +334,7 @@ int m_names(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
         {
           buf[idx-1] = '\0';
           send_reply(sptr, RPL_NAMREPLY, buf);
-          strcpy(buf, "* * :");
+          ircd_strncpy(buf, "* * :", sizeof(buf) - 1);
           idx = 5;
           flag = 0;
         }

@@ -28,6 +28,7 @@
 
 #include "client.h"
 #include "ircd.h"
+#include "ircd_alloc.h"
 #include "ircd_chattr.h"
 #include "ircd_features.h"
 #include "ircd_log.h"
@@ -52,21 +53,52 @@ static struct capabilities {
   char *name;
   int namelen;
   int feat;
+  const char *value;  /**< IRCv3 CAP value (for CAP LS 302), NULL if none */
 } capab_list[] = {
 #define _CAP(cap, flags, name, feat) \
-    { CAP_ ## cap, #cap, (flags), (name), sizeof(name) - 1, feat }
+    { CAP_ ## cap, #cap, (flags), (name), sizeof(name) - 1, feat, NULL }
+#define _CAPV(cap, flags, name, feat, val) \
+    { CAP_ ## cap, #cap, (flags), (name), sizeof(name) - 1, feat, val }
   _CAP(NONE, CAPFL_HIDDEN|CAPFL_PROHIBIT, "none", 0),
   _CAP(NAMESX, 0, "multi-prefix", FEAT_CAP_multi_prefix),
   _CAP(UHNAMES, 0, "userhost-in-names", FEAT_CAP_userhost_in_names),
   _CAP(EXTJOIN, 0, "extended-join", FEAT_CAP_extended_join),
   _CAP(AWAYNOTIFY, 0, "away-notify", FEAT_CAP_away_notify),
   _CAP(ACCNOTIFY, 0, "account-notify", FEAT_CAP_account_notify),
-  _CAP(SASL, 0, "sasl", FEAT_CAP_sasl),
-#ifdef USE_SSL
+  _CAPV(SASL, 0, "sasl", FEAT_CAP_sasl, "PLAIN,EXTERNAL"),
   _CAP(TLS, 0, "tls", FEAT_CAP_tls),
-#endif
+  /* IRCv3.2+ capabilities */
+  _CAP(CAPNOTIFY, 0, "cap-notify", FEAT_CAP_cap_notify),
+  _CAP(SERVERTIME, 0, "server-time", FEAT_CAP_server_time),
+  _CAP(ACCOUNTTAG, 0, "account-tag", FEAT_CAP_account_tag),
+  _CAP(MSGTAGS, 0, "message-tags", FEAT_CAP_message_tags),
+  _CAP(ECHOMSG, 0, "echo-message", FEAT_CAP_echo_message),
+  _CAP(INVITENOTIFY, 0, "invite-notify", FEAT_CAP_invite_notify),
+  _CAP(CHGHOST, 0, "chghost", FEAT_CAP_chghost),
+  _CAP(SETNAME, 0, "setname", FEAT_CAP_setname),
+  _CAP(BATCH, 0, "batch", FEAT_CAP_batch),
+  _CAP(LABELEDRESP, 0, "labeled-response", FEAT_CAP_labeled_response),
+  _CAP(STDREPLIES, 0, "standard-replies", FEAT_CAP_standard_replies),
+  /* Cathexis extensions */
+  _CAP(STS, CAPFL_PROHIBIT, "sts", 0),
+  /* IRCv3 ratified — additional */
+  _CAP(MSGID, 0, "message-ids", FEAT_CAP_message_ids),
+  _CAP(MONITOR, 0, "monitor", FEAT_CAP_monitor),
+  /* IRCv3 draft specs */
+  _CAP(BOTMODE, 0, "draft/bot-mode", FEAT_CAP_bot_mode),
+  _CAP(CHATHISTORY, 0, "draft/chathistory", FEAT_CAP_chathistory),
+  _CAP(TYPING, 0, "draft/typing", FEAT_CAP_typing),
+  _CAP(NOIMPLICITNAMES, 0, "no-implicit-names", FEAT_CAP_no_implicit_names),
+  _CAP(CHANNELRENAME, 0, "draft/channel-rename", FEAT_CAP_channel_rename),
+  _CAP(READMARKER, 0, "draft/read-marker", FEAT_CAP_read_marker),
+  _CAPV(MULTILINE, 0, "draft/multiline", FEAT_CAP_multiline, "max-bytes=4096"),
+  _CAP(PREAWAY, 0, "draft/pre-away", FEAT_CAP_pre_away),
+  _CAPV(ACCREG, 0, "draft/account-registration", FEAT_CAP_account_registration, "before-connect"),
+  _CAP(EXTMONITOR, 0, "draft/extended-monitor", FEAT_CAP_extended_monitor),
+  _CAP(MSGREDACT, 0, "draft/message-redaction", FEAT_CAP_message_redaction),
 /*  CAPLIST */
 #undef _CAP
+#undef _CAPV
 };
 
 #define CAPAB_LIST_LEN (sizeof(capab_list) / sizeof(struct capabilities))
@@ -192,14 +224,42 @@ send_caplist(struct Client *sptr, const struct CapSet *set,
     pfx[pfx_len] = '\0';
 
     len = capab_list[i].namelen + pfx_len; /* how much we'd add... */
+
+    /* IRCv3 STS: generate value dynamically from features.
+     * Format: sts=port=<port>,duration=<seconds>
+     * Only advertised on CAP LS (not REQ), only with 302+ */
+    static char sts_value[64];
+    const char *effective_value = capab_list[i].value;
+
+    if (capab_list[i].cap == CAP_STS && MyConnect(sptr) &&
+        con_capver(cli_connect(sptr)) >= 302) {
+      int sts_port = feature_int(FEAT_STS_PORT);
+      int sts_dur  = feature_int(FEAT_STS_DURATION);
+      if (sts_port > 0) {
+        ircd_snprintf(0, sts_value, sizeof(sts_value),
+                       "port=%d,duration=%d", sts_port, sts_dur);
+        effective_value = sts_value;
+      }
+    }
+
+    /* IRCv3.2 CAP 302: include =value for caps that have one */
+    if (effective_value && MyConnect(sptr) &&
+        con_capver(cli_connect(sptr)) >= 302)
+      len += 1 + strlen(effective_value); /* +1 for '=' */
+
     if (msgq_bufleft(mb) < loc + len + 2) { /* would add too much; must flush */
       sendcmdto_one(&me, CMD_CAP, sptr, "%s %s :%s",
                     BadPtr(cli_name(sptr)) ? "*" : cli_name(sptr),  subcmd, capbuf);
       capbuf[(loc = 0)] = '\0'; /* re-terminate the buffer... */
     }
 
-    loc += ircd_snprintf(0, capbuf + loc, sizeof(capbuf) - loc, "%s%s",
-                         pfx, capab_list[i].name);
+    if (effective_value && MyConnect(sptr) &&
+        con_capver(cli_connect(sptr)) >= 302)
+      loc += ircd_snprintf(0, capbuf + loc, sizeof(capbuf) - loc, "%s%s=%s",
+                           pfx, capab_list[i].name, effective_value);
+    else
+      loc += ircd_snprintf(0, capbuf + loc, sizeof(capbuf) - loc, "%s%s",
+                           pfx, capab_list[i].name);
   }
 
   msgq_append(0, mb, "%s", capbuf); /* append capabilities to the final cmd */
@@ -214,6 +274,16 @@ cap_ls(struct Client *sptr, const char *caplist)
 {
   if (IsUnknown(sptr) && cli_auth(sptr)) /* registration hasn't completed; suspend it... */
     auth_cap_start(cli_auth(sptr));
+
+  /* IRCv3.2 CAP LS 302 - track version and implicitly enable cap-notify */
+  if (caplist && atoi(caplist) >= 302) {
+    if (MyConnect(sptr))
+      con_capver(cli_connect(sptr)) = 302;
+    /* cap-notify is implicitly enabled for 302 clients */
+    CapSet(cli_capab(sptr), CAP_CAPNOTIFY);
+    CapSet(cli_active(sptr), CAP_CAPNOTIFY);
+  }
+
   return send_caplist(sptr, 0, 0, "LS"); /* send list of capabilities */
 }
 
@@ -260,6 +330,7 @@ cap_req(struct Client *sptr, const char *caplist)
   send_caplist(sptr, &set, &rem, "ACK");
   *cli_capab(sptr) = cs;
   *cli_active(sptr) = as;
+
 
   return 0;
 }
@@ -389,23 +460,29 @@ void client_check_caps(struct Client *client, struct Client *replyto)
   char outbuf[BUFSIZE];
   int i = 0;
   static char capbufp[BUFSIZE] = "";
+  size_t pos = 0;
 
-  memset(&capbufp, 0, BUFSIZE);
+  capbufp[0] = '\0';
 
   for (i = 0; i < CAPAB_LIST_LEN; i++) {
     if (CapActive(client, capab_list[i].cap)) {
-      if (strlen(capbufp) + capab_list[i].namelen + 4 > 70) {
+      if (pos + capab_list[i].namelen + 4 > 70) {
+        capbufp[pos] = '\0';
         ircd_snprintf(0, outbuf, sizeof(outbuf), "   Capabilities:: %s", capbufp);
         send_reply(replyto, RPL_DATASTR, outbuf);
-        memset(&capbufp, 0, BUFSIZE);
+        pos = 0;
       }
 
-      strcat(capbufp, capab_list[i].name);
-      strcat(capbufp, " ");
+      if (pos + capab_list[i].namelen + 2 < sizeof(capbufp)) {
+        memcpy(capbufp + pos, capab_list[i].name, capab_list[i].namelen);
+        pos += capab_list[i].namelen;
+        capbufp[pos++] = ' ';
+      }
     }
   }
 
-  if (strlen(capbufp) > 0) {
+  if (pos > 0) {
+    capbufp[pos] = '\0';
     ircd_snprintf(0, outbuf, sizeof(outbuf), "   Capabilities:: %s", capbufp);
     send_reply(replyto, RPL_DATASTR, outbuf);
   }

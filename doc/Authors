@@ -240,3 +240,28 @@ Jobe <jobe@mdbnet.co.uk>
 Rubin <rubin@afternet.org>
 Andromeda <andromeda@cerberuslabs.ca>
 Obnoxious <obnoxious@binhex.org>
+
+Cathexis IRCd (2026-present)
+----------------------------
+
+Cathexis is a security-hardened, IRCv3-compliant fork of Nefarious2
+with end-to-end encryption. Licensed under GPL v3 or later.
+
+The current maintainer is Brandon Troidl.
+
+Security audit, hardening, E2EE, and IRCv3 implementation by:
+
+Brandon Troidl <btroidl@gmail.com>
+
+Cathexis contributions include:
+  - Three-phase security audit (blue team / red team / remediation)
+  - End-to-end encryption system (X25519 + AES-256-GCM)
+  - Full IRCv3 specification compliance (18 capabilities)
+  - SHA-512/SHA-256 password hashing with quantum resistance
+  - S2S HMAC-SHA256 per-message authentication
+  - HMAC-SHA512 host cloaking
+  - DNSBL system with parallel zone queries
+  - Channel owner (+q) and protect (+a) hierarchy
+  - MONITOR, CHATHISTORY, batch, labeled-response
+  - 222-entry help system
+  - Systematic sprintf/strcpy/strcat elimination

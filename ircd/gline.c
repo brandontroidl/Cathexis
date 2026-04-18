@@ -1299,8 +1299,8 @@ gline_remove(struct Client* sptr, char *userhost, char *reason)
     if (gline->gl_expire <= CurrentTime)
       gline_free(gline);
     else if (((gline->gl_host && host && ircd_strcmp(gline->gl_host,host) == 0)
-            ||(!gline->gl_host && !host)) && ((!user && ircd_strcmp(gline->gl_user, "*") == 0) ||
-               ircd_strcmp(gline->gl_user, user) == 0)) {
+            ||(!gline->gl_host && !host)) &&
+               ircd_strcmp(gline->gl_user, user) == 0) {
       sendto_opmask_butone(0, SNO_GLINE, "%s force removing GLINE for %s (%s)",
                            feature_bool(FEAT_HIS_SNOTICES) || IsServer(sptr) ?
                            cli_name(sptr) : cli_name((cli_user(sptr))->server),

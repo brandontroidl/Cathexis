@@ -39,6 +39,8 @@
 #include "ircd_string.h"
 #include "ircd_snprintf.h"
 #include "ircd_crypt.h"
+#include "ircd_features.h"
+#include "s2s_crypto.h"
 #include "jupe.h"
 #include "list.h"
 #include "mark.h"
@@ -148,6 +150,32 @@ int server_estab(struct Client *cptr, struct ConfItem *aconf)
   cli_handler(cptr) = SERVER_HANDLER;
   Count_unknownbecomesserver(UserStats);
   SetBurst(cptr);
+
+  /* Cathexis 1.2.0+: Derive S2S cryptographic keys from the link password.
+   * S2S HMAC is enforced per-link: the Connect block must have hmac = yes
+   * AND the global S2S_HMAC feature must be TRUE.
+   * Links without hmac = yes skip HMAC — this allows mixed networks
+   * where some servers (e.g., Acid) support per-message HMAC and
+   * others (e.g., Synaxis/x3) do not. */
+  cli_serv(cptr)->s2s_active = 0;
+  if (feature_bool(FEAT_S2S_HMAC) && (aconf->flags & CONF_HMAC)
+      && aconf->passwd && *aconf->passwd) {
+    struct S2SKey tmpkey;
+    if (s2s_derive_keys(&tmpkey, aconf->passwd) == 0) {
+      memcpy(cli_serv(cptr)->s2s_hmac_key, tmpkey.hmac_key, 32);
+      memcpy(cli_serv(cptr)->s2s_sacert_key, tmpkey.sacert_key, 32);
+      cli_serv(cptr)->s2s_active = 1;
+      sendto_opmask_butone(0, SNO_NETWORK,
+        "S2S-HMAC: Cryptographic authentication active on link to %s",
+        cli_name(cptr));
+    } else {
+      sendto_opmask_butone(0, SNO_NETWORK,
+        "S2S-HMAC: WARNING — key derivation failed for link to %s",
+        cli_name(cptr));
+    }
+    /* Clear temporary key material */
+    memset(&tmpkey, 0, sizeof(tmpkey));
+  }
 
 /*    nextping = CurrentTime; */
 
@@ -263,7 +291,7 @@ int server_estab(struct Client *cptr, struct ConfItem *aconf)
 		    NumNick(acptr), cli_info(acptr));
 
       if (cli_user(acptr) && !EmptyString(cli_user(acptr)->swhois))
-        sendcmdto_one(cli_user(acptr)->server, CMD_SWHOIS, cptr, "%C :%s", acptr,
+        sendcmdto_one(cli_user(acptr)->server, CMD_SAWHOIS, cptr, "%C :%s", acptr,
                       cli_user(acptr)->swhois);
 
       if (cli_version(acptr) && !EmptyString(cli_version(acptr)))
@@ -288,8 +316,8 @@ int server_estab(struct Client *cptr, struct ConfItem *aconf)
                       cli_name(acptr), MARK_KILL, cli_killmark(acptr));
 
       if (IsGeoIP(acptr)) {
-        if (cli_countrycode(acptr) && !EmptyString(cli_countrycode(acptr)) &&
-            cli_continentcode(acptr) && !EmptyString(cli_continentcode(acptr)))
+        if (!EmptyString(cli_countrycode(acptr)) &&
+            !EmptyString(cli_continentcode(acptr)))
           sendcmdto_one(cli_user(acptr)->server, CMD_MARK, cptr, "%s %s %s %s :%s",
                         cli_name(acptr), MARK_GEOIP, cli_countrycode(acptr),
                         cli_continentcode(acptr), cli_countryname(acptr));

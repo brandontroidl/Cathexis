@@ -175,7 +175,8 @@ int m_nick(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
   if ((s = strchr(arg, '~')))
     *s = '\0';
 
-  strcpy(nick, arg);
+  ircd_strncpy(nick, arg, sizeof(nick) - 1);
+  nick[sizeof(nick) - 1] = '\0';
 
   /*
    * If do_nick_name() returns a null name then reject it.

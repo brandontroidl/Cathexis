@@ -154,7 +154,7 @@ int m_watch(struct Client *cptr, struct Client *sptr, int parc, char *parv[])
 	      if (lp)
 	      {
 		*line = '\0';
-		strcpy(line, lp->value.wptr->wt_nick);
+		ircd_strncpy(line, lp->value.wptr->wt_nick, sizeof(line) - 1);
 		count = strlen(parv[0]) + strlen(cli_name(&me)) + 10 + strlen(line);
 	
 		while ((lp = lp->next))
@@ -165,8 +165,8 @@ int m_watch(struct Client *cptr, struct Client *sptr, int parc, char *parv[])
 		    *line = '\0';
 		    count = strlen(cli_name(sptr)) + strlen(cli_name(&me)) + 10;
 		  }
-		  strcat(line, " ");
-		  strcat(line, lp->value.wptr->wt_nick);
+		  { size_t lpos = strlen(line); size_t nlen = strlen(lp->value.wptr->wt_nick);
+		    if (lpos + nlen + 2 < sizeof(line)) { line[lpos] = ' '; memcpy(line + lpos + 1, lp->value.wptr->wt_nick, nlen + 1); } }
 		  count += (strlen(lp->value.wptr->wt_nick) + 1);
 		}
 		send_reply(sptr, RPL_WATCHLIST, line);

@@ -117,7 +117,7 @@ int m_version(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
   if (parc > 1 && match(parv[1], cli_name(&me)))
     return send_reply(sptr, ERR_NOPRIVILEGES);
 
-  send_reply(sptr, RPL_VERSION, version, cvs_version, debugmode, cli_name(&me),
+  send_reply(sptr, RPL_VERSION, version, debugmode, cli_name(&me),
              debug_serveropts());
   send_supported(sptr);
   return 0;
@@ -148,16 +148,13 @@ int mo_version(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
                                                            parc, parv)
                       == HUNTED_ISME)
   {
-    send_reply(sptr, RPL_VERSION, version, cvs_version, debugmode, cli_name(&me),
+    send_reply(sptr, RPL_VERSION, version, debugmode, cli_name(&me),
 	       debug_serveropts());
 #ifdef USE_SSL
 #ifdef DEBUGMODE
     sendcmdto_one(&me, CMD_NOTICE, sptr, "%C :Headers: %s", sptr, OPENSSL_VERSION_TEXT);
 #endif
-    sendcmdto_one(&me, CMD_NOTICE, sptr, "%C :Library: %s", sptr, SSLeay_version(SSLEAY_VERSION));
-#endif
-#ifdef USE_GEOIP
-    sendcmdto_one(&me, CMD_NOTICE, sptr, "%C :GeoIP %s", sptr, geoip_version());
+    sendcmdto_one(&me, CMD_NOTICE, sptr, "%C :Library: %s", sptr, OpenSSL_version(OPENSSL_VERSION));
 #endif
 #ifdef USE_MMDB
     sendcmdto_one(&me, CMD_NOTICE, sptr, "%C :MaxMindDB %s", sptr, geoip_libmmdb_version());
@@ -191,7 +188,7 @@ int ms_version(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
   if (hunt_server_cmd(sptr, CMD_VERSION, cptr, 0, ":%C", 1, parc, parv) ==
       HUNTED_ISME)
   {
-    send_reply(sptr, RPL_VERSION, version, cvs_version, debugmode, cli_name(&me),
+    send_reply(sptr, RPL_VERSION, version, debugmode, cli_name(&me),
 	       debug_serveropts());
     if (IsAnOper(sptr))
     {
@@ -199,10 +196,7 @@ int ms_version(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
 #ifdef DEBUGMODE
       sendcmdto_one(&me, CMD_NOTICE, sptr, "%C :Headers: %s", sptr, OPENSSL_VERSION_TEXT);
 #endif
-      sendcmdto_one(&me, CMD_NOTICE, sptr, "%C :Library: %s", sptr, SSLeay_version(SSLEAY_VERSION));
-#endif
-#ifdef USE_GEOIP
-      sendcmdto_one(&me, CMD_NOTICE, sptr, "%C :GeoIP %s", sptr, geoip_version());
+      sendcmdto_one(&me, CMD_NOTICE, sptr, "%C :Library: %s", sptr, OpenSSL_version(OPENSSL_VERSION));
 #endif
 #ifdef USE_MMDB
       sendcmdto_one(&me, CMD_NOTICE, sptr, "%C :MaxMindDB %s", sptr, geoip_libmmdb_version());

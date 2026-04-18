@@ -146,7 +146,7 @@ netride_exmodes(int parc, char **parv, const char *curr_key)
     switch (*modes++) {
     case '-':
       return -1;
-    case 'a':
+    case 'G':
       result |= EXMODE_ADMINONLY;
       break;
     case 'O':
@@ -465,7 +465,7 @@ int ms_burst(struct Client *cptr, struct Client *sptr, int parc, char *parv[])
             }
 
 	    newban = make_ban(ban); /* create new ban */
-            strcpy(newban->who, "*");
+            ircd_strncpy(newban->who, "*", NICKLEN);
 	    newban->when = TStime();
 	    newban->flags |= BAN_BURSTED;
 	    newban->next = 0;
@@ -505,8 +505,32 @@ int ms_burst(struct Client *cptr, struct Client *sptr, int parc, char *parv[])
 	    if (parse_flags & MODE_PARSE_SET) {
 	      int current_mode_needs_reset;
 	      for (current_mode_needs_reset = 1; *ptr; ptr++) {
-		if (*ptr == 'o') { /* has oper status */
+		if (*ptr == 'q') { /* has owner status */
+		  oplevel = MAXOPLEVEL;
+		  if (current_mode_needs_reset) {
+		    current_mode = base_mode;
+		    current_mode_needs_reset = 0;
+		  }
+		  current_mode = (current_mode & ~(CHFL_DEOPPED | CHFL_DELAYED)) | CHFL_OWNER;
+		  if (ptr[1] == 'a') { current_mode |= CHFL_PROTECT; ptr++; }
+		  if (ptr[1] == 'o') { current_mode |= CHFL_CHANOP; ptr++; }
+		  if (ptr[1] == 'h') { current_mode |= CHFL_HALFOP; ptr++; }
+		  if (ptr[1] == 'v') { current_mode |= CHFL_VOICE; ptr++; }
+		}
+		else if (*ptr == 'a') { /* has protect/admin status */
+		  oplevel = MAXOPLEVEL;
+		  if (current_mode_needs_reset) {
+		    current_mode = base_mode;
+		    current_mode_needs_reset = 0;
+		  }
+		  current_mode = (current_mode & ~(CHFL_DEOPPED | CHFL_DELAYED)) | CHFL_PROTECT;
+		  if (ptr[1] == 'o') { current_mode |= CHFL_CHANOP; ptr++; }
+		  if (ptr[1] == 'h') { current_mode |= CHFL_HALFOP; ptr++; }
+		  if (ptr[1] == 'v') { current_mode |= CHFL_VOICE; ptr++; }
+		}
+		else if (*ptr == 'o') { /* has oper status */
 		  /*
+		   * 'q' sets owner, 'a' sets protect, 'o' sets chanop.
 		   * An 'o' is pre-oplevel protocol, so this is only for
 		   * backwards compatibility.  Give them an op-level of
 		   * MAXOPLEVEL so everyone can deop them.
@@ -600,13 +624,13 @@ int ms_burst(struct Client *cptr, struct Client *sptr, int parc, char *parv[])
 
 	    nickstr[nickpos++] = ':'; /* add a specifier */
             nickstro[nickposo++] = ':'; /* add a specifier */
-	    if (current_mode & CHFL_VOICE) {
-	      nickstr[nickpos++] = 'v';
-              nickstro[nickposo++] = 'v';
+            if (current_mode & CHFL_OWNER) {
+              nickstr[nickpos++] = 'q';
+              nickstro[nickposo++] = 'q';
             }
-            if (current_mode & CHFL_HALFOP) {
-              nickstr[nickpos++] = 'h';
-              nickstro[nickposo++] = 'h';
+            if (current_mode & CHFL_PROTECT) {
+              nickstr[nickpos++] = 'a';
+              nickstro[nickposo++] = 'a';
             }
 	    if (current_mode & CHFL_CHANOP)
             {
@@ -615,6 +639,14 @@ int ms_burst(struct Client *cptr, struct Client *sptr, int parc, char *parv[])
               else
                 nickstr[nickpos++] = 'o';
               nickstro[nickposo++] = 'o';
+            }
+            if (current_mode & CHFL_HALFOP) {
+              nickstr[nickpos++] = 'h';
+              nickstro[nickposo++] = 'h';
+            }
+	    if (current_mode & CHFL_VOICE) {
+	      nickstr[nickpos++] = 'v';
+              nickstro[nickposo++] = 'v';
             }
 	  } else if (current_mode & CHFL_CHANOP && oplevel != last_oplevel) { /* if just op level changed... */
 	    nickstr[nickpos++] = ':'; /* add a specifier */
@@ -651,7 +683,7 @@ int ms_burst(struct Client *cptr, struct Client *sptr, int parc, char *parv[])
 	    if (member->status & CHFL_VOICE)
 	      member->status |= CHFL_BURST_ALREADY_VOICED;
 	    /* Synchronize with the burst. */
-	    member->status |= CHFL_BURST_JOINED | (current_mode & (CHFL_CHANOP|CHFL_HALFOP|CHFL_VOICE));
+	    member->status |= CHFL_BURST_JOINED | (current_mode & (CHFL_OWNER|CHFL_PROTECT|CHFL_CHANOP|CHFL_HALFOP|CHFL_VOICE));
 	    SetOpLevel(member, oplevel);
 	  }
 	}
@@ -694,6 +726,10 @@ int ms_burst(struct Client *cptr, struct Client *sptr, int parc, char *parv[])
     /* first deal with channel members */
     for (member = chptr->members; member; member = member->next_member) {
       if (member->status & CHFL_BURST_JOINED) { /* joined during burst */
+	if ((member->status & CHFL_OWNER) && !(member->status & CHFL_BURST_ALREADY_OWNED))
+	  modebuf_mode_client(mbuf, MODE_ADD | CHFL_OWNER, member->user, OpLevel(member));
+	if ((member->status & CHFL_PROTECT) && !(member->status & CHFL_BURST_ALREADY_PROTECTED))
+	  modebuf_mode_client(mbuf, MODE_ADD | CHFL_PROTECT, member->user, OpLevel(member));
 	if ((member->status & CHFL_CHANOP) && !(member->status & CHFL_BURST_ALREADY_OPPED))
 	  modebuf_mode_client(mbuf, MODE_ADD | CHFL_CHANOP, member->user, OpLevel(member));
         if ((member->status & CHFL_HALFOP) && !(member->status & CHFL_BURST_ALREADY_HALFOPPED))

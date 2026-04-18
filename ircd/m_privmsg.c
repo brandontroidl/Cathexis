@@ -82,6 +82,7 @@
 #include "config.h"
 
 #include "client.h"
+#include "handlers.h"
 #include "ircd.h"
 #include "ircd_chattr.h"
 #include "ircd_features.h"
@@ -122,6 +123,10 @@ int m_privmsg(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
 
   if (parc < 3 || EmptyString(parv[parc - 1]))
     return send_reply(sptr, ERR_NOTEXTTOSEND);
+
+  /* IRCv3 draft/multiline: if client has an active batch, buffer the line */
+  if (HasCap(sptr, CAP_MULTILINE) && ml_add_line(sptr, parv[parc - 1]) == 0)
+    return 0;
 
   count = unique_name_vector(parv[1], ',', vector, MAXTARGETS);
 

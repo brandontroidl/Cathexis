@@ -82,12 +82,14 @@
 #include "config.h"
 
 #include "channel.h"
+#include "class.h"
 #include "client.h"
 #include "hash.h"
 #include "ircd.h"
 #include "ircd_features.h"
 #include "ircd_log.h"
 #include "ircd_reply.h"
+#include "ircd_snprintf.h"
 #include "ircd_string.h"
 #include "list.h"
 #include "match.h"
@@ -96,6 +98,7 @@
 #include "numnicks.h"
 #include "s_user.h"
 #include "send.h"
+#include "ssl.h"
 #include "whocmds.h"
 
 /* #include <assert.h> -- Now using assert in ircd_log.h */
@@ -145,8 +148,8 @@ void client_whois_marks(struct Client *client, struct Client *replyto, const cha
     }
 
     if (markbufp[0])
-      strcat(markbufp, ", ");
-    strcat(markbufp, dp->value.cp);
+      strncat(markbufp, ", ", sizeof(markbufp) - strlen(markbufp) - 1);
+    strncat(markbufp, dp->value.cp, sizeof(markbufp) - strlen(markbufp) - 1);
   }
 
   if (markbufp[0]) {
@@ -210,6 +213,23 @@ static void do_whois(struct Client* sptr, struct Client *acptr, int parc)
          *(buf + len++) = '*';
        if (IsDelayedJoin(chan) && (sptr != acptr))
          *(buf + len++) = '<';
+       else if (IsNamesX(sptr) || CapActive(sptr, CAP_NAMESX)) {
+         /* IRCv3 multi-prefix: show ALL applicable prefixes */
+         if (feature_bool(FEAT_OWNERPROTECT) && IsOwner(chan))
+           *(buf + len++) = '~';
+         if (feature_bool(FEAT_OWNERPROTECT) && IsProtect(chan))
+           *(buf + len++) = '&';
+         if (IsChanOp(chan))
+           *(buf + len++) = '@';
+         if (IsHalfOp(chan))
+           *(buf + len++) = '%';
+         if (HasVoice(chan))
+           *(buf + len++) = '+';
+       }
+       else if (feature_bool(FEAT_OWNERPROTECT) && IsOwner(chan))
+         *(buf + len++) = '~';
+       else if (feature_bool(FEAT_OWNERPROTECT) && IsProtect(chan))
+         *(buf + len++) = '&';
        else if (IsChanOp(chan))
          *(buf + len++) = '@';
        else if (IsHalfOp(chan))
@@ -220,9 +240,9 @@ static void do_whois(struct Client* sptr, struct Client *acptr, int parc)
          *(buf + len++) = '!';
        if (len)
           *(buf + len) = '\0';
-       strcpy(buf + len, chptr->chname);
+       ircd_strncpy(buf + len, chptr->chname, sizeof(buf) - len - 1);
        len += strlen(chptr->chname);
-       strcat(buf + len, " ");
+       if ((size_t)(len + 1) < sizeof(buf)) buf[len] = ' ';
        len++;
      }
      if (buf[0] != '\0')
@@ -238,10 +258,14 @@ static void do_whois(struct Client* sptr, struct Client *acptr, int parc)
        send_reply(sptr, RPL_AWAY, name, user->away);
 
     if (SeeOper(sptr,acptr)) {
-       if (IsAdmin(acptr))
+       if (IsNetAdmin(acptr))
+         send_reply(sptr, RPL_WHOISOPERATOR, name, feature_str(FEAT_WHOIS_NETADMIN));
+       else if (IsAdmin(acptr))
          send_reply(sptr, RPL_WHOISOPERATOR, name, feature_str(FEAT_WHOIS_ADMIN));
-       else
+       else if (IsOper(acptr))
          send_reply(sptr, RPL_WHOISOPERATOR, name, feature_str(FEAT_WHOIS_OPER));
+       else if (IsLocOp(acptr))
+         send_reply(sptr, RPL_WHOISOPERATOR, name, feature_str(FEAT_WHOIS_LOCOPER));
     }
 
     if (IsAccount(acptr))
@@ -278,6 +302,85 @@ static void do_whois(struct Client* sptr, struct Client *acptr, int parc)
 
       if (cli_sslclifp(acptr) && !EmptyString(cli_sslclifp(acptr)))
         send_reply(sptr, RPL_WHOISSSLFP, name, cli_sslclifp(acptr));
+    }
+
+    /* Oper-visible details via RPL_WHOISSPECIAL (320) — IRCCloud renders these */
+    if (IsAnOper(sptr)) {
+      char infobuf[512];
+
+      /* User modes */
+      ircd_snprintf(0, infobuf, sizeof(infobuf), "modes: %s", umode_str(acptr));
+      send_reply(sptr, RPL_WHOISSPECIAL, name, infobuf);
+
+      /* SNO mask */
+      if (IsAnOper(acptr) && cli_snomask(acptr)) {
+        char snobuf[64];
+        char *s = snobuf;
+        unsigned int mask = cli_snomask(acptr);
+        *s++ = '+';
+        if (mask & SNO_OLDSNO)     *s++ = 'o';
+        if (mask & SNO_SERVKILL)   *s++ = 'k';
+        if (mask & SNO_OPERKILL)   *s++ = 'K';
+        if (mask & SNO_HACK2)      *s++ = 'D';
+        if (mask & SNO_HACK3)      *s++ = 's';
+        if (mask & SNO_UNAUTH)     *s++ = 'u';
+        if (mask & SNO_TCPCOMMON)  *s++ = 'e';
+        if (mask & SNO_TOOMANY)    *s++ = 'f';
+        if (mask & SNO_HACK4)      *s++ = 'h';
+        if (mask & SNO_GLINE)      *s++ = 'g';
+        if (mask & SNO_NETWORK)    *s++ = 'n';
+        if (mask & SNO_IPMISMATCH) *s++ = 'i';
+        if (mask & SNO_THROTTLE)   *s++ = 't';
+        if (mask & SNO_OLDREALOP)  *s++ = 'r';
+        if (mask & SNO_CONNEXIT)   *s++ = 'c';
+        if (mask & SNO_AUTO)       *s++ = 'G';
+        if (mask & SNO_DEBUG)      *s++ = 'd';
+        if (mask & SNO_NICKCHG)    *s++ = 'N';
+        if (mask & SNO_AUTH)       *s++ = 'A';
+        if (mask & SNO_WEBIRC)     *s++ = 'w';
+        if (mask & SNO_SHUN)       *s++ = 'S';
+        if (mask & SNO_ZLINE)      *s++ = 'Z';
+        if (mask & SNO_SASL)       *s++ = 'a';
+        if (mask & SNO_SACMD)      *s++ = 'C';
+        if (mask & SNO_FLOOD)      *s++ = 'F';
+        if (mask & SNO_TLS)        *s++ = 'T';
+        if (mask & SNO_ACCOUNT)    *s++ = 'R';
+        if (mask & SNO_SPAMF)      *s++ = 'P';
+        *s = '\0';
+        ircd_snprintf(0, infobuf, sizeof(infobuf), "snomask: %s", snobuf);
+        send_reply(sptr, RPL_WHOISSPECIAL, name, infobuf);
+      }
+
+      /* Connection class */
+      if (MyConnect(acptr)) {
+        ircd_snprintf(0, infobuf, sizeof(infobuf), "class: %s",
+                       get_client_class(acptr));
+        send_reply(sptr, RPL_WHOISSPECIAL, name, infobuf);
+      }
+
+
+      /* SSL cipher */
+#ifdef USE_SSL
+      if (MyConnect(acptr) && IsSSL(acptr) && cli_socket(acptr).ssl) {
+        ircd_snprintf(0, infobuf, sizeof(infobuf), "ssl: %s",
+                       ssl_get_cipher(cli_socket(acptr).ssl));
+        send_reply(sptr, RPL_WHOISSPECIAL, name, infobuf);
+      }
+#endif
+
+      /* GeoIP */
+      if (IsGeoIP(acptr)) {
+        if (cli_city(acptr)[0])
+          ircd_snprintf(0, infobuf, sizeof(infobuf), "geo: %s, %s (%s) — %s (%s)",
+                         cli_city(acptr), cli_countryname(acptr),
+                         cli_countrycode(acptr), cli_continentname(acptr),
+                         cli_continentcode(acptr));
+        else
+          ircd_snprintf(0, infobuf, sizeof(infobuf), "geo: %s (%s) — %s (%s)",
+                         cli_countryname(acptr), cli_countrycode(acptr),
+                         cli_continentname(acptr), cli_continentcode(acptr));
+        send_reply(sptr, RPL_WHOISSPECIAL, name, infobuf);
+      }
     }
 
     if (!EmptyString(user->swhois))

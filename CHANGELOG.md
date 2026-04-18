@@ -1,0 +1,45 @@
+# Cathexis IRCd Changelog
+
+## 1.5.1 (2026-04-12)
+
+### IRCv3
+- **TAGMSG relay** — Full implementation replacing the previous stub. Raw client tags (`+react`, `+typing`, `+reply`) preserved during parsing via `parse_get_raw_tags()`, relayed to channel members with `message-tags` CAP enabled. Echo-message support. Server-time and msgid tags added to outgoing messages. Enables reactions and typing indicators in Lexis/IRCCloud.
+- **MARKREAD silent accept** — No longer echoes back to sender, preventing infinite 2-second loop with IRCCloud/Lexis. Unregistered client handler changed from `m_unregistered` to `m_ignore` to prevent 451 flood during CAP negotiation.
+
+### Build
+- **ircd_msgid.c** — Added to `Makefile.in` source list (was missing, caused linker error). Fixed includes: uses direct `RAND_bytes`/`OPENSSL_cleanse` with `#ifdef USE_SSL` guards instead of non-existent `ircd_random_bytes()`.
+
+### Bug Fixes
+- **parse.c** — Raw client tags preserved in static buffer during parsing, accessible via `parse_get_raw_tags()` for TAGMSG relay.
+- **send.h** — Added `extern const char *parse_get_raw_tags(void)` declaration.
+
+## 1.5.0 (2026-04-09)
+
+### Security
+- **Per-link S2S HMAC authentication** — HMAC-SHA256 per-message signing/verification on server-to-server links. Each Connect block can independently enable HMAC with `hmac = yes`. Requires `S2S_HMAC = TRUE` globally. Key derived from link password using `HMAC-SHA256(password, "cathexis-s2s-hmac-v1")`.
+- **CONF_HMAC flag collision fixed** — `CONF_HMAC` was 0x0100, same as `CONF_NOIDENTTILDE`. Changed to 0x0200.
+- **SASL numeric table fixed** — 9 missing `{ 0 }` placeholder entries at positions 750-760 in `s_err.c` shifted all SASL numerics (903-908), causing ERR_SASLFAIL (904) to abort the server on SASL timeout. Fixed.
+- **Non-fatal error numeric lookups** — `get_error_numeric()` and `rpl_str()` now return generic fallbacks instead of calling `assert(abort)` on missing numerics. The server will never crash from a missing error string.
+
+### Build System
+- **Pre-generated parser files** — `y.tab.c`, `y.tab.h`, `lex.yy.c` are now tracked in git and included in distribution tarballs. Building no longer requires bison/flex unless modifying the parser.
+- **`make clean` preserves parser files** — only `make maintainer-clean` deletes generated parser files. Standard autotools practice.
+- **Better error messages** — if parser regeneration is needed but bison/flex are missing, clear instructions are printed.
+- **`ircd/.gitignore` updated** — parser files no longer excluded from version control.
+
+### Configuration
+- **Per-link HMAC in Connect blocks** — new `hmac = yes/no` option controls HMAC enforcement per link. Allows mixed networks where some servers support HMAC and others don't.
+- **`doc/example.ircd.conf`** — comprehensive generic example config for distribution.
+
+### Cleanup
+- Removed all `.cvsignore` files (legacy CVS artifacts)
+- Updated `.gitignore`, `.dockerignore`, `.mailmap`
+- Updated `doc/features.txt` with S2S HMAC documentation
+
+## 1.4.1 (2026-03)
+- Initial Cathexis-specific release
+- HMAC-SHA256 host cloaking
+- Modern OpenSSL (TLS 1.2+ minimum)
+- IRCv3 capabilities (SASL, account-notify, server-time, etc.)
+- MaxMindDB GeoIP
+- Argon2id operator passwords

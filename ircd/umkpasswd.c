@@ -28,6 +28,9 @@
 #include <string.h>
 #include <time.h>
 #include <fcntl.h>
+#ifdef USE_SSL
+#include "ircd_crypto.h"
+#endif
 /* #include <assert.h> -- Now using assert in ircd_log.h */
 
 /* ircu headers */
@@ -36,14 +39,14 @@
 #include "ircd_string.h"
 #include "umkpasswd.h"
 #include "s_debug.h"
-#include "ircd_md5.h"
 
 /* crypto mech headers */
 #include "ircd_crypt.h"
-#include "ircd_crypt_smd5.h"
 #include "ircd_crypt_native.h"
 #include "ircd_crypt_plain.h"
 #include "ircd_crypt_bcrypt.h"
+#include "ircd_crypt_sha.h"
+#include "ircd_crypt_argon2.h"
 
 /* bleah, evil globals */
 umkpasswd_conf_t* umkpasswd_conf;
@@ -210,9 +213,12 @@ void sum(char* tmp)
 {
 char* str;
 FILE* file;
-MD5_CTX context;
 int len;
-unsigned char buffer[1024], digest[16], vstr[32];
+unsigned char buffer[1024], digest[32], vstr[32];
+#ifdef USE_SSL
+EVP_MD_CTX *mdctx;
+unsigned int dlen = 32;
+#endif
 
 vstr[0] = '\0';
  str = tmp + strlen(tmp);
@@ -222,10 +228,12 @@ vstr[0] = '\0';
   fprintf(stderr, "unable to open %s: %s", tmp, strerror(errno));
   exit(0);
  }
- MD5Init(&context);
+#ifdef USE_SSL
+ mdctx = EVP_MD_CTX_new();
+ EVP_DigestInit_ex(mdctx, EVP_sha256(), NULL);
  while ((fgets((char*)buffer, sizeof(buffer), file)) != NULL)
  {
-  MD5Update(&context, buffer, strlen((char*)buffer));
+  EVP_DigestUpdate(mdctx, buffer, strlen((char*)buffer));
   str = strstr((char*)buffer, "$Id: ");
   if (str != NULL)
   {
@@ -237,13 +245,15 @@ vstr[0] = '\0';
   }
  }
  while ((len = fread (buffer, 1, sizeof(buffer), file)))
-  MD5Update(&context, buffer, len);
- MD5Final(digest, &context);
+  EVP_DigestUpdate(mdctx, buffer, len);
+ EVP_DigestFinal_ex(mdctx, digest, &dlen);
+ EVP_MD_CTX_free(mdctx);
+#endif
  fclose(file);
 
  str = strrchr(tmp, '/');
  printf("    \"[ %s: ", str ? (str + 1) : tmp);
- for (len = 0; len < 16; len++)
+ for (len = 0; len < 32; len++)
   printf ("%02x", digest[len]);
  printf(" %s ]\",\n", vstr);
 }
@@ -278,9 +288,11 @@ void load_mechs(void)
  /* we need these loaded by hand for now */
 
  ircd_register_crypt_native();
- ircd_register_crypt_smd5();
  ircd_register_crypt_plain(); /* yes I know it's slightly pointless */
  ircd_register_crypt_bcrypt();
+ ircd_register_crypt_sha256();
+ ircd_register_crypt_sha512();
+ ircd_register_crypt_argon2();
 
 return;
 }
@@ -382,7 +394,8 @@ const char* options = "a:d:lm:u:y:5";
     if(umkpasswd_conf->flags & ACT_ADDOPER)
     {
      fprintf(stderr, "-a and -u are mutually exclusive.  Use either or neither.\n");
-     abort(); /* b0rk b0rk b0rk */
+     show_help();
+     exit(1);
     }
 
     umkpasswd_conf->flags |= ACT_UPDOPER;
@@ -413,7 +426,8 @@ const char* options = "a:d:lm:u:y:5";
     if(umkpasswd_conf->flags & ACT_UPDOPER) 
     {
      fprintf(stderr, "-a and -u are mutually exclusive.  Use either or neither.\n");
-     abort(); /* b0rk b0rk b0rk */
+     show_help();
+     exit(1);
     }
 
     umkpasswd_conf->flags |= ACT_ADDOPER;
@@ -471,7 +485,8 @@ char* pw, *crypted_pw;
  if (NULL == umkpasswd_conf->mech)
  {
   fprintf(stderr, "No mechanism specified.\n");
-  abort();
+  show_help();
+  exit(1);
  }
 
  if (NULL == pw)

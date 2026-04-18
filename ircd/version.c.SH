@@ -60,7 +60,7 @@ fi
 const char *generation = "$generation";
 const char *cvs_version = "$cvs_version";
 const char *creation = "$creation";
-const char *version = BASE_VERSION RELEASE PATCHLEVEL PATCHLIST;
+const char *version = BASE_VERSION RELEASE PATCHLEVEL "+[$cvs_version]" PATCHLIST;
 
 const char *infotext[] = {
     "IRC --",
@@ -92,6 +92,22 @@ const char *infotext[] = {
     "",
     "Additional contributors to the Nefarious 2.0 branch:",
     "Obnoxious, Andromeda",
+    "",
+    "Cathexis 1.0.0 - Security Hardening and IRCv3 Modernization:",
+    "Brandon Troidl                  <btroidl@gmail.com>",
+    "",
+    "Cathexis 1.4.1 features:",
+    "  - Full IRCv3.2+ compliance (21 ratified specifications)",
+    "  - MONITOR (persistent nick notification with global hash)",
+    "  - CHATHISTORY (XQUERY proxy to services)",
+    "  - Batch + labeled-response infrastructure",
+    "  - Echo-message, standard-replies, CAP values, STS",
+    "  - 28 server notice mask letters (SNO_SHUN..SNO_SPAMF)",
+    "  - S2S HMAC-SHA256 message signing",
+    "  - HMAC-SHA256 host cloaking (3-key, 48-bit segments)",
+    "  - Argon2id, bcrypt, SHA-512 password hashing",
+    "  - TLS 1.2 minimum, modern cipher suites",
+    "  - Security lifecycle audit + format string fix",
     "",
     "Thanks goes to all other people who contributed to any version.",
     "A full listing of all coders can be found in doc/Authors in the",

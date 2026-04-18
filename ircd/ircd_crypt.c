@@ -25,10 +25,10 @@
  * 
  * This is a new look crypto API for ircu, it can handle different
  * password formats by the grace of magic tokens at the beginning of the 
- * password e.g. $SMD5 for Salted MD5, $CRYPT for native crypt(), etc.
+ * password e.g. $argon2id$ for Argon2, $2b$ for bcrypt, $6$ for native crypt(), etc.
  *
  * Currently crypt routines are implemented for: the native crypt() 
- * function, Salted MD5 and a plain text mechanism which should only
+ * function, bcrypt, SHA-512, Argon2id and a plain text mechanism which should only
  * be used for testing.  I intend to add Blowfish, 3DES and possibly
  * SHA1 support as well at some point, but I'll need to check the
  * possible problems that'll cause with stupid crypto laws.
@@ -54,13 +54,19 @@
 /* while we're not modular, we need their init functions */
 #include "ircd_crypt_native.h"
 #include "ircd_crypt_plain.h"
-#include "ircd_crypt_smd5.h"
 #include "ircd_crypt_bcrypt.h"
+#include "ircd_crypt_sha.h"
+#include "ircd_crypt_argon2.h"
+#include "client.h"
+#include "send.h"
+#include "ircd_crypto.h"
 
 /* #include <assert.h> -- Now using assert in ircd_log.h */
 #include <unistd.h>
 #include <string.h>
-#include <openssl/crypto.h>
+#ifdef HAVE_CRYPT_H
+#include <crypt.h>
+#endif
 
 /* evil global */
 crypt_mechs_t* crypt_mechs_root;
@@ -148,6 +154,16 @@ crypt_mechs_t* crypt_mech;
   * can discover what kind of password it is.  hopefully. */
  for (;crypt_mech;)
  {
+  /* Skip mechanisms with no token (bcrypt, sha256, sha512).
+   * These are detected by their $2y$/$5$/$6$ prefix in dedicated
+   * code blocks after this loop. An empty token would match
+   * everything via strncmp(x, y, 0)==0. */
+  if (crypt_mech->mech->crypt_token_size == 0)
+  {
+   crypt_mech = crypt_mech->next;
+   continue;
+  }
+
   if (strlen(salt) < crypt_mech->mech->crypt_token_size)
   {
    /* try the next mechanism instead */
@@ -216,6 +232,62 @@ crypt_mechs_t* crypt_mech;
    }
  }
 
+ /* try SHA-256 ($5$) or SHA-512 ($6$) - pass directly to system crypt */
+ if (strlen(salt) > 4 && salt[0] == '$' &&
+     (salt[1] == '5' || salt[1] == '6') && salt[2] == '$')
+ {
+   char *s;
+   Debug((DEBUG_DEBUG, "ircd_crypt: detected SHA-%s hash",
+          salt[1] == '5' ? "256" : "512"));
+   if (NULL == (temp_hashed_pass = (char*)crypt(key, salt)))
+     return NULL;
+   if (!ircd_strcmp(temp_hashed_pass, salt))
+   {
+     DupString(s, temp_hashed_pass);
+     return s;
+   }
+ }
+
+ /* backward compat: old $SHA256$/$SHA512$ tagged format from Cathexis <1.2.0 */
+ if (strlen(salt) > 12 && salt[0] == '$' && salt[1] == 'S' && salt[2] == 'H' && salt[3] == 'A')
+ {
+   const char *inner = NULL;
+   if (!strncmp(salt, "$SHA256$", 8))
+     inner = salt + 8;
+   else if (!strncmp(salt, "$SHA512$", 8))
+     inner = salt + 8;
+   if (inner && strlen(inner) > 4 && inner[0] == '$' &&
+       (inner[1] == '5' || inner[1] == '6') && inner[2] == '$')
+   {
+     char *s;
+     Debug((DEBUG_DEBUG, "ircd_crypt: detected legacy tagged SHA hash"));
+     if (NULL == (temp_hashed_pass = (char*)crypt(key, inner)))
+       return NULL;
+     if (!ircd_strcmp(temp_hashed_pass, inner))
+     {
+       /* Return the full tagged string so comparison with stored passwd works */
+       s = (char*)MyMalloc(strlen(salt) + 1);
+       strcpy(s, salt);
+       return s;
+     }
+   }
+ }
+
+ /* try Argon2id ($argon2id$) — uses dedicated verify function */
+#ifdef USE_ARGON2
+ if (strlen(salt) > 9 && !strncmp(salt, "$argon2id$", 10))
+ {
+   char *s;
+   Debug((DEBUG_DEBUG, "ircd_crypt: detected Argon2id hash"));
+   if (ircd_crypt_argon2_verify(key, salt) == ARGON2_OK)
+   {
+     DupString(s, salt);
+     return s;
+   }
+   return NULL;
+ }
+#endif
+
  /* try to use native crypt for an old-style (untagged) password */
  if (strlen(salt) > 2)
  {
@@ -234,7 +306,7 @@ crypt_mechs_t* crypt_mech;
 
 /** Some basic init.
  * This function loads initalises the crypt mechanisms linked list and 
- * currently loads the default mechanisms (Salted MD5, Crypt() and PLAIN).  
+ * currently loads the default mechanisms (bcrypt, SHA-512, Argon2id, native crypt, PLAIN).  
  * The last step is only needed while ircu is not properly modular.
  *  
  * When ircu is modular this will be the entry function for the ircd_crypt
@@ -256,10 +328,12 @@ void ircd_crypt_init(void)
 
 /* temporary kludge until we're modular.  manually call the
    register functions for crypt mechanisms */
- ircd_register_crypt_smd5();
  ircd_register_crypt_plain();
  ircd_register_crypt_native();
  ircd_register_crypt_bcrypt();
+ ircd_register_crypt_sha256();
+ ircd_register_crypt_sha512();
+ ircd_register_crypt_argon2();
 
 return;
 }
@@ -268,7 +342,6 @@ int oper_password_match(const char* to_match, const char* passwd)
 {
   char *crypted;
   int res;
-  size_t crypted_len, passwd_len, cmp_len;
   /*
    * use first two chars of the password they send in as salt
    *
@@ -280,20 +353,52 @@ int oper_password_match(const char* to_match, const char* passwd)
   /* we no longer do a CRYPT_OPER_PASSWORD check because a clear
      text passwords just handled by a fallback mechanism called
      crypt_clear if it's enabled -- hikari */
+  /* Reject disabled weak password mechanisms */
+  if (passwd[0] == '$' && passwd[1] == 'P' && passwd[2] == 'L'
+      && !feature_bool(FEAT_CRYPT_ALLOW_PLAIN)) {
+    sendto_opmask_butone(0, SNO_OLDSNO,
+      "REJECTED: Plaintext password ($PLAIN$) is disabled. "
+      "Set CRYPT_ALLOW_PLAIN=TRUE or upgrade to bcrypt/SHA-512.");
+    return 0;
+  }
+  if (passwd[0] == '$' && passwd[1] == 'S' && passwd[2] == 'M'
+      && passwd[3] == 'D' && passwd[4] == '5') {
+    sendto_opmask_butone(0, SNO_OLDSNO,
+      "REJECTED: MD5 password ($SMD5$) — MD5 removed in Cathexis 1.4.0. "
+      "Upgrade to Argon2 or bcrypt: /MKPASSWD <password> ARGON2");
+    return 0;
+  }
+  if (passwd[0] == '$' && passwd[1] == '1' && passwd[2] == '$') {
+    sendto_opmask_butone(0, SNO_OLDSNO,
+      "REJECTED: MD5 crypt password ($1$) — MD5 removed in Cathexis 1.4.0. "
+      "Upgrade to Argon2 or bcrypt: /MKPASSWD <password> ARGON2");
+    return 0;
+  }
+
   crypted = ircd_crypt(to_match, passwd);
 
   if (!crypted)
    return 0;
 
-  /* Use constant-time comparison to prevent timing attacks.
-   * Always perform comparison to avoid leaking length info. */
-  crypted_len = strlen(crypted);
-  passwd_len = strlen(passwd);
-  cmp_len = (crypted_len < passwd_len) ? crypted_len : passwd_len;
-  res = CRYPTO_memcmp(crypted, passwd, cmp_len);
-  /* Lengths must also match - XOR is non-zero if different */
-  res |= (crypted_len ^ passwd_len);
+  /* Log deprecation warnings for weak password mechanisms that are
+   * still allowed (feature gate is TRUE but mechanism is weak) */
+  if (passwd[0] == '$' && passwd[1] == 'P' && passwd[2] == 'L')
+    sendto_opmask_butone(0, SNO_OLDSNO,
+      "WARNING: Plaintext password ($PLAIN$) in use. "
+      "Upgrade to bcrypt, SHA-256, or SHA-512.");
+  else if (passwd[0] == '$' && passwd[1] == 'S' && passwd[2] == 'M'
+           && passwd[3] == 'D' && passwd[4] == '5')
+    sendto_opmask_butone(0, SNO_OLDSNO,
+      "WARNING: Salted MD5 password ($SMD5$) in use. "
+      "Upgrade to bcrypt, SHA-256, or SHA-512.");
 
+  /* Use constant-time comparison to prevent timing attacks.
+   * ircd_constcmp compares full length of both strings without
+   * early exit, preventing side-channel leakage. */
+  res = ircd_constcmp(crypted, passwd);
+
+  /* Securely clear the hashed password before freeing */
+  ircd_clearsecret(crypted, strlen(crypted));
   MyFree(crypted);
   return 0 == res;
 }

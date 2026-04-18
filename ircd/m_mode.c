@@ -151,7 +151,7 @@ m_mode(struct Client *cptr, struct Client *sptr, int parc, char *parv[])
     return 0;
   }
 
-  if (!member || (!IsChanOp(member) && !IsHalfOp(member))) {
+  if (!member || (!IsOwner(member) && !IsProtect(member) && !IsChanOp(member) && !IsHalfOp(member))) {
     if (IsLocalChannel(chptr->chname) && HasPriv(sptr, PRIV_MODE_LCHAN)) {
       modebuf_init(&mbuf, sptr, cptr, chptr,
 		   (MODEBUF_DEST_CHANNEL | /* Send mode to channel */
@@ -168,7 +168,11 @@ m_mode(struct Client *cptr, struct Client *sptr, int parc, char *parv[])
   }
 
   hoflags = MODE_PARSE_SET;
-  if (member && !IsChanOp(member) && IsHalfOp(member))
+
+  /* +q (owner) and +a (protect) get full operator privileges.
+   * +h (halfop) gets limited privileges (MODE_PARSE_ISHALFOP).
+   * +o (chanop) gets normal operator privileges. */
+  if (member && !IsOwner(member) && !IsProtect(member) && !IsChanOp(member) && IsHalfOp(member))
     hoflags |= MODE_PARSE_ISHALFOP|MODE_PARSE_NOTOPER;
 
   modebuf_init(&mbuf, sptr, cptr, chptr,

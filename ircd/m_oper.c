@@ -139,6 +139,27 @@ void do_oper(struct Client* cptr, struct Client* sptr, struct ConfItem* aconf)
       SetOper(sptr);
       if (HasPriv(sptr, PRIV_ADMIN))
         SetAdmin(sptr);
+      /*
+       * Network Administrator (+N) requires services authentication.
+       * If the user has PRIV_NETADMIN but is not yet identified with
+       * NickServ, they get +a (Server Admin) only. Once they auth,
+       * +N is promoted automatically via the ACCOUNT handler.
+       * This prevents privilege escalation without services verification.
+       */
+      if (HasPriv(sptr, PRIV_NETADMIN)) {
+        if (IsAccount(sptr)) {
+          SetNetAdmin(sptr);
+        } else {
+          SetAdmin(sptr); /* cap at +a until auth */
+          sendcmdto_one(&me, CMD_NOTICE, sptr,
+            "%C :You have Network Administrator privileges, but +N requires "
+            "NickServ authentication. Identify with services to activate +N.",
+            sptr);
+          sendto_opmask_butone(0, SNO_SACMD,
+            "%C opered with netadmin privileges but is not authed — capped at +a",
+            sptr);
+        }
+      }
       if (!IsHideOper(sptr) && !IsChannelService(sptr) && !IsBot(sptr))
         ++UserStats.opers;
     }
@@ -166,7 +187,12 @@ void do_oper(struct Client* cptr, struct Client* sptr, struct ConfItem* aconf)
     client_send_privs(&me, sptr, sptr);
 
     if (HasPriv(sptr, PRIV_PROPAGATE)) {
-      modes = (HasPriv(sptr, PRIV_ADMIN) ? "aowsg" : "owsg");
+      if (HasPriv(sptr, PRIV_NETADMIN) && IsAccount(sptr))
+        modes = "aNowsg";
+      else if (HasPriv(sptr, PRIV_ADMIN) || HasPriv(sptr, PRIV_NETADMIN))
+        modes = "aowsg";  /* netadmin without auth caps at +a */
+      else
+        modes = "owsg";
     } else {
       modes = "Owsg";
     }
@@ -185,10 +211,12 @@ void do_oper(struct Client* cptr, struct Client* sptr, struct ConfItem* aconf)
       send_umode(NULL, sptr, &old_mode, HasPriv(sptr, PRIV_PROPAGATE));
       if ((cli_snomask(sptr) != feature_int(FEAT_SNOMASK_OPERDEFAULT)) &&
           HasFlag(sptr, FLAG_SERVNOTICE))
-        send_reply(sptr, RPL_SNOMASK, cli_snomask(sptr), cli_snomask(sptr));
+        { char snobuf[24]; send_reply(sptr, RPL_SNOMASK, snomask_to_str(cli_snomask(sptr), snobuf, sizeof(snobuf)), cli_snomask(sptr)); }
     } else {
-      if (snomask)
-        sendcmdto_one(&me, CMD_MODE, sptr, "%s %s+s +%d", cli_name(sptr), modes, snomask);
+      if (snomask) {
+        char snobuf[24];
+        sendcmdto_one(&me, CMD_MODE, sptr, "%s %s+s %s", cli_name(sptr), modes, snomask_to_str(snomask, snobuf, sizeof(snobuf)));
+      }
       else
         sendcmdto_one(&me, CMD_MODE, sptr, "%s %s", cli_name(sptr), modes);
     }
@@ -206,7 +234,7 @@ void do_oper(struct Client* cptr, struct Client* sptr, struct ConfItem* aconf)
       sendcmdto_one(&me, CMD_NOTICE, sptr, "%C :%s", sptr, ajoinnotice);
 
     if (!MyUser(sptr)) {
-      sendcmdto_serv_butone(&me, CMD_SVSJOIN, NULL, "%C %s", sptr, ajoinchan);
+      sendcmdto_serv_butone(&me, CMD_SAJOIN, NULL, "%C %s", sptr, ajoinchan);
     } else {
       ircd_strncpy(chan, ajoinchan, CHANNELLEN + 1);
       join[0] = cli_name(sptr);
@@ -222,7 +250,7 @@ void do_oper(struct Client* cptr, struct Client* sptr, struct ConfItem* aconf)
       sendcmdto_one(&me, CMD_NOTICE, sptr, "%C :%s", sptr, aconf->autojoinnotice);
 
     if (!MyUser(sptr)) {
-      sendcmdto_serv_butone(&me, CMD_SVSJOIN, NULL, "%C %s", sptr, aconf->autojoinchan);
+      sendcmdto_serv_butone(&me, CMD_SAJOIN, NULL, "%C %s", sptr, aconf->autojoinchan);
     } else {
       ircd_strncpy(chan, aconf->autojoinchan, CHANNELLEN + 1);
       join[0] = cli_name(sptr);
@@ -235,7 +263,7 @@ void do_oper(struct Client* cptr, struct Client* sptr, struct ConfItem* aconf)
   if (!EmptyString(aconf->swhois))
   {
     ircd_strncpy(cli_user(sptr)->swhois, aconf->swhois, BUFSIZE + 1);
-    sendcmdto_serv_butone(&me, CMD_SWHOIS, NULL, "%C :%s", sptr, aconf->swhois);
+    sendcmdto_serv_butone(&me, CMD_SAWHOIS, NULL, "%C :%s", sptr, aconf->swhois);
   }
 
   sendto_opmask_butone_global((MyUser(sptr) ? &me : NULL), SNO_OLDSNO,
@@ -307,11 +335,17 @@ int can_oper(struct Client *cptr, struct Client *sptr, char *name,
   }
   else
   {
-    send_reply(sptr, ERR_PASSWDMISMATCH);
+    send_reply(sptr, ERR_NOOPERHOST);
     sendto_opmask_butone_global(&me, SNO_OLDREALOP, "Failed %sOPER attempt by %s (%s@%s) "
                                  "(password mis-match)", (!MyUser(sptr) ? "remote " : ""),
                                  cli_name(sptr), cli_user(sptr)->username,
                                  cli_user(sptr)->realhost);
+    /* Penalize failed OPER attempts heavily to prevent brute force.
+     * Each failure adds 10 seconds of flood penalty, stacking with
+     * the general message flood control. After 3 rapid failures the
+     * client is effectively throttled for 30+ seconds. */
+    if (MyUser(sptr))
+      cli_since(sptr) += 10;
     return 0;
   }
 }

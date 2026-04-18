@@ -424,7 +424,7 @@ struct Ban *find_ban(struct Client *cptr, struct Ban *banlist, int extbantype, i
   if (IsAccount(cptr) && ((feature_int(FEAT_HOST_HIDING_STYLE) == 1) ||
       (feature_int(FEAT_HOST_HIDING_STYLE) == 3)))
   {
-    ircd_snprintf(0, tmphost, HOSTLEN + 1, "%s.%s",
+    ircd_snprintf(0, tmphost, HOSTLEN, "%s.%s",
                   cli_user(cptr)->account, (feature_bool(FEAT_OPERHOST_HIDING) &&
                   IsAnOper(cptr) ? feature_str(FEAT_HIDDEN_OPERHOST) :
                   feature_str(FEAT_HIDDEN_HOST)));
@@ -454,6 +454,24 @@ struct Ban *find_ban(struct Client *cptr, struct Ban *banlist, int extbantype, i
       } else if (banlist->extban.flags & EBAN_MARKUA) {
         if (!IsAccount(cptr) && find_mark_match(cptr, banlist->extban.mask))
           ismatch = 1;
+      } else if (banlist->extban.flags & EBAN_SERVER) {
+        if (cli_user(cptr) && cli_user(cptr)->server &&
+            !match(banlist->extban.mask, cli_name(cli_user(cptr)->server)))
+          ismatch = 1;
+      } else if (banlist->extban.flags & EBAN_CERTFP) {
+        if (cli_sslclifp(cptr) && cli_sslclifp(cptr)[0] &&
+            !ircd_strcmp(banlist->extban.mask, cli_sslclifp(cptr)))
+          ismatch = 1;
+      } else if (banlist->extban.flags & EBAN_OPER) {
+        if (IsOper(cptr) || IsLocOp(cptr))
+          ismatch = 1;
+      } else if (banlist->extban.flags & EBAN_REGNICK) {
+        if (IsAccount(cptr)) {
+          if (!strcmp(banlist->extban.mask, "*"))
+            ismatch = 1;
+          else if (!match(banlist->extban.mask, cli_account(cptr)))
+            ismatch = 1;
+        }
       } else if (banlist->extban.flags & EBAN_CHANNEL) {
         struct Membership *lp;
         for (lp = cptr->cli_user->channel; lp; lp = lp->next_channel) {
@@ -652,7 +670,22 @@ void add_user_to_channel(struct Channel* chptr, struct Client* who,
   assert(0 != who);
 
   if (cli_user(who)) {
-   
+    struct Membership* existing;
+
+    /* Cathexis 1.2.0: Prevent duplicate membership entries.
+     * If the user is already in the channel, update their status bits
+     * instead of creating a second membership struct. Duplicate entries
+     * cause channels to appear twice in WHOIS and corrupt the
+     * membership linked list. */
+    if ((existing = find_member_link(chptr, who))) {
+      existing->status |= (flags & (CHFL_OWNER | CHFL_PROTECT | CHFL_CHANOP |
+                                     CHFL_HALFOP | CHFL_VOICE));
+      if (oplevel <= MAXOPLEVEL)
+        SetOpLevel(existing, oplevel);
+      return;
+    }
+
+    {
     struct Membership* member = membershipFreeList;
     if (member)
       membershipFreeList = member->next_member;
@@ -686,6 +719,7 @@ void add_user_to_channel(struct Channel* chptr, struct Client* who,
     if (!IsSSL(who) && !IsChannelService(who))
       ++chptr->nonsslusers;
     ++((cli_user(who))->joined);
+    }
   }
 }
 
@@ -811,7 +845,7 @@ int is_chan_op(struct Client *cptr, struct Channel *chptr)
   struct Membership* member;
   assert(chptr);
   if ((member = find_member_link(chptr, cptr)))
-    return (!IsZombie(member) && IsChanOp(member));
+    return (!IsZombie(member) && (IsChanOp(member) || IsOwner(member) || IsProtect(member)));
 
   return 0;
 }
@@ -953,6 +987,51 @@ int member_can_send_to_channel(struct Membership* member, int reveal)
     RevealDelayedJoin(member);
 
   return 1;
+}
+
+/**
+ * Check activity-type extended bans (~T, ~C, ~N) against a message.
+ * Called from PRIVMSG/NOTICE handlers AFTER basic can_send checks pass.
+ *
+ * @param cptr    The client sending the message
+ * @param chptr   The channel being messaged
+ * @param text    The message text (for ~T pattern matching)
+ * @param is_ctcp Non-zero if this is a CTCP message (for ~C)
+ * @param is_notice Non-zero if this is a NOTICE (for ~N)
+ * @returns 0 if blocked by an activity extban, 1 if allowed
+ */
+int check_activity_extbans(struct Client *cptr, struct Channel *chptr,
+                           const char *text, int is_ctcp, int is_notice)
+{
+  if (!cptr || !chptr) return 1;
+  /* Ops/voiced users are never blocked by activity extbans */
+  {
+    struct Membership *m = find_channel_member(cptr, chptr);
+    if (m && IsVoicedOrOpped(m)) return 1;
+  }
+
+  /* ~C: Block CTCPs from matching users */
+  if (is_ctcp && feature_bool(FEAT_EXTBAN_C)) {
+    if (find_ban(cptr, chptr->banlist, EBAN_NOCTCP, 0) &&
+        !find_ban(cptr, chptr->exceptlist, EBAN_NOCTCP | EBAN_EXCEPTLIST, 0))
+      return 0; /* blocked */
+  }
+
+  /* ~N: Block NOTICEs from matching users */
+  if (is_notice && feature_bool(FEAT_EXTBAN_N)) {
+    if (find_ban(cptr, chptr->banlist, EBAN_NONOTICE, 0) &&
+        !find_ban(cptr, chptr->exceptlist, EBAN_NONOTICE | EBAN_EXCEPTLIST, 0))
+      return 0; /* blocked */
+  }
+
+  /* ~T: Block messages matching a text pattern */
+  if (text && text[0] && feature_bool(FEAT_EXTBAN_T)) {
+    if (find_ban(cptr, chptr->banlist, EBAN_TEXTBAN, 0) &&
+        !find_ban(cptr, chptr->exceptlist, EBAN_TEXTBAN | EBAN_EXCEPTLIST, 0))
+      return 0; /* blocked */
+  }
+
+  return 1; /* allowed */
 }
 
 /** Check if a client can send to a channel.
@@ -1108,7 +1187,7 @@ void channel_modes(struct Client *cptr, char *mbuf, char *pbuf, int buflen,
   if (chptr->mode.mode & MODE_REGISTERED)
     *mbuf++ = 'R';
   if (chptr->mode.exmode & EXMODE_ADMINONLY)
-    *mbuf++ = 'a';
+    *mbuf++ = 'G';
   if (chptr->mode.exmode & EXMODE_OPERONLY)
     *mbuf++ = 'O';
   if (chptr->mode.exmode & EXMODE_REGMODERATED)
@@ -1553,6 +1632,13 @@ static struct ExtBanInfo extban_list[] = {
   {'r', EBAN_NOCHILD | EBAN_REALNAME, FEAT_EXTBAN_r},
   {'m', EBAN_NOCHILD | EBAN_MARK, FEAT_EXTBAN_m},
   {'M', EBAN_NOCHILD | EBAN_MARKUA, FEAT_EXTBAN_M},
+  {'s', EBAN_NOCHILD | EBAN_SERVER, FEAT_EXTBAN_s},
+  {'f', EBAN_NOCHILD | EBAN_CERTFP, FEAT_EXTBAN_f},
+  {'o', EBAN_NOCHILD | EBAN_OPER, FEAT_EXTBAN_o},
+  {'R', EBAN_NOCHILD | EBAN_REGNICK, FEAT_EXTBAN_R},
+  {'T', EBAN_TEXTBAN, FEAT_EXTBAN_T},
+  {'C', EBAN_NOCTCP, FEAT_EXTBAN_C},
+  {'N', EBAN_NONOTICE, FEAT_EXTBAN_N},
   {'!', EBAN_NEGATEMASK, 0},
   {0, 0, 0}
 };
@@ -1814,11 +1900,12 @@ struct Channel *get_channel(struct Client *cptr, char *chname, ChannelGetType fl
     return NULL;
 
   len = strlen(chname);
-  if (MyUser(cptr) && len > CHANNELLEN)
+  if (len > CHANNELLEN)
   {
     len = CHANNELLEN;
     *(chname + CHANNELLEN) = '\0';
   }
+
   if ((chptr = FindChannel(chname)))
     return (chptr);
   if (flag == CGT_CREATE)
@@ -1827,13 +1914,15 @@ struct Channel *get_channel(struct Client *cptr, char *chname, ChannelGetType fl
     assert(0 != chptr);
     ++UserStats.channels;
     memset(chptr, 0, sizeof(struct Channel));
-    strcpy(chptr->chname, chname);
+    memcpy(chptr->chname, chname, len);
+    chptr->chname[len] = '\0';
     if (GlobalChannelList)
       GlobalChannelList->prev = chptr;
     chptr->prev = NULL;
     chptr->next = GlobalChannelList;
     chptr->creationtime = MyUser(cptr) ? TStime() : (time_t) 0;
-    if (feature_bool(FEAT_AUTOCHANMODES) && feature_str(FEAT_AUTOCHANMODES_LIST) &&
+    if (UsesModes(chname) &&
+        feature_bool(FEAT_AUTOCHANMODES) && feature_str(FEAT_AUTOCHANMODES_LIST) &&
         (strlen(feature_str(FEAT_AUTOCHANMODES_LIST)) > 0) && MyUser(cptr))
       SetAutoChanModes(chptr);
     GlobalChannelList = chptr;
@@ -2121,7 +2210,7 @@ modebuf_flush_int(struct ModeBuf *mbuf, int all)
     0x0, 0x0
   };
   static int exflags[] = {
-    EXMODE_ADMINONLY,	'a',
+    EXMODE_ADMINONLY,	'G',
     EXMODE_OPERONLY,	'O',
     EXMODE_REGMODERATED,	'M',
     EXMODE_NONOTICES,	'N',
@@ -2243,14 +2332,16 @@ modebuf_flush_int(struct ModeBuf *mbuf, int all)
       bufptr_i = &rembuf_i;
     }
 
-    if (MB_TYPE(mbuf, i) & (MODE_CHANOP | MODE_HALFOP | MODE_VOICE)) {
+    if (MB_TYPE(mbuf, i) & (MODE_OWNER | MODE_PROTECT | MODE_CHANOP | MODE_HALFOP | MODE_VOICE)) {
       tmp = strlen(cli_name(MB_CLIENT(mbuf, i)));
 
       if ((totalbuflen - IRCD_MAX(9, tmp)) <= 0) /* don't overflow buffer */
 	MB_TYPE(mbuf, i) |= MODE_SAVE; /* save for later */
       else {
-	bufptr[(*bufptr_i)++] = MB_TYPE(mbuf, i) & MODE_CHANOP ? 'o' :
-                                (MB_TYPE(mbuf, i) & MODE_HALFOP ? 'h' : 'v');
+	bufptr[(*bufptr_i)++] = MB_TYPE(mbuf, i) & MODE_OWNER ? 'q' :
+                                (MB_TYPE(mbuf, i) & MODE_PROTECT ? 'a' :
+                                (MB_TYPE(mbuf, i) & MODE_CHANOP ? 'o' :
+                                (MB_TYPE(mbuf, i) & MODE_HALFOP ? 'h' : 'v')));
 	totalbuflen -= IRCD_MAX(9, tmp) + 1;
       }
     } else if (MB_TYPE(mbuf, i) & (MODE_BAN | MODE_EXCEPT | MODE_APASS | MODE_UPASS)) {
@@ -2341,7 +2432,7 @@ modebuf_flush_int(struct ModeBuf *mbuf, int all)
       }
 
       /* deal with clients... */
-      if (MB_TYPE(mbuf, i) & (MODE_CHANOP | MODE_HALFOP | MODE_VOICE))
+      if (MB_TYPE(mbuf, i) & (MODE_OWNER | MODE_PROTECT | MODE_CHANOP | MODE_HALFOP | MODE_VOICE))
 	build_string(strptr, strptr_i, cli_name(MB_CLIENT(mbuf, i)), 0, ' ');
 
       /* deal with bans... */
@@ -2465,7 +2556,7 @@ modebuf_flush_int(struct ModeBuf *mbuf, int all)
                                      " %s%s", NumNick(MB_CLIENT(mbuf, i)));
 
       /* deal with other modes that take clients */
-      } else if (MB_TYPE(mbuf, i) & (MODE_CHANOP | MODE_HALFOP | MODE_VOICE)) {
+      } else if (MB_TYPE(mbuf, i) & (MODE_OWNER | MODE_PROTECT | MODE_CHANOP | MODE_HALFOP | MODE_VOICE)) {
 	build_string(strptr, strptr_i, NumNick(MB_CLIENT(mbuf, i)), ' ');
         if (MB_TYPE(mbuf, i) & MODE_ADD)
           build_string(strptro, strptro_i, NumNick(MB_CLIENT(mbuf, i)), ' ');
@@ -2802,7 +2893,7 @@ modebuf_extract(struct ModeBuf *mbuf, char *buf, int oplevels)
     0x0, 0x0
   };
   static int exflags[] = {
-    EXMODE_ADMINONLY,	'a',
+    EXMODE_ADMINONLY,	'G',
     EXMODE_OPERONLY,	'O',
     EXMODE_REGMODERATED,	'M',
     EXMODE_NONOTICES,	'N',
@@ -3876,7 +3967,7 @@ mode_process_bans(struct ParseState *state)
 
 	  if (state->flags & MODE_PARSE_SET) { /* create a new ban */
 	    newban = make_ban(ban->banstr);
-            strcpy(newban->who, ban->who);
+            ircd_strncpy(newban->who, ban->who, NICKLEN); newban->who[NICKLEN] = '\0';
 	    newban->when = ban->when;
 	    newban->flags = ban->flags & (BAN_IPMASK | BAN_EXTENDED);
 
@@ -4061,7 +4152,7 @@ mode_process_excepts(struct ParseState *state)
 
           if (state->flags & MODE_PARSE_SET) { /* create a new ban exception */
             newban = make_ban(ban->banstr);
-            strcpy(newban->who, ban->who);
+            ircd_strncpy(newban->who, ban->who, NICKLEN); newban->who[NICKLEN] = '\0';
             newban->when = ban->when;
             newban->flags = ban->flags & (BAN_IPMASK | BAN_EXTENDED);
 
@@ -4126,6 +4217,28 @@ mode_parse_client(struct ParseState *state, int *flag_p)
   if ((state->flags & (MODE_PARSE_NOTOPER | MODE_PARSE_NOTMEMBER)) &&
       !((*flag_p == MODE_VOICE) && (state->flags & MODE_PARSE_ISHALFOP)))
     notoper = 1;
+
+  /* +q (owner) and +a (protect) hierarchy enforcement:
+   *   - Servers and SA* (MODE_PARSE_FORCE) can always set +q/+a
+   *   - +q (owner) users can set both +q and +a on others
+   *   - +a (protect) users can set +a on others, but NOT +q
+   *   - Regular channel operators (+o, +h) cannot set +q or +a */
+  if ((*flag_p == MODE_OWNER || *flag_p == MODE_PROTECT) &&
+      MyUser(state->sptr) && !(state->flags & MODE_PARSE_FORCE)) {
+    if (*flag_p == MODE_OWNER) {
+      /* Only +q users (or servers/force) can set +q */
+      if (!state->member || !IsOwner(state->member)) {
+        send_reply(state->sptr, ERR_CHANOPRIVSNEEDED, state->chptr->chname);
+        return;
+      }
+    } else { /* MODE_PROTECT */
+      /* +q or +a users can set +a */
+      if (!state->member || (!IsOwner(state->member) && !IsProtect(state->member))) {
+        send_reply(state->sptr, ERR_CHANOPRIVSNEEDED, state->chptr->chname);
+        return;
+      }
+    }
+  }
 
   if (notoper && (state->dir != MODE_DEL)) {
     send_notoper(state);
@@ -4311,12 +4424,12 @@ mode_process_clients(struct ParseState *state)
         if (IsDelayedJoin(member) && !IsZombie(member))
           RevealDelayedJoin(member);
 	member->status |= (state->cli_change[i].flag &
-			   (MODE_CHANOP | MODE_HALFOP | MODE_VOICE));
+			   (MODE_OWNER | MODE_PROTECT | MODE_CHANOP | MODE_HALFOP | MODE_VOICE));
 	if (state->cli_change[i].flag & MODE_CHANOP)
 	  ClearDeopped(member);
       } else
 	member->status &= ~(state->cli_change[i].flag &
-			    (MODE_CHANOP | MODE_HALFOP | MODE_VOICE));
+			    (MODE_OWNER | MODE_PROTECT | MODE_CHANOP | MODE_HALFOP | MODE_VOICE));
     }
 
     /* accumulate the change */
@@ -4417,6 +4530,8 @@ mode_parse(struct ModeBuf *mbuf, struct Client *cptr, struct Client *sptr,
 	   struct Membership* member)
 {
   static int chan_flags[] = {
+    MODE_OWNER,		'q',
+    MODE_PROTECT,	'a',
     MODE_CHANOP,	'o',
     MODE_HALFOP,	'h',
     MODE_VOICE,		'v',
@@ -4442,7 +4557,7 @@ mode_parse(struct ModeBuf *mbuf, struct Client *cptr, struct Client *sptr,
   };
 
   static int chan_exflags[] = {
-    EXMODE_ADMINONLY,   'a',
+    EXMODE_ADMINONLY,   'G',
     EXMODE_OPERONLY,    'O',
     EXMODE_REGMODERATED,	'M',
     EXMODE_NONOTICES,	'N',
@@ -4565,6 +4680,14 @@ mode_parse(struct ModeBuf *mbuf, struct Client *cptr, struct Client *sptr,
           mode_parse_dummy(&state, flag_p);
         break;
 
+      case 'q': /* deal with owner (+q) — services only */
+        if (!(feature_bool(FEAT_OWNERPROTECT) || IsServer(sptr))) {
+          mode_parse_dummy(&state, flag_p);
+          break;
+        }
+        mode_parse_client(&state, flag_p);
+        break;
+
       case 'h': /* deal with ops/halfops/voice */
         if (!(feature_bool(FEAT_HALFOPS) || IsServer(sptr))) {
           mode_parse_dummy(&state, flag_p);
@@ -4575,8 +4698,15 @@ mode_parse(struct ModeBuf *mbuf, struct Client *cptr, struct Client *sptr,
         mode_parse_client(&state, flag_p);
         break;
 
-      case 'a': /* deal with admin only */
-        /* If they're not an admin, they can't +/- EXMODE_ADMINONLY. */
+      case 'a': /* +a: member protect mode — requires OWNERPROTECT */
+        if (!(feature_bool(FEAT_OWNERPROTECT) || IsServer(sptr))) {
+          mode_parse_dummy(&state, flag_p);
+          break;
+        }
+        mode_parse_client(&state, flag_p);
+        break;
+
+      case 'G': /* +G: admin-only channel mode (was +a, separated from protect) */
         if ((feature_bool(FEAT_CHMODE_a) && IsAdmin(sptr)) ||
             IsServer(sptr) || IsChannelService(sptr))
           mode_parse_exmode(&state, flag_p);
@@ -4629,6 +4759,7 @@ mode_parse(struct ModeBuf *mbuf, struct Client *cptr, struct Client *sptr,
         else
           send_reply(sptr, ERR_NOPRIVILEGES);
         break;
+
 
       case 'Q': /* deal with strip QUIT/PART messages */
         if (feature_bool(FEAT_CHMODE_Q) || IsServer(sptr) ||

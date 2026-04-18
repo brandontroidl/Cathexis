@@ -30,6 +30,7 @@
 #include "crule.h"
 #include "destruct_event.h"
 #include "hash.h"
+#include "monitor.h"
 #include "ircd_alloc.h"
 #include "ircd_events.h"
 #include "ircd_features.h"
@@ -81,6 +82,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include "ircd_snprintf.h"
 
 
 
@@ -219,7 +221,7 @@ static void write_pidfile(void) {
 
   if (thisServer.pid_fd >= 0) {
     memset(buff, 0, sizeof(buff));
-    sprintf(buff, "%5d\n", (int)getpid());
+    ircd_snprintf(0, buff, sizeof(buff), "%5d\n", (int)getpid());
     if (write(thisServer.pid_fd, buff, strlen(buff)) == -1)
       Debug((DEBUG_NOTICE, "Error writing to pid file %s: %m",
 	     feature_str(FEAT_PPATH)));
@@ -622,6 +624,8 @@ static int set_userid_if_needed(void) {
  *        we're doing waaaaaaaaay too much server initialization here.  I hate
  *        long and ugly control paths...  -smd
  *--------------------------------------------------------------------------*/
+
+
 /** Run the daemon.
  * @param[in] argc Number of arguments in \a argv.
  * @param[in] argv Arguments to program execution.
@@ -701,6 +705,7 @@ int main(int argc, char **argv) {
   initload();
   init_list();
   init_hash();
+  monitor_init();
   init_class();
   initwhowas();
   initmsgtree();
@@ -723,6 +728,33 @@ int main(int argc, char **argv) {
       conf_debug_iline(dbg_client);
     fprintf(stderr, "Configuration file %s checked okay.\n", configfile);
     return 0;
+  }
+
+  /* Cathexis 1.5.1: Warn if cloaking keys are still set to compiled-in defaults.
+   * These defaults are public (in the source code) and provide zero security. */
+  if (feature_bool(FEAT_HOST_HIDING)) {
+    const char *k1 = feature_str(FEAT_HOST_HIDING_KEY1);
+    const char *k2 = feature_str(FEAT_HOST_HIDING_KEY2);
+    const char *k3 = feature_str(FEAT_HOST_HIDING_KEY3);
+    int weak = 0;
+    if (!k1 || !*k1 || !strcmp(k1, "aoAr1HnR6gl3sJ7hVz4Zb7x4YwpW")
+        || !strncmp(k1, "CHANGE_ME", 9)) weak = 1;
+    if (!k2 || !*k2 || !strcmp(k2, "sdfjkLJKHlkjdkfjsdklfjlkjKLJ")
+        || !strncmp(k2, "CHANGE_ME", 9)) weak = 1;
+    if (!k3 || !*k3 || !strcmp(k3, "KJklJSDFLkjLKDFJSLKjlKJFlkjS")
+        || !strncmp(k3, "CHANGE_ME", 9)) weak = 1;
+    if (weak) {
+      fprintf(stderr,
+        "FATAL: HOST_HIDING is enabled but cloaking keys are default/empty!\n"
+        "  Default keys are PUBLIC — any user's real IP can be recovered.\n"
+        "  Generate unique keys:  openssl rand -hex 32\n"
+        "  Set HOST_HIDING_KEY1, KEY2, KEY3 in ircd.conf Features block.\n"
+        "  To start without host hiding, set FEAT_HOST_HIDING = FALSE.\n");
+      log_write(LS_CONFIG, L_CRIT, 0,
+        "HOST_HIDING enabled with default/empty cloaking keys — "
+        "refusing to start. Set unique HOST_HIDING_KEY1/2/3.");
+      exit(8);
+    }
   }
 
   debug_init(thisServer.bootopt & BOOT_TTY);

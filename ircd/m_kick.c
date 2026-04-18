@@ -124,7 +124,7 @@ int m_kick(struct Client *cptr, struct Client *sptr, int parc, char *parv[])
     return send_reply(sptr, ERR_NOSUCHCHANNEL, name);
 
   if (!(member2 = find_member_link(chptr, sptr)) || IsZombie(member2)
-      || !(IsChanOp(member2) || IsHalfOp(member2)))
+      || !(IsOwner(member2) || IsProtect(member2) || IsChanOp(member2) || IsHalfOp(member2)))
     return send_reply(sptr, ERR_CHANOPRIVSNEEDED, name);
 
   if (!(who = find_chasing(sptr, parv[2], 0)))
@@ -144,8 +144,20 @@ int m_kick(struct Client *cptr, struct Client *sptr, int parc, char *parv[])
   if (!(member = find_member_link(chptr, who)) || IsZombie(member))
     return send_reply(sptr, ERR_USERNOTINCHANNEL, cli_name(who), chptr->chname);
 
+  /* Channel hierarchy protection:
+   * +q (owner) cannot be kicked by anyone except another +q
+   * +a (protect) cannot be kicked by +o or +h
+   * +o (chanop) cannot be kicked by +h */
+  if (feature_bool(FEAT_OWNERPROTECT)) {
+    if (IsOwner(member) && !IsOwner(member2))
+      return send_reply(sptr, ERR_CHANOPRIVSNEEDED, name);
+    if (IsProtect(member) && !IsOwner(member2) && !IsProtect(member2))
+      return send_reply(sptr, ERR_CHANOPRIVSNEEDED, name);
+  }
+
   /* Prevent halfops from kicking ops */
-  if (IsChanOp(member) && IsHalfOp(member2) && !IsChanOp(member2))
+  if (IsChanOp(member) && IsHalfOp(member2) && !IsChanOp(member2)
+      && !IsOwner(member2) && !IsProtect(member2))
     return send_reply(sptr, ERR_HALFCANTKICKOP, name);
 
   /* Don't allow to kick member with a higher op-level,
@@ -248,14 +260,14 @@ int ms_kick(struct Client *cptr, struct Client *sptr, int parc, char *parv[])
    */
   if (!IsServer(sptr) && !IsChannelService(sptr) && member && cli_from(who) != cptr &&
       (!(sptr_link = find_member_link(chptr, sptr)) ||
-        (!IsChanOp(sptr_link) && !IsHalfOp(sptr_link)))) {
+        (!IsOwner(sptr_link) && !IsProtect(sptr_link) && !IsChanOp(sptr_link) && !IsHalfOp(sptr_link)))) {
     sendto_opmask_butone(0, SNO_HACK2, "HACK: %C KICK %H %C %s", sptr, chptr,
 			 who, comment);
 
     sendcmdto_one(who, CMD_JOIN, cptr, "%H", chptr);
 
     /* Reop/revoice member */
-    if (IsChanOp(member) || IsHalfOp(member) ||HasVoice(member)) {
+    if (IsOwner(member) || IsProtect(member) || IsChanOp(member) || IsHalfOp(member) ||HasVoice(member)) {
       struct ModeBuf mbuf;
 
       modebuf_init(&mbuf, sptr, cptr, chptr,
@@ -263,6 +275,10 @@ int ms_kick(struct Client *cptr, struct Client *sptr, int parc, char *parv[])
 		    MODEBUF_DEST_DEOP   |  /* Deop the source */
 		    MODEBUF_DEST_BOUNCE)); /* And bounce the MODE */
 
+      if (IsOwner(member))
+	modebuf_mode_client(&mbuf, MODE_DEL | MODE_OWNER, who, MAXOPLEVEL + 1);
+      if (IsProtect(member))
+	modebuf_mode_client(&mbuf, MODE_DEL | MODE_PROTECT, who, MAXOPLEVEL + 1);
       if (IsChanOp(member))
 	modebuf_mode_client(&mbuf, MODE_DEL | MODE_CHANOP, who, OpLevel(member));
       if (IsHalfOp(member))

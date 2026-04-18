@@ -159,6 +159,7 @@ static struct lexer_token {
   TOKEN(TRUSTACCOUNT),
 #undef TOKEN
   { "ssl", SSLTOK },
+  { "hmac", HMACTOK },
   { "administrator", ADMIN },
   { "apass_opmode", TPRIV_APASS_OPMODE },
   { "auto", AUTOCONNECT },
@@ -212,6 +213,7 @@ static struct lexer_token {
   { "tb", TBYTES },
   { "terabytes", TBYTES },
   { "tempshun", TPRIV_TEMPSHUN },
+  { "netadmin", TPRIV_NETADMIN },
   { "unlimit_query", TPRIV_UNLIMIT_QUERY },
   { "walk_lchan", TPRIV_WALK_LCHAN },
   { "wide_gline", TPRIV_WIDE_GLINE },

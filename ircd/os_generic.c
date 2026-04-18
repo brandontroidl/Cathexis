@@ -40,6 +40,7 @@
 #endif
 
 #include "ircd_osdep.h"
+#include "ircd_snprintf.h"
 #include "msgq.h"
 #include "ircd_log.h"
 #include "res.h"
@@ -84,6 +85,7 @@
 
 #ifdef HPUX
 #include <sys/syscall.h>
+#include "ircd_snprintf.h"
 #define getrusage(a,b) syscall(SYS_GETRUSAGE, a, b)
 #endif
 
@@ -226,29 +228,29 @@ int os_get_rusage(struct Client *cptr, int uptime, EnumFn enumerator)
   if (secs == 0)
     secs = 1;
 
-  sprintf(buf, "CPU Secs %ld:%ld User %ld:%ld System %ld:%ld",
+  ircd_snprintf(0, buf, sizeof(buf), "CPU Secs %ld:%ld User %ld:%ld System %ld:%ld",
           (long)(secs / 60), (long)(secs % 60),
           rus.ru_utime.tv_sec / 60, rus.ru_utime.tv_sec % 60,
           rus.ru_stime.tv_sec / 60, rus.ru_stime.tv_sec % 60);
   (*enumerator)(cptr, buf);
 
-  sprintf(buf, "RSS %ld ShMem %ld Data %ld Stack %ld",
+  ircd_snprintf(0, buf, sizeof(buf), "RSS %ld ShMem %ld Data %ld Stack %ld",
           rus.ru_maxrss,
           rus.ru_ixrss / (uptime * hzz), rus.ru_idrss / (uptime * hzz),
           rus.ru_isrss / (uptime * hzz));
   (*enumerator)(cptr, buf);
 
-  sprintf(buf, "Swaps %ld Reclaims %ld Faults %ld",
+  ircd_snprintf(0, buf, sizeof(buf), "Swaps %ld Reclaims %ld Faults %ld",
           rus.ru_nswap, rus.ru_minflt, rus.ru_majflt);
   (*enumerator)(cptr, buf);
 
-  sprintf(buf, "Block in %ld out %ld", rus.ru_inblock, rus.ru_oublock);
+  ircd_snprintf(0, buf, sizeof(buf), "Block in %ld out %ld", rus.ru_inblock, rus.ru_oublock);
   (*enumerator)(cptr, buf);
 
-  sprintf(buf, "Msg Rcv %ld Send %ld", rus.ru_msgrcv, rus.ru_msgsnd);
+  ircd_snprintf(0, buf, sizeof(buf), "Msg Rcv %ld Send %ld", rus.ru_msgrcv, rus.ru_msgsnd);
   (*enumerator)(cptr, buf);
 
-  sprintf(buf, "Signals %ld Context Vol. %ld Invol %ld",
+  ircd_snprintf(0, buf, sizeof(buf), "Signals %ld Context Vol. %ld Invol %ld",
           rus.ru_nsignals, rus.ru_nvcsw, rus.ru_nivcsw);
   (*enumerator)(cptr, buf);
 
@@ -278,7 +280,7 @@ int os_get_rusage(struct Client *cptr, int uptime, EnumFn enumerator)
     return 0;
   secs = tmsbuf.tms_utime + tmsbuf.tms_stime;
 
-  sprintf(buf, "CPU Secs %d:%d User %d:%d System %d:%d", 
+  ircd_snprintf(0, buf, sizeof(buf), "CPU Secs %d:%d User %d:%d System %d:%d", 
           mins, secs, umin, usec, smin, ssec);
   (*enumerator)(cptr, buf);
 #endif /* HAVE_TIMES */

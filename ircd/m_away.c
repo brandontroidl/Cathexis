@@ -87,6 +87,7 @@
 #include "ircd_log.h"
 #include "ircd_reply.h"
 #include "ircd_string.h"
+#include "monitor.h"
 #include "msg.h"
 #include "numeric.h"
 #include "numnicks.h"
@@ -166,11 +167,13 @@ int m_away(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
     send_reply(sptr, RPL_NOWAWAY);
     sendcmdto_common_channels_capab_butone(sptr, CMD_AWAY, sptr, CAP_AWAYNOTIFY, CAP_NONE,
                                            ":%s", away_message);
+    monitor_notify_away(sptr); /* IRCv3 extended-monitor */
   }
   else {
     sendcmdto_serv_butone(sptr, CMD_AWAY, cptr, "");
     send_reply(sptr, RPL_UNAWAY);
     sendcmdto_common_channels_capab_butone(sptr, CMD_AWAY, sptr, CAP_AWAYNOTIFY, CAP_NONE, "");
+    monitor_notify_away(sptr); /* IRCv3 extended-monitor */
   }
   return 0;
 }

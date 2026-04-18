@@ -67,6 +67,7 @@
 #include "userload.h"
 #include "version.h"
 #include "watch.h"
+#include "monitor.h"
 #include "whowas.h"
 
 #include "handlers.h" /* m_motd and m_lusers */
@@ -460,6 +461,7 @@ int register_user(struct Client *cptr, struct Client *sptr)
     }
 #endif
 
+
     m_lusers(sptr, sptr, 1, parv);
     update_load();
     motd_signon(sptr);
@@ -589,8 +591,8 @@ int register_user(struct Client *cptr, struct Client *sptr)
       sendcmdto_serv_butone(&me, CMD_MARK, cptr, "%s %s :%s", cli_name(cptr), MARK_KILL, cli_killmark(sptr));
 
     if (IsGeoIP(sptr)) {
-      if (cli_countrycode(sptr) && !EmptyString(cli_countrycode(sptr)) &&
-          cli_continentcode(sptr) && !EmptyString(cli_continentcode(sptr)))
+      if (!EmptyString(cli_countrycode(sptr)) &&
+          !EmptyString(cli_continentcode(sptr)))
         sendcmdto_serv_butone(&me, CMD_MARK, cptr, "%s %s %s %s :%s",
                       cli_name(sptr), MARK_GEOIP, cli_countrycode(sptr),
                       cli_continentcode(sptr), cli_countryname(sptr));
@@ -623,7 +625,7 @@ int register_user(struct Client *cptr, struct Client *sptr)
     send_umode(cptr, sptr, &flags, ALL_UMODES);
     if ((cli_snomask(sptr) != feature_int(FEAT_SNOMASK_DEFAULT)) &&
         HasFlag(sptr, FLAG_SERVNOTICE))
-      send_reply(sptr, RPL_SNOMASK, cli_snomask(sptr), cli_snomask(sptr));
+      { char snobuf[24]; send_reply(sptr, RPL_SNOMASK, snomask_to_str(cli_snomask(sptr), snobuf, sizeof(snobuf)), cli_snomask(sptr)); }
 
     if ((connclass = get_client_class_conf(sptr)) != NULL)
     {
@@ -668,6 +670,7 @@ int register_user(struct Client *cptr, struct Client *sptr)
 
   /* Notify new local/remote user */
   check_status_watch(sptr, RPL_LOGON);
+  monitor_notify_online(cli_name(sptr));
 
   return 0;
 }
@@ -695,6 +698,7 @@ static const struct UserMode {
   { FLAG_ACCOUNTONLY,  'R' },
   { FLAG_WHOIS_NOTICE, 'W' },
   { FLAG_ADMIN,        'a' },
+  { FLAG_NETADMIN,     'N' },
   { FLAG_XTRAOP,       'X' },
   { FLAG_NOLINK,       'L' },
   { FLAG_SSL,          'z' },
@@ -702,7 +706,8 @@ static const struct UserMode {
   { FLAG_SETHOST,      'h' },
   { FLAG_FAKEHOST,     'f' },
   { FLAG_CLOAKHOST,    'C' },
-  { FLAG_CLOAKIP,      'c' }
+  { FLAG_CLOAKIP,      'c' },
+  { FLAG_SSLONLY_PM,   'S' },
 };
 
 /** Length of #userModeList. */
@@ -741,7 +746,7 @@ int set_nick_name(struct Client* cptr, struct Client* sptr,
     /*
      * Set new nick name.
      */
-    strcpy(cli_name(new_client), nick);
+    ircd_strncpy(cli_name(new_client), nick, HOSTLEN);
     cli_user(new_client) = make_user(new_client);
     cli_user(new_client)->server = sptr;
     SetRemoteNumNick(new_client, parv[parc - 2]);
@@ -832,6 +837,7 @@ int set_nick_name(struct Client* cptr, struct Client* sptr,
     if (IsUser(sptr)) {
       /* Notify exit user */
       check_status_watch(sptr, RPL_LOGOFF);
+      monitor_notify_offline(cli_name(sptr));
 
       sendcmdto_common_channels_butone(sptr, CMD_NICK, NULL, ":%s", nick);
       add_history(sptr, 1);
@@ -856,15 +862,16 @@ int set_nick_name(struct Client* cptr, struct Client* sptr,
 
     if ((cli_name(sptr))[0])
       hRemClient(sptr);
-    strcpy(cli_name(sptr), nick);
+    ircd_strncpy(cli_name(sptr), nick, HOSTLEN);
     hAddClient(sptr);
 
     /* Notify change nick local/remote user */
     check_status_watch(sptr, RPL_LOGON);
+    monitor_notify_online(cli_name(sptr));
   }
   else {
     /* Local client setting NICK the first time */
-    strcpy(cli_name(sptr), nick);
+    ircd_strncpy(cli_name(sptr), nick, HOSTLEN);
     hAddClient(sptr);
     return auth_set_nick(cli_auth(sptr), nick);
   }
@@ -1036,10 +1043,19 @@ int whisper(struct Client* source, const char* nick, const char* channel,
   if (is_silenced(source, dest, 0))
     return 0;
 
+
   if (IsAccountOnly(dest) && !IsAccount(source) && !IsOper(source) && (dest != source)) {
     send_reply(source, ERR_ACCOUNTONLY, cli_name(dest), (is_notice) ? "CNOTICE" : "CPRIVMSG", cli_name(dest));
     return 0;
   }
+
+  /* +S check: target only accepts messages from SSL users */
+  if (IsSSLOnlyPM(dest) && !IsSSL(source) && !IsOper(source) && (dest != source)) {
+    if (!is_notice)
+      send_reply(source, ERR_SSLONLYPM, cli_name(dest), "CPRIVMSG");
+    return 0;
+  }
+
 
   if (IsPrivDeaf(dest) && !IsOper(source) && (dest != source)) {
     send_reply(source, ERR_PRIVDEAF, cli_name(dest), (is_notice) ? "CNOTICE" : "CPRIVMSG", cli_name(dest));
@@ -1161,10 +1177,10 @@ hide_hostmask(struct Client *cptr)
   } else if ((feature_int(FEAT_HOST_HIDING_STYLE) == 1) ||
       ((feature_int(FEAT_HOST_HIDING_STYLE) == 3) && IsAccount(cptr))) {
     if (IsAnOper(cptr) && !IsHideOper(cptr) && feature_bool(FEAT_OPERHOST_HIDING))
-      ircd_snprintf(0, newhost, HOSTLEN + 1, "%s.%s",
+      ircd_snprintf(0, newhost, HOSTLEN, "%s.%s",
                     cli_user(cptr)->account, feature_str(FEAT_HIDDEN_OPERHOST));
     else
-      ircd_snprintf(0, newhost, HOSTLEN + 1, "%s.%s",
+      ircd_snprintf(0, newhost, HOSTLEN, "%s.%s",
                     cli_user(cptr)->account, feature_str(FEAT_HIDDEN_HOST));
   } else if (IsCloakHost(cptr) && ((feature_int(FEAT_HOST_HIDING_STYLE) == 2) ||
              (feature_int(FEAT_HOST_HIDING_STYLE) == 3))) {
@@ -1366,7 +1382,7 @@ int set_user_mode(struct Client *cptr, struct Client *sptr, int parc,
   char* sethost = NULL;
   struct Client *acptr = NULL;
 
-  if (MyUser(sptr) && (allow_modes & ALLOWMODES_SVSMODE))
+  if (MyUser(sptr) && (allow_modes & ALLOWMODES_SAMODE))
     is_svsmode = 1;
 
   what = MODE_ADD;
@@ -1398,8 +1414,8 @@ int set_user_mode(struct Client *cptr, struct Client *sptr, int parc,
         /* Just propagate and ignore */
         char bufh[BUFSIZE] = "";
         for (i=1;i<parc;i++) {
-          strcat(bufh, " ");
-          strcat(bufh, parv[i]);
+          strncat(bufh, " ", sizeof(bufh) - strlen(bufh) - 1);
+          strncat(bufh, parv[i], sizeof(bufh) - strlen(bufh) - 1);
         }
         sendcmdto_serv_butone(sptr, CMD_MODE, cptr, "%s", bufh);
         return 0;
@@ -1432,7 +1448,7 @@ int set_user_mode(struct Client *cptr, struct Client *sptr, int parc,
         && cli_snomask(acptr) !=
         (unsigned int)(IsOper(acptr) ? feature_int(FEAT_SNOMASK_OPERDEFAULT) :
          feature_int(FEAT_SNOMASK_DEFAULT)))
-      send_reply(acptr, RPL_SNOMASK, cli_snomask(acptr), cli_snomask(acptr));
+      { char snobuf[24]; send_reply(acptr, RPL_SNOMASK, snomask_to_str(cli_snomask(acptr), snobuf, sizeof(snobuf)), cli_snomask(acptr)); }
     return 0;
   }
 
@@ -1572,6 +1588,18 @@ int set_user_mode(struct Client *cptr, struct Client *sptr, int parc,
         else
           ClearAccountOnly(acptr);
         break;
+      case 'S':
+        if (what == MODE_ADD) {
+          if (!IsSSL(acptr) && !force) {
+            sendcmdto_one(&me, CMD_NOTICE, acptr,
+                           "%C :Cannot set +S: you must be connected via SSL (+z)",
+                           acptr);
+            break;
+          }
+          SetSSLOnlyPM(acptr);
+        } else
+          ClearSSLOnlyPM(acptr);
+        break;
       case 'B':
         if (what == MODE_ADD)
           SetBot(acptr);
@@ -1589,6 +1617,12 @@ int set_user_mode(struct Client *cptr, struct Client *sptr, int parc,
           SetAdmin(acptr);
         else
           ClearAdmin(acptr);
+        break;
+      case 'N':
+        if (what == MODE_ADD)
+          SetNetAdmin(acptr);
+        else
+          ClearNetAdmin(acptr);
         break;
       case 'X':
         if (what == MODE_ADD)
@@ -1671,6 +1705,8 @@ int set_user_mode(struct Client *cptr, struct Client *sptr, int parc,
       ClearLocOp(acptr);
     if (!HasPriv(acptr, PRIV_ADMIN) && !FlagHas(&setflags, FLAG_ADMIN) && IsAdmin(acptr))
       ClearAdmin(acptr);
+    if (!HasPriv(acptr, PRIV_NETADMIN) && !FlagHas(&setflags, FLAG_NETADMIN) && IsNetAdmin(acptr))
+      ClearNetAdmin(acptr);
     if (!FlagHas(&setflags, FLAG_ACCOUNT) && IsAccount(acptr))
       ClrFlag(acptr, FLAG_ACCOUNT);
     if (!FlagHas(&setflags, FLAG_CLOAKIP) && IsCloakIP(acptr))
@@ -1743,7 +1779,7 @@ int set_user_mode(struct Client *cptr, struct Client *sptr, int parc,
       if (tmpmask != cli_snomask(acptr))
 	set_snomask(acptr, tmpmask, SNO_SET);
       if (cli_snomask(acptr) && snomask_given)
-	send_reply(acptr, RPL_SNOMASK, cli_snomask(acptr), cli_snomask(acptr));
+	{ char snobuf[24]; send_reply(acptr, RPL_SNOMASK, snomask_to_str(cli_snomask(acptr), snobuf, sizeof(snobuf)), cli_snomask(acptr)); }
     }
     else
       set_snomask(acptr, 0, SNO_SET);
@@ -1753,12 +1789,10 @@ int set_user_mode(struct Client *cptr, struct Client *sptr, int parc,
    * will cause servers to update correctly.
    */
   if (!FlagHas(&setflags, FLAG_ACCOUNT) && IsAccount(acptr)) {
-      int len = ACCOUNTLEN + 1;
+      int len = ACCOUNTLEN;
       char *ts;
       if ((ts = strchr(account, ':'))) {
-	len = (ts++) - account + 1; /* +1: ircd_strncpy copies len-1 chars */
-	if (len > ACCOUNTLEN + 1)
-	  len = ACCOUNTLEN + 1;
+	len = (ts++) - account;
 	cli_user(acptr)->acc_create = atoi(ts);
 	Debug((DEBUG_DEBUG, "Received timestamped account in user mode; "
 	      "account \"%s\", timestamp %Tu", account,
@@ -2064,62 +2098,226 @@ void send_umode(struct Client *cptr, struct Client *sptr, struct Flags *old,
  * at least one digit and 2) The first digit occurs before the first
  * alphabetic character.
  * @param[in] word Word to check for sno_mask-ness.
- * @return Non-zero if \a word looks like a server notice mask; zero if not.
  */
-int is_snomask(char *word)
+/** SNO flag to letter mapping table.
+ * Letters follow modern IRC daemon conventions (UnrealIRCd, InspIRCd,
+ * Charybdis) where possible, with Cathexis-specific assignments for
+ * flags unique to this daemon.
+ *
+ * Letter assignments:
+ *   c = client connect/exit     k = server kills (collisions)
+ *   K = oper kills              D = desyncs
+ *   s = temporary desyncs       u = unauthorized connections
+ *   e = TCP/socket errors       f = too many connections
+ *   h = Uworld actions          g = G-lines
+ *   n = net join/break           i = IP mismatches
+ *   t = throttle notices         r = oper-only messages
+ *   G = auto G-lines             d = debug messages
+ *   N = nick changes             A = IAuth notices
+ *   w = WebIRC notices           o = unsorted old messages
+ */
+static const struct {
+  unsigned int flag;
+  char letter;
+  const char *desc;
+} snomask_map[] = {
+  { SNO_OLDSNO,     'o', "old unsorted messages" },
+  { SNO_SERVKILL,   'k', "server kills (collisions)" },
+  { SNO_OPERKILL,   'K', "oper kills" },
+  { SNO_HACK2,      'D', "desyncs" },
+  { SNO_HACK3,      's', "temporary desyncs" },
+  { SNO_UNAUTH,     'u', "unauthorized connections" },
+  { SNO_TCPCOMMON,  'e', "TCP/socket errors" },
+  { SNO_TOOMANY,    'f', "too many connections" },
+  { SNO_HACK4,      'h', "Uworld actions" },
+  { SNO_GLINE,      'g', "G-lines" },
+  { SNO_NETWORK,    'n', "net join/break" },
+  { SNO_IPMISMATCH, 'i', "IP mismatches" },
+  { SNO_THROTTLE,   't', "throttle notices" },
+  { SNO_OLDREALOP,  'r', "oper-only messages" },
+  { SNO_CONNEXIT,   'c', "client connect/exit" },
+  { SNO_AUTO,       'G', "auto G-lines" },
+  { SNO_DEBUG,      'd', "debug messages" },
+  { SNO_NICKCHG,    'N', "nick changes" },
+  { SNO_AUTH,       'A', "IAuth notices" },
+  { SNO_WEBIRC,     'w', "WebIRC notices" },
+  { SNO_SHUN,       'S', "shun notices" },
+  { SNO_ZLINE,      'Z', "Z-line notices" },
+  { SNO_SASL,       'a', "SASL authentication" },
+  { SNO_SACMD,      'C', "SA* command usage" },
+  { SNO_FLOOD,      'F', "flood/excess notices" },
+  { SNO_TLS,        'T', "TLS connection info" },
+  { SNO_ACCOUNT,    'R', "account changes" },
+  { SNO_SPAMF,      'P', "spamfilter matches" },
+  { 0, 0, NULL }
+};
+
+/** Convert a snomask letter to its corresponding SNO_ flag.
+ * @param[in] c The snomask letter.
+ * @return The SNO_ flag value, or 0 if not found.
+ */
+static unsigned int snomask_char_to_flag(char c)
 {
-  if (word)
-  {
-    if (ircd_strcmp(word, "all") == 0)
-      return 1;
-    for (; *word; word++)
-      if (IsDigit(*word))
-        return 1;
-      else if (IsAlpha(*word))
-        return 0;
+  int i;
+  for (i = 0; snomask_map[i].flag; i++) {
+    if (snomask_map[i].letter == c)
+      return snomask_map[i].flag;
   }
   return 0;
 }
 
+/** Convert a snomask bitmask to a human-readable letter string.
+ * The output is a '+' followed by the letters for each set flag,
+ * e.g. "+nKg" for network + operkill + gline.
+ * @param[in] mask The snomask bitmask.
+ * @param[out] buf Output buffer (must be at least 24 bytes).
+ * @param[in] buflen Size of output buffer.
+ * @return Pointer to buf.
+ */
+const char *snomask_to_str(unsigned int mask, char *buf, size_t buflen)
+{
+  size_t pos = 0;
+  int i;
+
+  if (pos < buflen - 1)
+    buf[pos++] = '+';
+
+  for (i = 0; snomask_map[i].flag && pos < buflen - 1; i++) {
+    if (mask & snomask_map[i].flag)
+      buf[pos++] = snomask_map[i].letter;
+  }
+  buf[pos] = '\0';
+  return buf;
+}
+
+/** Convert a letter-based snomask string to a numeric bitmask.
+ * Accepts strings like "nKg", "+nKgDt", or "+nKg-c".
+ * Unknown letters are silently ignored.
+ * @param[in] str The snomask letter string.
+ * @return The numeric snomask bitmask.
+ */
+unsigned int snomask_str_to_mask(const char *str)
+{
+  unsigned int mask = 0;
+  int adding = 1;
+  if (!str)
+    return 0;
+  if (*str == '+')
+    str++;
+  for (; *str; str++) {
+    if (*str == '+') { adding = 1; continue; }
+    if (*str == '-') { adding = 0; continue; }
+    {
+      unsigned int flag = snomask_char_to_flag(*str);
+      if (flag) {
+        if (adding)
+          mask |= flag;
+        else
+          mask &= ~flag;
+      }
+    }
+  }
+  return mask;
+}
+
+/** Check whether \a word looks like a server notice mask argument.
+ * Accepts letter-based masks (e.g. "nKg", "+nKg", "-c"), numeric masks
+ * for backward compatibility (e.g. "1024", "+512"), or the keyword "all".
+ * @param[in] word Potential snomask argument.
+ * @return Non-zero if \a word looks like a server notice mask; zero if not.
+ */
+int is_snomask(char *word)
+{
+  int found_valid = 0;
+  if (!word || !*word)
+    return 0;
+  if (ircd_strcmp(word, "all") == 0)
+    return 1;
+  /* Skip leading +/- */
+  if (*word == '+' || *word == '-')
+    word++;
+  if (!*word)
+    return 0;
+  /* If it starts with a digit, it's a legacy numeric mask */
+  if (IsDigit(*word))
+    return 1;
+  /* Accept if at least one character is a valid snomask letter.
+   * Unknown letters are silently ignored by umode_make_snomask(). */
+  for (; *word; word++) {
+    if (*word == '+' || *word == '-')
+      continue;
+    if (snomask_char_to_flag(*word))
+      found_valid = 1;
+  }
+  return found_valid;
+}
+
 /** Update snomask \a oldmask according to \a arg and \a what.
- * @param[in] oldmask Original user mask.
- * @param[in] arg Update string (either a number or '+'/'-' followed by a number).
+ * Supports both modern letter-based masks (e.g. "+nKg", "-c", "nKg")
+ * and legacy numeric masks (e.g. "1024", "+512") for backward compatibility.
+ * @param[in] oldmask Original snomask value.
+ * @param[in] arg Update string.
  * @param[in] what MODE_ADD if adding the mask.
- * @return New value of service notice mask.
+ * @return New value of server notice mask.
  */
 unsigned int umode_make_snomask(unsigned int oldmask, char *arg, int what)
 {
   unsigned int sno_what;
   unsigned int newmask;
-  if (what == MODE_ADD)
-    if (ircd_strcmp(arg, "all") == 0)
-      return SNO_ALL;
-  if (*arg == '+')
-  {
+
+  if (what == MODE_ADD && ircd_strcmp(arg, "all") == 0)
+    return SNO_ALL;
+
+  /* Determine base operation from leading +/- */
+  if (*arg == '+') {
     arg++;
-    if (what == MODE_ADD)
-      sno_what = SNO_ADD;
-    else
-      sno_what = SNO_DEL;
-  }
-  else if (*arg == '-')
-  {
+    sno_what = (what == MODE_ADD) ? SNO_ADD : SNO_DEL;
+  } else if (*arg == '-') {
     arg++;
-    if (what == MODE_ADD)
-      sno_what = SNO_DEL;
-    else
-      sno_what = SNO_ADD;
-  }
-  else
+    sno_what = (what == MODE_ADD) ? SNO_DEL : SNO_ADD;
+  } else {
     sno_what = (what == MODE_ADD) ? SNO_SET : SNO_DEL;
-  /* pity we don't have strtoul everywhere */
-  newmask = (unsigned int)atoi(arg);
-  if (sno_what == SNO_DEL)
-    newmask = oldmask & ~newmask;
-  else if (sno_what == SNO_ADD)
-    newmask |= oldmask;
+  }
+
+  /* Detect whether this is a letter-based or numeric mask */
+  if (*arg && !IsDigit(*arg)) {
+    /* Letter-based mask: parse each character */
+    unsigned int add_flags = 0, del_flags = 0, flag;
+    int cur_adding = (sno_what != SNO_DEL);
+
+    for (; *arg; arg++) {
+      if (*arg == '+') {
+        cur_adding = 1;
+        continue;
+      }
+      if (*arg == '-') {
+        cur_adding = 0;
+        continue;
+      }
+      flag = snomask_char_to_flag(*arg);
+      if (flag) {
+        if (cur_adding)
+          add_flags |= flag;
+        else
+          del_flags |= flag;
+      }
+    }
+
+    if (sno_what == SNO_SET)
+      newmask = add_flags & ~del_flags;
+    else
+      newmask = (oldmask | add_flags) & ~del_flags;
+  } else {
+    /* Legacy numeric mask: backward compatible */
+    newmask = (unsigned int)atoi(arg);
+    if (sno_what == SNO_DEL)
+      newmask = oldmask & ~newmask;
+    else if (sno_what == SNO_ADD)
+      newmask |= oldmask;
+  }
   return newmask;
 }
+
 
 /** Remove \a cptr from the singly linked list \a list.
  * @param[in] cptr Client to remove from list.
@@ -2459,21 +2657,6 @@ build_isupport_lines(void)
  */
 void init_isupport(void)
 {
-  char imaxlist[BUFSIZE] = "";
-  char cmodebuf[BUFSIZE] = "";
-  char extbanbuf[BUFSIZE] = "";
-
-  strcat(imaxlist, "b:");
-  strcat(imaxlist, itoa(feature_int(FEAT_MAXBANS)));
-  if (feature_bool(FEAT_EXCEPTS)) {
-    strcat(imaxlist, ",e:");
-    strcat(imaxlist, itoa(feature_int(FEAT_MAXEXCEPTS)));
-  }
-
-  ircd_snprintf(0, cmodebuf, BUFSIZE, "b%s,%sk%s,Ll,aCcDdiMmNnOpQRrSsTtZz",
-                feature_bool(FEAT_EXCEPTS) ? "e" : "",
-                feature_bool(FEAT_OPLEVELS) ? "A" : "",
-                feature_bool(FEAT_OPLEVELS) ? "U" : "");
 
   add_isupport("WHOX");
   add_isupport("WALLCHOPS");
@@ -2485,53 +2668,30 @@ void init_isupport(void)
   add_isupport("NAMESX");
   add_isupport("UHNAMES");
 
-  add_isupport_i("SILENCE", feature_int(FEAT_MAXSILES));
-  add_isupport_i("WATCH", feature_int(FEAT_MAXWATCHS));
+  /* NOTE: SILENCE, WATCH, MAXCHANNELS, MAXBANS, NICKLEN, CHANNELLEN,
+   * CHANTYPES, NETWORK, CHANMODES, MAXLIST, EXCEPTS, MAXEXCEPTS, and
+   * EXTBANS are set by feature callbacks in ircd_features.c and will
+   * fire during feature_init(). Do not duplicate them here. */
+
   add_isupport_i("MODES", MAXMODEPARAMS);
-  add_isupport_i("MAXCHANNELS", feature_int(FEAT_MAXCHANNELSPERUSER));
-  add_isupport_i("MAXBANS", feature_int(FEAT_MAXBANS));
-  add_isupport_i("NICKLEN", feature_int(FEAT_NICKLEN));
   add_isupport_i("MAXNICKLEN", NICKLEN);
   add_isupport_i("TOPICLEN", TOPICLEN);
   add_isupport_i("AWAYLEN", AWAYLEN);
   add_isupport_i("KICKLEN", TOPICLEN);
-  add_isupport_i("CHANNELLEN", feature_int(FEAT_CHANNELLEN));
   add_isupport_i("MAXCHANNELLEN", CHANNELLEN);
-  add_isupport_s("CHANTYPES", feature_bool(FEAT_LOCAL_CHANNELS) ? "#&" : "#");
-  add_isupport_s("PREFIX", feature_bool(FEAT_HALFOPS) ? "(ohv)@%+" : "(ov)@+");
-  add_isupport_s("STATUSMSG", feature_bool(FEAT_HALFOPS) ? "@%+" : "@+");
+  {
+    int h = feature_bool(FEAT_HALFOPS);
+    int qp = feature_bool(FEAT_OWNERPROTECT);
+    if (qp && h)       { add_isupport_s("PREFIX", "(qaohv)~&@%+"); add_isupport_s("STATUSMSG", "~&@%+"); }
+    else if (qp)        { add_isupport_s("PREFIX", "(qaov)~&@+"); add_isupport_s("STATUSMSG", "~&@+"); }
+    else if (h)          { add_isupport_s("PREFIX", "(ohv)@%+"); add_isupport_s("STATUSMSG", "@%+"); }
+    else                 { add_isupport_s("PREFIX", "(ov)@+"); add_isupport_s("STATUSMSG", "@+"); }
+  }
   add_isupport_s("BOT", "B");
 
-  add_isupport_s("CHANMODES", cmodebuf);
-
-  if (feature_bool(FEAT_EXCEPTS)) {
-    add_isupport_s("EXCEPTS", "e");
-    add_isupport_i("MAXEXCEPTS", feature_int(FEAT_MAXEXCEPTS));
-  }
-
-  if (feature_bool(FEAT_EXTBANS)) {
-    strcat(extbanbuf, "~,");
-
-    if (feature_bool(FEAT_EXTBAN_a))
-      strcat(extbanbuf, "a");
-    if (feature_bool(FEAT_EXTBAN_c))
-      strcat(extbanbuf, "c");
-    if (feature_bool(FEAT_EXTBAN_j))
-      strcat(extbanbuf, "j");
-    if (feature_bool(FEAT_EXTBAN_n))
-      strcat(extbanbuf, "n");
-    if (feature_bool(FEAT_EXTBAN_q))
-      strcat(extbanbuf, "q");
-    if (feature_bool(FEAT_EXTBAN_r))
-      strcat(extbanbuf, "r");
-
-    add_isupport_s("EXTBANS", extbanbuf);
-  }
-
   add_isupport_s("CASEMAPPING", "rfc1459");
-  add_isupport_s("NETWORK", feature_str(FEAT_NETWORK));
-  add_isupport_s("MAXLIST", imaxlist);
   add_isupport_s("ELIST", "CT");
+  add_isupport_i("NAMELEN", REALLEN);   /* IRCv3 setname: max realname length */
 }
 
 /** Send RPL_ISUPPORT lines to \a cptr.

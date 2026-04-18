@@ -87,6 +87,8 @@
 #include "ircd_log.h"
 #include "ircd_reply.h"
 #include "ircd_string.h"
+#include "monitor.h"
+#include "monitor.h"
 #include "msg.h"
 #include "numnicks.h"
 #include "s_auth.h"
@@ -166,8 +168,30 @@ int ms_account(struct Client* cptr, struct Client* sptr, int parc,
         ClearAccount(acptr);
         ircd_strncpy(cli_user(acptr)->account, "", ACCOUNTLEN + 1);
 
+        /*
+         * Network Administrator demotion on de-auth.
+         * If this user was +N (promoted via services auth), losing their
+         * account means they no longer satisfy the dual requirement.
+         * Demote back to +a (Server Admin) — they keep their oper block
+         * privs but lose the active +N flag until they re-authenticate.
+         */
+        if (IsNetAdmin(acptr)) {
+          struct Flags old_mode = cli_flags(acptr);
+          ClearNetAdmin(acptr);
+          if (HasPriv(acptr, PRIV_ADMIN))
+            SetAdmin(acptr); /* ensure +a stays */
+          send_umode_out(acptr, acptr, &old_mode, HasPriv(acptr, PRIV_PROPAGATE));
+          sendcmdto_one(&me, CMD_NOTICE, acptr,
+            "%C :Network Administrator mode (+N) removed — services identity lost. "
+            "You retain Server Administrator (+a). Identify to restore +N.",
+            acptr);
+          sendto_opmask_butone(0, SNO_SACMD,
+            "%C lost services identity — demoted from +N to +a", acptr);
+        }
+
         sendcmdto_common_channels_capab_butone(acptr, CMD_ACCOUNT, acptr, CAP_ACCNOTIFY, CAP_NONE,
                                                "*");
+        monitor_notify_account(acptr); /* IRCv3 extended-monitor */
 
         sendcmdto_serv_butone(sptr, CMD_ACCOUNT, cptr, "%C U", acptr);
       } else if (type == 'R' || type == 'M') {
@@ -194,6 +218,24 @@ int ms_account(struct Client* cptr, struct Client* sptr, int parc,
         ircd_strncpy(cli_user(acptr)->account, parv[3], ACCOUNTLEN + 1);
         SetAccount(acptr);
 
+        /*
+         * Network Administrator promotion on auth.
+         * If this user has an oper block with PRIV_NETADMIN but was
+         * capped at +a during /OPER (because they weren't authed yet),
+         * now that they've identified, promote them to +N.
+         */
+        if (IsAnOper(acptr) && HasPriv(acptr, PRIV_NETADMIN) && !IsNetAdmin(acptr)) {
+          struct Flags old_mode = IsNetAdmin(acptr) ? cli_flags(acptr) : cli_flags(acptr);
+          SetNetAdmin(acptr);
+          send_umode_out(acptr, acptr, &old_mode, HasPriv(acptr, PRIV_PROPAGATE));
+          sendcmdto_one(&me, CMD_NOTICE, acptr,
+            "%C :Network Administrator mode (+N) activated — services identity verified.",
+            acptr);
+          sendto_opmask_butone(0, SNO_SACMD,
+            "%C identified as %s — promoted to Network Administrator (+N)",
+            acptr, parv[3]);
+        }
+
         if (parc > 4) {
           cli_user(acptr)->acc_create = atoi(parv[4]);
           Debug((DEBUG_DEBUG, "Received timestamped account: account \"%s\", "
@@ -202,6 +244,7 @@ int ms_account(struct Client* cptr, struct Client* sptr, int parc,
 
         sendcmdto_common_channels_capab_butone(acptr, CMD_ACCOUNT, acptr, CAP_ACCNOTIFY, CAP_NONE,
                                                "%s", cli_user(acptr)->account);
+        monitor_notify_account(acptr); /* IRCv3 extended-monitor */
 
         if (parc > 4) {
           sendcmdto_serv_butone(sptr, CMD_ACCOUNT, cptr, "%C %c %s %s",
@@ -325,6 +368,7 @@ int ms_account(struct Client* cptr, struct Client* sptr, int parc,
 
     sendcmdto_common_channels_capab_butone(acptr, CMD_ACCOUNT, acptr, CAP_ACCNOTIFY, CAP_NONE,
                                            "%s", cli_user(acptr)->account);
+    monitor_notify_account(acptr); /* IRCv3 extended-monitor */
 
     if (((feature_int(FEAT_HOST_HIDING_STYLE) == 1) ||
          (feature_int(FEAT_HOST_HIDING_STYLE) == 3)) &&

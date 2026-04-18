@@ -158,3 +158,6 @@ extern void vsendto_mode_butone(struct Client *one, struct Client *from, const c
                            const char *pattern, va_list vl);
 
 #endif /* INCLUDED_send_h */
+
+/* IRCv3: Get raw client tags from current parse cycle */
+extern const char *parse_get_raw_tags(void);

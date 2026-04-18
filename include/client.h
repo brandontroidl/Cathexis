@@ -53,6 +53,7 @@
 
 struct ConfItem;
 struct Listener;
+struct S2SCryptoState;
 struct ListingArgs;
 struct SLink;
 struct Server;
@@ -95,7 +96,7 @@ typedef unsigned long flagpage_t;
 #define FlagClr(set,flag) ((set)->bits[FLAGSET_INDEX(flag)] &= ~FLAGSET_MASK(flag))
 
 /** String containing valid user modes, in no particular order. */
-#define infousermodes "adgiknoqswxzBDHLNORWX"
+#define infousermodes "adgiknoqswxzBDHLNORSWX"
 
 /** Operator privileges. */
 enum Priv
@@ -137,6 +138,7 @@ enum Priv
     PRIV_HIDE_CHANNELS, /**< oper can set user mode +n */
     PRIV_HIDE_IDLE, /**< oper can set user mode +I */
     PRIV_ADMIN, /**< oper is an admin (gets, can set and unset mode +a) */
+    PRIV_NETADMIN, /**< oper is a network admin (gets, can set and unset mode +N) */
     PRIV_XTRAOP, /**< oper can set/unset user mode +X */
     PRIV_SERVICE, /**< oper can set/unset user mode +k */
     PRIV_REMOTE, /**< oper can OPER from another server */
@@ -203,12 +205,14 @@ enum Flag
     FLAG_IPSPOOFED,                 /**< Client has had his IP/host changed */
     FLAG_ACCOUNTONLY,               /**< hide privmsgs/notices if user is
                                        not authed or opered */
+    FLAG_CALLERID,                  /**< User mode +G: CallerID / server-side filtering */
     FLAG_PRIVDEAF,                  /**< Client is deaf to all private messages */
     FLAG_COMMONCHANSONLY,           /**< SNIRCD_q: hide privmsgs/notices if in no
                                          common channels (with +ok exceptions) */
     FLAG_BOT,                       /**< Bot */
     FLAG_GEOIP,                     /**< User has had GeoIP data applied */
     FLAG_ADMIN,                     /**< User is an admin (user mode +a) */
+    FLAG_NETADMIN,                  /**< User is a network admin (user mode +N) */
     FLAG_XTRAOP,                    /**< User has user mode +X (XtraOp) */
     FLAG_NOLINK,                    /**< Client will not automatically get redirected if +L is set on a chan */
 
@@ -238,6 +242,8 @@ enum Flag
     FLAG_SERVER_NOOP,               /**< Server has been NOOP'ed */
     FLAG_SENT_CVERSION,             /**< Client's CTCP VERSION reply has been sent out */
 
+    FLAG_SSLONLY_PM,                /**< User mode +S: refuse PMs from non-SSL users */
+
     FLAG_LAST_FLAG,                 /**< number of flags */
     FLAG_LOCAL_UMODES = FLAG_LOCOP, /**< First local mode flag */
     FLAG_GLOBAL_UMODES = FLAG_OPER  /**< First global mode flag */
@@ -265,6 +271,7 @@ struct Connection
   int                 con_error;     /**< last socket level error for client */
   int                 con_sentalong; /**< sentalong marker for connection */
   unsigned int        con_snomask;   /**< mask for server messages */
+  unsigned int        con_capver;    /**< CAP version (0=none, 302=IRCv3.2) */
   time_t              con_nextnick;  /**< Next time a nick change is allowed */
   time_t              con_nexttarget;/**< Next time a target change is allowed */
   time_t              con_lasttime;  /**< Last time data read from socket */
@@ -307,8 +314,12 @@ struct Connection
                                       client */
   struct CapSet       con_capab;     /**< Client capabilities (from us) */
   struct CapSet       con_active;    /**< Active capabilities (to us) */
+  char                con_label[65]; /**< IRCv3 labeled-response pending label */
   struct AuthRequest* con_auth;      /**< Auth request for client */
   struct LOCInfo*     con_loc;       /**< Login-on-connect information */
+#ifdef USE_SSL
+  struct S2SCryptoState *con_s2s_crypto; /**< S2S HMAC crypto state (server links) */
+#endif
 };
 
 /** Magic constant to identify valid Connection structures. */
@@ -348,6 +359,7 @@ struct Client {
   char cli_countryname[256];        /**< GeoIP country name. */
   char cli_continentcode[3];        /**< GeoIP 2 letter continent code. */
   char cli_continentname[256];      /**< GeoIP continent name. */
+  char cli_city[128];               /**< GeoIP city name. */
 
   /* MARKs */
   char cli_webirc[BUFSIZE + 1];     /**< webirc description */
@@ -415,6 +427,7 @@ struct Client {
 #define cli_capab(cli)		con_capab(cli_connect(cli))
 /** Get active client capabilities for client */
 #define cli_active(cli)		con_active(cli_connect(cli))
+#define cli_label(cli)		con_label(cli_connect(cli))
 /** Get client name. */
 #define cli_name(cli)		((cli)->cli_name)
 /** Get client username (ident). */
@@ -445,6 +458,7 @@ struct Client {
 #define cli_continentcode(cli)  ((cli)->cli_continentcode)
 /** Get client GeoIP continent name. */
 #define cli_continentname(cli)  ((cli)->cli_continentname)
+#define cli_city(cli)           ((cli)->cli_city)
 /** Get SASL agent ref count. */
 #define cli_saslagentref(cli)   ((cli)->cli_saslagentref)
 /** Get SASL agent name. */
@@ -470,6 +484,7 @@ struct Client {
 #define cli_sslerror(cli)       con_sslerror(cli_connect(cli))
 /** Get server notice mask for the client. */
 #define cli_snomask(cli)	con_snomask(cli_connect(cli))
+#define cli_capver(cli)	con_capver(cli_connect(cli))
 /** Get next time a nick change is allowed for the client. */
 #define cli_nextnick(cli)	con_nextnick(cli_connect(cli))
 /** Get next time a target change is allowed for the client. */
@@ -526,6 +541,9 @@ struct Client {
 #define cli_auth(cli)		con_auth(cli_connect(cli))
 /** Get login on connect request for client. */
 #define cli_loc(cli)            ((cli)->cli_connect->con_loc)
+#ifdef USE_SSL
+#define cli_s2s_crypto(cli)     ((cli)->cli_connect->con_s2s_crypto)
+#endif
 /** Get sentalong marker for client. */
 #define cli_sentalong(cli)      con_sentalong(cli_connect(cli))
 
@@ -553,6 +571,7 @@ struct Client {
 #define con_sentalong(con)      ((con)->con_sentalong)
 /** Get server notice mask for connection. */
 #define con_snomask(con)	((con)->con_snomask)
+#define con_capver(con)	((con)->con_capver)
 /** Get next nick change time for connection. */
 #define con_nextnick(con)	((con)->con_nextnick)
 /** Get next new target time for connection. */
@@ -611,6 +630,7 @@ struct Client {
 #define con_capab(con)          (&(con)->con_capab)
 /** Get the active capabilities for the connection. */
 #define con_active(con)         (&(con)->con_active)
+#define con_label(con)          ((con)->con_label)
 /** Get the auth request for the connection. */
 #define con_auth(con)		((con)->con_auth)
 
@@ -759,6 +779,7 @@ struct Client {
 #define IsIPSpoofed(x)          HasFlag(x, FLAG_IPSPOOFED)
 /** Return non-zero if the client only accepts messages from clients with an account. */
 #define IsAccountOnly(x)	HasFlag(x, FLAG_ACCOUNTONLY)
+#define IsCallerID(x)           HasFlag(x, FLAG_CALLERID)
 /** Return non-zero if the client is private deaf */
 #define IsPrivDeaf(x)           HasFlag(x, FLAG_PRIVDEAF)
 /** Return non-zero if the client has set mode +q (common chans only). */
@@ -769,6 +790,7 @@ struct Client {
 #define IsGeoIP(x)              HasFlag(x, FLAG_GEOIP)
 /** Return non-zero if the client is an admin. */
 #define IsAdmin(x)              HasFlag(x, FLAG_ADMIN)
+#define IsNetAdmin(x)           HasFlag(x, FLAG_NETADMIN)
 /** Return non-zero if the client has set +X. */
 #define IsXtraOp(x)             HasFlag(x, FLAG_XTRAOP)
 /** Return non-zero if the client has set +L. */
@@ -793,6 +815,7 @@ struct Client {
 #define IsNotIPCheckExempt(x)   HasFlag(x, FLAG_IPCNOTEXEMPT)
 /** Return non-zero if the client has completed SASL authentication. */
 #define IsSASLComplete(x)       HasFlag(x, FLAG_SASLCOMPLETE)
+#define IsSSLOnlyPM(x)         HasFlag(x, FLAG_SSLONLY_PM)
 /** Return non-zero if the client has been marked. */
 #define IsMarked(x)             HasFlag(x, FLAG_MARKED)
 /** Return non-zero if the client cannot join channels. */
@@ -889,6 +912,7 @@ struct Client {
 #define SetGeoIP(x)             SetFlag(x, FLAG_GEOIP)
 /** Mark a client as being an admin. */
 #define SetAdmin(x)             SetFlag(x, FLAG_ADMIN)
+#define SetNetAdmin(x)          SetFlag(x, FLAG_NETADMIN)
 /** Mark a client as having mode +X (XtraOp). */
 #define SetXtraOp(x)            SetFlag(x, FLAG_XTRAOP)
 /** Mark a client as having mode +L (No Redirect). */
@@ -913,6 +937,7 @@ struct Client {
 #define SetNotIPCheckExempt(x)  SetFlag(x, FLAG_IPCNOTEXEMPT)
 /** Mark a client as having completed SASL authentication. */
 #define SetSASLComplete(x)      SetFlag(x, FLAG_SASLCOMPLETE)
+#define SetSSLOnlyPM(x)        SetFlag(x, FLAG_SSLONLY_PM)
 /** Mark a client as having been marked.. */
 #define SetMarked(x)            SetFlag(x, FLAG_MARKED)
 /** Mark a client as not being allowed to join channels. */
@@ -994,6 +1019,7 @@ struct Client {
 #define ClearGeoIP(x)           ClrFlag(x, FLAG_GEOIP)
 /** Client is no long an admin. */
 #define ClearAdmin(x)           ClrFlag(x, FLAG_ADMIN)
+#define ClearNetAdmin(x)        ClrFlag(x, FLAG_NETADMIN)
 /** Remove mode +X (XtraOp) flag from client */
 #define ClearXtraOp(x)          ClrFlag(x, FLAG_XTRAOP)
 /** Remove mode +L (No Redirect) flag from client */
@@ -1008,6 +1034,7 @@ struct Client {
 #define ClearSetHost(x)         ClrFlag(x, FLAG_SETHOST)
 /** Client is no longer connected via SSL (this cannot be possible). */
 #define ClearSSL(x)             ClrFlag(x, FLAG_SSL)
+#define ClearSSLOnlyPM(x)      ClrFlag(x, FLAG_SSLONLY_PM)
 /** Client is no longer using STARTTLS. */
 #define ClearStartTLS(x)        ClrFlag(x, FLAG_STARTTLS)
 /** Client no longer needs SSL_accept(). */
@@ -1067,11 +1094,24 @@ struct Client {
 #define SNO_AUTH        0x40000 /**< IAuth notices */
 #define SNO_WEBIRC      0x80000 /**< WebIRC notices */
 
+/* ── New Cathexis SNO masks ── */
+#define SNO_SHUN        0x100000  /**< shun notices */
+#define SNO_ZLINE       0x200000  /**< Z-line notices */
+#define SNO_SASL        0x400000  /**< SASL authentication */
+#define SNO_SACMD       0x800000  /**< SA* command usage */
+#define SNO_FLOOD       0x1000000 /**< flood/excess notices */
+#define SNO_TLS         0x2000000 /**< TLS connection info */
+#define SNO_ACCOUNT     0x4000000 /**< account changes */
+#define SNO_SPAMF       0x8000000 /**< spamfilter matches */
+
+/* Extended SNO types — see snomask_ext.h */
+#include "snomask_ext.h"
+
 /** Bitmask of all valid server notice bits. */
 #ifdef DEBUGMODE
-# define SNO_ALL        0xfffff
+# define SNO_ALL        0x0fffffff
 #else
-# define SNO_ALL        0xeffff
+# define SNO_ALL        0x0effffff
 #endif
 
 /** Server notice bits allowed to normal users. */
@@ -1080,9 +1120,9 @@ struct Client {
 /** Server notice bits enabled by default for normal users. */
 #define SNO_DEFAULT (SNO_NETWORK|SNO_OPERKILL|SNO_GLINE)
 /** Server notice bits enabled by default for IRC operators. */
-#define SNO_OPERDEFAULT (SNO_DEFAULT|SNO_HACK2|SNO_THROTTLE|SNO_OLDSNO)
+#define SNO_OPERDEFAULT (SNO_DEFAULT|SNO_HACK2|SNO_THROTTLE|SNO_OLDSNO|SNO_SASL|SNO_SACMD|SNO_SHUN|SNO_ZLINE|SNO_ACCOUNT)
 /** Server notice bits reserved to IRC operators. */
-#define SNO_OPER (SNO_CONNEXIT|SNO_OLDREALOP|SNO_AUTH)
+#define SNO_OPER (SNO_CONNEXIT|SNO_OLDREALOP|SNO_AUTH|SNO_SACMD|SNO_TLS|SNO_SPAMF|SNO_FLOOD)
 /** Noisy server notice bits that cause other bits to be cleared during connect. */
 #define SNO_NOISY (SNO_SERVKILL|SNO_UNAUTH)
 

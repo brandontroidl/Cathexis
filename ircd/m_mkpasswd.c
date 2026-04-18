@@ -2,25 +2,12 @@
  * IRC - Internet Relay Chat, ircd/m_mkpasswd.c
  * Copyright (C) 1990 Jarkko Oikarinen and
  *                    University of Oulu, Computing Center
- *
- * See file AUTHORS in IRC package for additional names of
- * the programmers.
+ * Copyright (C) 2026 Cathexis Development
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 1, or (at your option)
  * any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
- *
- * $Id$
  */
 #include "config.h"
 
@@ -30,7 +17,7 @@
 #include "ircd_crypt.h"
 #include "ircd_crypt_native.h"
 #include "ircd_crypt_plain.h"
-#include "ircd_crypt_smd5.h"
+#include "ircd_crypt_argon2.h"
 #include "ircd_log.h"
 #include "ircd_reply.h"
 #include "ircd_string.h"
@@ -40,70 +27,80 @@
 #include "numnicks.h"
 #include "send.h"
 
-/* #include <assert.h> -- Now using assert in ircd_log.h */
+#include <crypt.h>
 
 static char saltChars[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789./";
 
-static char *make_salt(void)
+static char *make_sha_salt(int variant)
 {
-  static char salt[3];
-  /* Use ircrandom() for better entropy than time-seeded random() */
-  salt[0] = saltChars[ircrandom() % 64];
-  salt[1] = saltChars[ircrandom() % 64];
-  salt[2] = '\0';
-  return salt;
-}
-
-static char *make_md5_salt(void)
-{
-  static char salt[13];
+  static char salt[24];
   int i;
-  /* Use ircrandom() for better entropy than time-seeded random() */
   salt[0] = '$';
-  salt[1] = '1';
+  salt[1] = (variant == 512) ? '6' : '5';
   salt[2] = '$';
-  for (i=3; i<11; i++)
+  for (i = 3; i < 19; i++)
     salt[i] = saltChars[ircrandom() % 64];
-  salt[11] = '$';
-  salt[12] = '\0';
+  salt[19] = '$';
+  salt[20] = '\0';
   return salt;
 }
 
 /*
- * m_mkpasswd - generic message handler
+ * m_mkpasswd - generate password hashes
+ *
+ * Usage: MKPASSWD <password> [ARGON2|BCRYPT|SHA512|SHA256|PLAIN]
+ * Default (no type): ARGON2 if available, SHA512 otherwise
  */
 int m_mkpasswd(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
 {
-  const char *pass;
-  const char *prefix = "";
+  const char *pass = NULL;
 
   if (parc < 2)
     return need_more_params(sptr, "MKPASSWD");
 
-  if (parc == 3) {
-    if (!ircd_strcmp(parv[2], "DES")) {
-      pass = ircd_crypt_native(parv[1], make_salt());
-    } else if (!ircd_strcmp(parv[2], "MD5")) {
-      pass = ircd_crypt_native(parv[1], make_md5_salt());
-    } else if (!ircd_strcmp(parv[2], "SMD5")) {
-      pass = ircd_crypt_smd5(parv[1], make_salt());
-      prefix = "$SMD5$";
+  if (parc >= 3) {
+    if (!ircd_strcmp(parv[2], "ARGON2")) {
+#ifdef USE_ARGON2
+      pass = ircd_crypt_argon2(parv[1]);
+      if (!pass) {
+        sendcmdto_one(&me, CMD_NOTICE, sptr,
+                      "%C :MKPASSWD: Argon2id hashing failed", sptr);
+        return 0;
+      }
+#else
+      sendcmdto_one(&me, CMD_NOTICE, sptr,
+                    "%C :MKPASSWD: Argon2 not compiled (install libargon2-dev)", sptr);
+      return 0;
+#endif
+    } else if (!ircd_strcmp(parv[2], "BCRYPT")) {
+      pass = ircd_crypt_native(parv[1], "$2b$12$xxxxxxxxxxxxxxxxxxxx..");
+    } else if (!ircd_strcmp(parv[2], "SHA512")) {
+      pass = crypt(parv[1], make_sha_salt(512));
+    } else if (!ircd_strcmp(parv[2], "SHA256")) {
+      pass = crypt(parv[1], make_sha_salt(256));
     } else if (!ircd_strcmp(parv[2], "PLAIN")) {
       pass = ircd_crypt_plain(parv[1], "plain");
-      prefix = "$PLAIN$";
     } else {
       sendcmdto_one(&me, CMD_NOTICE, sptr,
-                    "%C :MKPASSWD syntax error: MKPASSWD <pass> [DES|MD5|SMD5|PLAIN]",
+                    "%C :MKPASSWD <pass> [ARGON2|BCRYPT|SHA512|SHA256|PLAIN]",
                     sptr);
       return 0;
     }
   } else {
-    pass = ircd_crypt_native(parv[1], make_salt());
+    /* Default: ARGON2 if available, SHA512 otherwise */
+#ifdef USE_ARGON2
+    pass = ircd_crypt_argon2(parv[1]);
+#endif
+    if (!pass)
+      pass = crypt(parv[1], make_sha_salt(512));
   }
 
-  sendcmdto_one(&me, CMD_NOTICE, sptr, "%C :Encryption for [%s]: %s%s",
-                sptr, parv[1], prefix, pass);
+  if (pass)
+    sendcmdto_one(&me, CMD_NOTICE, sptr, "%C :Encryption for [%s]: %s",
+                  sptr, parv[1], pass);
+  else
+    sendcmdto_one(&me, CMD_NOTICE, sptr, "%C :MKPASSWD: hashing failed",
+                  sptr);
 
   return 0;
 }
-

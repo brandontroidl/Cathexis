@@ -63,6 +63,8 @@
 #include "s_misc.h"
 #include "s_user.h"
 #include "send.h"
+#include "ircd_tags.h"
+#include "ircd_snprintf.h"
 
 /* #include <assert.h> -- Now using assert in ircd_log.h */
 #include <stdio.h>
@@ -76,6 +78,61 @@
  * to be cleaned up a bit. The idea is to factor out the common checks
  * but not introduce any IsOper/IsUser/MyUser/IsServer etc. stuff.
  */
+
+/** Send an echo-message back to the sender with proper IRCv3 tags.
+ * Injects server-time, msgid, account, and bot tags. Also includes
+ * any client-only tags the sender attached to the original message.
+ * @param[in] sptr  Client to echo back to.
+ * @param[in] cmd   Command string ("PRIVMSG" or "NOTICE").
+ * @param[in] target  Target string (channel name or nick).
+ * @param[in] text  Message text.
+ */
+static void echo_with_tags(struct Client *sptr, const char *cmd,
+                           const char *target, const char *text)
+{
+  struct MsgTags mt;
+  char tagbuf[512];
+  char sendbuf[BUFSIZE];
+  const char *raw_tags;
+  int taglen;
+
+  msgtags_init(&mt);
+  msgtags_inject_for_source(&mt, sptr);
+
+  /* Include any client-only tags from the original message */
+  raw_tags = parse_get_raw_tags();
+  if (raw_tags && *raw_tags) {
+    struct MsgTags client_mt;
+    msgtags_init(&client_mt);
+    msgtags_parse(&client_mt, raw_tags);
+    /* Merge client-only tags into our tag set */
+    int i;
+    for (i = 0; i < client_mt.count; i++) {
+      if (client_mt.tags[i].client_only)
+        msgtags_set(&mt, client_mt.tags[i].key, client_mt.tags[i].value);
+    }
+  }
+
+  /* Format tags for this specific client's CAP set.
+   * msgtags_for_client returns "@tag=val;... " (with @ prefix and trailing space) */
+  taglen = msgtags_for_client(&mt, sptr, tagbuf, sizeof(tagbuf));
+
+  if (taglen > 0) {
+    ircd_snprintf(0, sendbuf, sizeof(sendbuf), "%s:%s!%s@%s %s %s :%s",
+                  tagbuf, cli_name(sptr),
+                  cli_user(sptr) ? cli_user(sptr)->username : "*",
+                  cli_user(sptr) ? cli_user(sptr)->host : "*",
+                  cmd, target, text);
+  } else {
+    ircd_snprintf(0, sendbuf, sizeof(sendbuf), ":%s!%s@%s %s %s :%s",
+                  cli_name(sptr),
+                  cli_user(sptr) ? cli_user(sptr)->username : "*",
+                  cli_user(sptr) ? cli_user(sptr)->host : "*",
+                  cmd, target, text);
+  }
+
+  sendrawto_one(sptr, "%s", sendbuf);
+}
 
 /** Relay a local user's message to a channel.
  * Generates an error if the client cannot send to the channel.
@@ -135,9 +192,23 @@ void relay_channel_message(struct Client* sptr, const char* name, const char* te
     }
   }
 
+  /* Activity-type extban enforcement: ~C (no-CTCP), ~T (text pattern) */
+  {
+    int is_ctcp = (*text == '\x01' && ircd_strncmp(text+1, "ACTION", 6));
+    if (!check_activity_extbans(sptr, chptr, text, is_ctcp, 0)) {
+      send_reply(sptr, ERR_CANNOTSENDTOCHAN, chptr->chname);
+      return;
+    }
+  }
+
+
   RevealDelayedJoinIfNeeded(sptr, chptr);
   sendcmdto_channel_butone(sptr, CMD_PRIVATE, chptr, cli_from(sptr),
 			   SKIP_DEAF | SKIP_BURST, text[0], "%H :%s", chptr, mytext);
+
+  /* IRCv3 echo-message: send copy back to the sender */
+  if (MyConnect(sptr) && CapActive(sptr, CAP_ECHOMSG))
+    echo_with_tags(sptr, "PRIVMSG", chptr->chname, mytext);
 }
 
 /** Relay a local user's notice to a channel.
@@ -189,9 +260,18 @@ void relay_channel_notice(struct Client* sptr, const char* name, const char* tex
       return;
   }
 
+  /* Activity-type extban enforcement: ~N (no-notice), ~T (text pattern) */
+  if (!check_activity_extbans(sptr, chptr, text, 0, 1))
+    return;
+
+
   RevealDelayedJoinIfNeeded(sptr, chptr);
   sendcmdto_channel_butone(sptr, CMD_NOTICE, chptr, cli_from(sptr),
 			   SKIP_DEAF | SKIP_BURST, '\0', "%H :%s", chptr, mytext);
+
+  /* IRCv3 echo-message: send copy back to the sender */
+  if (MyConnect(sptr) && CapActive(sptr, CAP_ECHOMSG))
+    echo_with_tags(sptr, "NOTICE", chptr->chname, mytext);
 }
 
 /** Relay a message to a channel.
@@ -326,6 +406,14 @@ void relay_directed_message(struct Client* sptr, char* name, char* server, const
     return;
   }
 
+  /* +S check: target only accepts PMs from SSL users */
+  if (IsSSLOnlyPM(acptr) && !IsSSL(sptr) && !IsOper(sptr) && (acptr != sptr)) {
+    send_reply(sptr, ERR_SSLONLYPM, cli_name(acptr), "PRIVMSG");
+    return;
+  }
+
+
+
   /*
    * +D check, if target is +D and we're not opered then deny
    * the message.
@@ -399,6 +487,10 @@ void relay_directed_notice(struct Client* sptr, char* name, char* server, const 
     return;
   }
 
+  /* +S check: target only accepts NOTICEs from SSL users */
+  if (IsSSLOnlyPM(acptr) && !IsSSL(sptr) && !IsOper(sptr) && (acptr != sptr))
+    return; /* NOTICE silently drops */
+
   /*
    * +D check, if target is +D and we're not opered then deny
    * the message.
@@ -452,6 +544,12 @@ void relay_private_message(struct Client* sptr, const char* name, const char* te
     return;
   }
 
+  /* +S check: target only accepts PMs from SSL users */
+  if (IsSSLOnlyPM(acptr) && !IsSSL(sptr) && !IsOper(sptr) && (acptr != sptr)) {
+    send_reply(sptr, ERR_SSLONLYPM, cli_name(acptr), "PRIVMSG");
+    return;
+  }
+
   /*
    * +D check, if target is +D and we're not opered then deny
    * the message.
@@ -479,6 +577,10 @@ void relay_private_message(struct Client* sptr, const char* name, const char* te
     add_target(acptr, sptr);
 
   sendcmdto_one(sptr, CMD_PRIVATE, acptr, "%C :%s", acptr, text);
+
+  /* IRCv3 echo-message: send copy back to the sender */
+  if (MyConnect(sptr) && CapActive(sptr, CAP_ECHOMSG))
+    echo_with_tags(sptr, "PRIVMSG", cli_name(acptr), text);
 }
 
 /** Relay a private notice from a local user.
@@ -512,6 +614,10 @@ void relay_private_notice(struct Client* sptr, const char* name, const char* tex
     return;
   }
 
+  /* +S check: target only accepts NOTICEs from SSL users */
+  if (IsSSLOnlyPM(acptr) && !IsSSL(sptr) && !IsOper(sptr) && (acptr != sptr))
+    return; /* NOTICE silently drops */
+
   /*
    * +D check, if target is +D and we're not opered then deny
    * the message.
@@ -527,6 +633,7 @@ void relay_private_notice(struct Client* sptr, const char* name, const char* tex
     return;
   }
 
+
   /*
    * deliver the message
    */
@@ -534,6 +641,10 @@ void relay_private_notice(struct Client* sptr, const char* name, const char* tex
     add_target(acptr, sptr);
 
   sendcmdto_one(sptr, CMD_NOTICE, acptr, "%C :%s", acptr, text);
+
+  /* IRCv3 echo-message: send copy back to the sender */
+  if (MyConnect(sptr) && CapActive(sptr, CAP_ECHOMSG))
+    echo_with_tags(sptr, "NOTICE", cli_name(acptr), text);
 }
 
 /** Relay a private message that arrived from a server.

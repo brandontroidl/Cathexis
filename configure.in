@@ -759,80 +759,13 @@ if test x"$unet_cv_enable_ssl" = xyes; then
 fi
 
 dnl **
-dnl **  GeoIP checks (GeoIP)
+dnl **  GeoIP checks — Legacy libGeoIP removed in Cathexis 1.4.0
+dnl **  Only MaxMindDB (libmaxminddb) is supported now.
+dnl **  The --disable-geoip flag controls FEAT_GEOIP_ENABLE at runtime.
 dnl **
-AC_MSG_CHECKING([whether to enable GeoIP support])
-AC_ARG_ENABLE([geoip],
-[  --disable-geoip         Disable GeoIP support],
-[unet_cv_enable_geoip=$enable_geoip],
-[AC_CACHE_VAL(unet_cv_enable_geoip,
-[unet_cv_enable_geoip=yes])])
-AC_MSG_RESULT([$unet_cv_enable_geoip])
-
-if test x"$unet_cv_enable_geoip" = xyes; then
-  AC_ARG_WITH([geoip],
-  AS_HELP_STRING([--with-geoip=dir], [Specify the installation prefix of GeoIP (default: /usr/local)]),
-  [base_geoip_prefix=$withval],
-  [base_geoip_prefix=/usr/local])
-
-  AC_MSG_CHECKING([for GeoIP includes])
-  AC_ARG_WITH([geoip-includes],
-  AS_HELP_STRING([--with-geoip-includes=dir], [Specify location of GeoIP header files (default: /usr/local/include)]),
-  [base_geoip_inc=$withval],
-  [base_geoip_inc=$base_geoip_prefix/include])
-  [unet_cv_with_geoip_inc_prefix=$base_geoip_inc]
-  AC_MSG_RESULT([$unet_cv_with_geoip_inc_prefix])
-  AC_DEFINE_UNQUOTED(GEOIP_INCLUDES_PATH, "$base_geoip_inc", [Path name used as a base for the GeoIP include files.])
-
-  AC_MSG_CHECKING([for GeoIP libraries])
-  AC_ARG_WITH([geoip-libs],
-  AS_HELP_STRING([--with-geoip-libs=dir], [Specify location of GeoIP libs (default: /usr/local/lib)]),
-  [base_geoip_lib=$withval],
-  [base_geoip_lib=$base_geoip_prefix/lib])
-  [unet_cv_with_geoip_prefix=$base_geoip_lib]
-  AC_MSG_RESULT([$unet_cv_with_geoip_prefix])
-  AC_DEFINE_UNQUOTED(GEOIP_LIBS_PATH, "$unet_cv_with_geoip_prefix", [Path name used as a base for the GeoIP lib files.])
-
-  save_CFLAGS=$CFLAGS
-  save_LIBS=$LIBS
-
-  CFLAGS="-I$unet_cv_with_geoip_inc_prefix"
-  LIBS="-L$unet_cv_with_geoip_prefix"
-
-  AC_CHECK_HEADERS($unet_cv_with_geoip_inc_prefix/GeoIP.h, [
-    AC_CHECK_LIB(GeoIP, GeoIP_id_by_addr_gl, [
-      AC_CHECK_LIB(GeoIP, GeoIP_id_by_addr_v6_gl, [
-        enable_geoip="yes";
-        enable_geoip_gl="yes";
-        GEOIP_LDFLAGS="-lGeoIP"
-      ])
-    ], [
-      AC_CHECK_LIB(GeoIP, GeoIP_id_by_addr, [
-        AC_CHECK_LIB(GeoIP, GeoIP_id_by_addr_v6, [
-          enable_geoip="yes";
-          GEOIP_LDFLAGS="-lGeoIP"
-        ])
-      ])
-    ])
-  ])
-
-  LIBS=$save_LIBS
-  CFLAGS=$save_CFLAGS
-
-  if test "x$enable_geoip" = xyes; then
-    AC_DEFINE([USE_GEOIP], , [Define if you are using GeoIP])
-    if test "x$enable_geoip_gl" = xyes; then
-      AC_DEFINE([USE_GEOIP_GL], , [Define if you are using GeoIP with *_gl() functions])
-    fi
-    LIBS="$LIBS -L$unet_cv_with_geoip_prefix $GEOIP_LDFLAGS"
-    CFLAGS="$CFLAGS -I$unet_cv_with_geoip_inc_prefix"
-  else
-     AC_MSG_WARN([Unable to find GeoIP, GeoIP features will not work without libGeoIP. Disabling GeoIP support.])
-  fi
-fi
 
 dnl **
-dnl **  MaxMindDB checks (GeoIP)
+dnl **  MaxMindDB checks (GeoIP2)
 dnl **
 AC_MSG_CHECKING([whether to enable MaxMindDB support])
 AC_ARG_ENABLE([mmdb],
@@ -890,6 +823,39 @@ if test x"$unet_cv_enable_mmdb" = xyes; then
     CFLAGS="$CFLAGS -I$unet_cv_with_mmdb_inc_prefix"
   else
      AC_MSG_WARN([Unable to find MaxMindDB, MaxMindDB features will not work without libmaxminddb. Disabling MaxMindDB support.])
+  fi
+fi
+
+dnl **
+dnl **  Argon2 checks (libargon2)
+dnl **
+AC_MSG_CHECKING([whether to enable Argon2 password hashing])
+AC_ARG_ENABLE([argon2],
+[  --disable-argon2        Disable Argon2id password hashing],
+[unet_cv_enable_argon2=$enable_argon2],
+[AC_CACHE_VAL(unet_cv_enable_argon2,
+[unet_cv_enable_argon2=yes])])
+AC_MSG_RESULT([$unet_cv_enable_argon2])
+
+if test x"$unet_cv_enable_argon2" = xyes; then
+  save_CFLAGS=$CFLAGS
+  save_LIBS=$LIBS
+
+  AC_CHECK_HEADERS(argon2.h, [
+    AC_CHECK_LIB(argon2, argon2id_hash_encoded, [
+      enable_argon2="yes"
+      ARGON2_LDFLAGS="-largon2"
+    ])
+  ])
+
+  LIBS=$save_LIBS
+  CFLAGS=$save_CFLAGS
+
+  if test "x$enable_argon2" = xyes; then
+    AC_DEFINE([USE_ARGON2], , [Define if you have libargon2 for Argon2id hashing])
+    LIBS="$LIBS $ARGON2_LDFLAGS"
+  else
+    AC_MSG_WARN([libargon2 not found. Install libargon2-dev for Argon2id password support.])
   fi
 fi
 

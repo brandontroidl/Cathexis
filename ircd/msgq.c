@@ -42,7 +42,7 @@
 #include <sys/uio.h>	/* struct iovec */
 
 #define MB_BASE_SHIFT	5 /**< Log2 of smallest message body to allocate. */
-#define MB_MAX_SHIFT	9 /**< Log2 of largest message body to allocate. */
+#define MB_MAX_SHIFT	10 /**< Log2 of largest message body to allocate. */
 
 /** Buffer for a single message. */
 struct MsgBuf {
@@ -263,7 +263,7 @@ msgq_alloc(struct MsgBuf *in_mb, int length)
     if ((length - 1) >> power == 0)
       break;
   assert((1 << power) >= length);
-  assert((1 << power) <= 512);
+  assert((1 << power) <= (1 << MB_MAX_SHIFT));
   length = 1 << power; /* reset the length */
 
   /* If the message needs a buffer of exactly the existing size, just use it */
@@ -606,6 +606,35 @@ msgq_bufleft(struct MsgBuf *mb)
   assert(0 != mb);
 
   return bufsize(mb) - mb->length; /* \r\n counted in mb->length */
+}
+
+/** Return pointer to the message text in a MsgBuf.
+ * Used by the S2S HMAC signing layer to read message content
+ * before sending. The returned string is NOT null-terminated
+ * (it ends with \r\n); use msgq_msglen() for the length.
+ * @param[in] mb MsgBuf to read.
+ * @return Pointer to message text.
+ */
+const char *
+msgq_text(struct MsgBuf *mb)
+{
+  assert(0 != mb);
+  if (mb->real)
+    return mb->real->msg;
+  return mb->msg;
+}
+
+/** Return the length of the message in a MsgBuf (including \r\n).
+ * @param[in] mb MsgBuf to measure.
+ * @return Message length.
+ */
+unsigned int
+msgq_msglen(struct MsgBuf *mb)
+{
+  assert(0 != mb);
+  if (mb->real)
+    return mb->real->length;
+  return mb->length;
 }
 
 /** Send histogram of message lengths to a client.

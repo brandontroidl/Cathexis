@@ -1,249 +1,304 @@
+                    GNU GENERAL PUBLIC LICENSE
+                       Version 3, 29 June 2007
 
-		    GNU GENERAL PUBLIC LICENSE
-		     Version 1, February 1989
+Cathexis IRCd is distributed under the terms of the GNU General Public
+License version 3 or later (GPL-3.0-or-later).
 
- Copyright (C) 1989 Free Software Foundation, Inc.
-                    675 Mass Ave, Cambridge, MA 02139, USA
- Everyone is permitted to copy and distribute verbatim copies
- of this license document, but changing it is not allowed.
+The full text of the GNU General Public License version 3 is in the
+file COPYING in this distribution, and at:
+    https://www.gnu.org/licenses/gpl-3.0.txt
 
-			    Preamble
+===========================================================================
+                        LICENSE HERITAGE CHAIN
+===========================================================================
 
-  The license agreements of most software companies try to keep users
-at the mercy of those companies.  By contrast, our General Public
-License is intended to guarantee your freedom to share and change free
-software--to make sure the software is free for all its users.  The
-General Public License applies to the Free Software Foundation's
-software and to any other program whose authors commit to using it.
-You can use it for your programs, too.
+This software is a derivative work with contributions spanning 35+ years
+of IRC development. Each layer permits redistribution under later GPL
+versions via their "or (at your option) any later version" clauses.
 
-  When we speak of free software, we are referring to freedom, not
-price.  Specifically, the General Public License is designed to make
-sure that you have the freedom to give away or sell copies of free
-software, that you receive source code or can get it if you want it,
-that you can change the software or use pieces of it in new free
-programs; and that you know you can do these things.
+LAYER 1: Original IRC Daemon (1988-1991)
+  Copyright (C) 1988-1991 University of Oulu, Computing Center, Finland
+  Author: Jarkko Oikarinen <jto@tolsun.oulu.fi>
+  License: GNU General Public License v1 or later
 
-  To protect your rights, we need to make restrictions that forbid
-anyone to deny you these rights or to ask you to surrender the rights.
-These restrictions translate to certain responsibilities for you if you
-distribute copies of the software, or if you modify it.
+LAYER 2: ircu / IRCu2 (1990-2005)
+  Copyright (C) 1990-2005 Undernet Coder Committee
+  Key Contributors:
+    Carlo Wood (Run), Thomas Helvey (Bleep), Kevin L. Mitchell (Kev),
+    Perry Lorier (Isomer), Michael Poole (Entrope), Darren Reed,
+    Andrea Cocito (Nemesi), Markku Savela, Joseph Bongaarts,
+    Carlo Wood <carlo@alinoe.com>, hikari
+  License: GNU General Public License v1 or later (most files)
+           GNU General Public License v2 or later (files from 1998+)
+  Note: See doc/Authors for complete contributor list.
 
-  For example, if you distribute copies of a such a program, whether
-gratis or for a fee, you must give the recipients all the rights that
-you have.  You must make sure that they, too, receive or can get the
-source code.  And you must tell them their rights.
+LAYER 3: Nefarious IRCu / Nefarious2 (2004-2015)
+  Copyright (C) 2004-2015 AfterNET IRC Network
+  Authors:
+    Matthew Beeching (Jobe), Alex Schumann (Rubin),
+    Neil Spierling (SirVulcan), Andromeda, Obnoxious
+  License: GNU General Public License v2 or later
+  Some files under GPL v3 or later:
+    Toni Garcia (zoltan) / IRC-Dev Development Team — watch.c, m_watch.c,
+    watch.h. Also: m_check.c, m_smo.c, m_sno.c, m_protoctl.c, mark.h
+  Note: See doc/Authors.nefarious for complete contributor list.
 
-  We protect your rights with two steps: (1) copyright the software, and
-(2) offer you this license which gives you legal permission to copy,
-distribute and/or modify the software.
+LAYER 4: Cathexis IRCd (2026-present)
+  Copyright (C) 2026 Brandon Troidl
+  License: GNU General Public License v3 or later
+  New files authored for Cathexis (all GPL v3+):
+    ircd/ircd_encrypt.c      ircd/m_encrypt.c      include/ircd_encrypt.h
+    ircd/s2s_crypto.c        include/s2s_crypto.h   include/ircd_crypto.h
+    ircd/ircd_crypt_sha.c    include/ircd_crypt_sha.h
+    ircd/monitor.c           ircd/m_monitor.c       include/monitor.h
+    ircd/ircd_batch.c        include/ircd_batch.h
+    ircd/m_chathistory.c     ircd/m_knock.c         ircd/m_dline.c
+    ircd/m_help.c            ircd/m_sa.c
+    include/capab_ircv3_ext.h  include/extban_ext.h
+    include/snomask_ext.h      include/oper_levels.h
 
-  Also, for each author's protection and ours, we want to make certain
-that everyone understands that there is no warranty for this free
-software.  If the software is modified by someone else and passed on, we
-want its recipients to know that what they have is not the original, so
-that any problems introduced by others will not reflect on the original
-authors' reputations.
+===========================================================================
+                   NON-GPL LICENSED COMPONENTS
+===========================================================================
 
-  The precise terms and conditions for copying, distribution and
-modification follow.
-
-		    GNU GENERAL PUBLIC LICENSE
-   TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
+The following files contain code under licenses other than the GPL.
+All are permissive licenses compatible with GPL v3.
 
-  0. This License Agreement applies to any program or other work which
-contains a notice placed by the copyright holder saying it may be
-distributed under the terms of this General Public License.  The
-"Program", below, refers to any such program or work, and a "work based
-on the Program" means either the Program or any work containing the
-Program or a portion of it, either verbatim or with modifications.  Each
-licensee is addressed as "you".
+1. PUBLIC DOMAIN
+   Files: ircd/ircd_md5.c, include/ircd_md5.h
+   Author: Colin Plumb, 1993
+   Notice: "no copyright is claimed. This code is in the public domain;
+            do with it what you wish."
+   Compatibility: Public domain is compatible with all licenses.
 
-  1. You may copy and distribute verbatim copies of the Program's source
-code as you receive it, in any medium, provided that you conspicuously and
-appropriately publish on each copy an appropriate copyright notice and
-disclaimer of warranty; keep intact all the notices that refer to this
-General Public License and to the absence of any warranty; and give any
-other recipients of the Program a copy of this General Public License
-along with the Program.  You may charge a fee for the physical act of
-transferring a copy.
+2. BSD 4-CLAUSE LICENSE (Original BSD)
+   File: ircd/ircd_reslib.c (portions)
+   Copyright (C) 1985, 1993 The Regents of the University of California.
+   All rights reserved.
+   Terms: Redistribution permitted with conditions:
+     - Retain copyright notice and disclaimer
+     - Reproduce in binary distributions
+     - Advertising materials must acknowledge UC Berkeley
+     - No endorsement without written permission
+   Compatibility: BSD 4-Clause is GPL-compatible. The advertising
+   clause applies only to advertising materials mentioning features
+   or use of this specific code.
 
-  2. You may modify your copy or copies of the Program or any portion of
-it, and copy and distribute such modifications under the terms of Paragraph
-1 above, provided that you also do the following:
+3. DIGITAL EQUIPMENT CORPORATION PERMISSIVE LICENSE
+   File: ircd/ircd_reslib.c (portions)
+   Copyright (C) 1993 Digital Equipment Corporation.
+   Terms: Permission to use, copy, modify, and distribute for any
+   purpose with or without fee is granted, provided copyright notice
+   and permission notice appear in all copies.
+   Compatibility: Permissive, GPL-compatible.
 
-    a) cause the modified files to carry prominent notices stating that
-    you changed the files and the date of any change; and
+4. ISC LICENSE
+   File: ircd/ircd_reslib.c (portions)
+   Copyright (C) 1996-1999 Internet Software Consortium.
+   Terms: Permission to use, copy, modify, and distribute for any
+   purpose with or without fee is granted, provided copyright notice
+   and permission notice appear in all copies.
+   Compatibility: ISC is GPL-compatible (functionally equivalent to
+   simplified BSD/MIT).
 
-    b) cause the whole of any work that you distribute or publish, that
-    in whole or in part contains the Program or any part thereof, either
-    with or without modifications, to be licensed at no charge to all
-    third parties under the terms of this General Public License (except
-    that you may choose to grant warranty protection to some or all
-    third parties, at your option).
+===========================================================================
+                       TOOLS AND SCRIPTS
+===========================================================================
 
-    c) If the modified program normally reads commands interactively when
-    run, you must cause it, when started running for such interactive use
-    in the simplest and most usual way, to print or display an
-    announcement including an appropriate copyright notice and a notice
-    that there is no warranty (or else, saying that you provide a
-    warranty) and that users may redistribute the program under these
-    conditions, and telling the user how to view a copy of this General
-    Public License.
+tools/ringlog.c
+  Copyright (C) 2002 Kevin L. Mitchell <klmitch@mit.edu>
+  License: GNU General Public License v2 or later
 
-    d) You may charge a fee for the physical act of transferring a
-    copy, and you may at your option offer warranty protection in
-    exchange for a fee.
+tools/ringlog.pl
+  Copyright (C) 2002 Kevin L. Mitchell <klmitch@mit.edu>
+  License: GNU General Public License v2 or later
 
-Mere aggregation of another independent work with the Program (or its
-derivative) on a volume of a storage or distribution medium does not bring
-the other work under the scope of these terms.
-
-  3. You may copy and distribute the Program (or a portion or derivative of
-it, under Paragraph 2) in object code or executable form under the terms of
-Paragraphs 1 and 2 above provided that you also do one of the following:
+tools/wrapper.c
+  Copyright (C) 2001 Kevin L. Mitchell <klmitch@mit.edu>
+  License: GNU General Public License v2 or later
 
-    a) accompany it with the complete corresponding machine-readable
-    source code, which must be distributed under the terms of
-    Paragraphs 1 and 2 above; or,
+tools/Bounce/Bounce.cpp, tools/Bounce/Bounce.h
+  Copyright (C) 2001
+  License: GNU General Public License v1 or later
 
-    b) accompany it with a written offer, valid for at least three
-    years, to give any third party free (except for a nominal charge
-    for the cost of distribution) a complete machine-readable copy of the
-    corresponding source code, to be distributed under the terms of
-    Paragraphs 1 and 2 above; or,
+tools/mkchroot
+  Copyright (C) 2001 Kevin L. Mitchell <klmitch@mit.edu>
+  License: GNU General Public License v1 or later
 
-    c) accompany it with the information you received as to where the
-    corresponding source code may be obtained.  (This alternative is
-    allowed only for noncommercial distribution and only if you
-    received the program in object code or executable form alone.)
+tools/linesync/linesync.sh
+  Copyright (C) 2002 Arjen Wolfs <sengaia@undernet.org>
+  License: GNU General Public License (version unspecified)
 
-Source code for a work means the preferred form of the work for making
-modifications to it.  For an executable file, complete source code means
-all the source code for all modules it contains; but, as a special
-exception, it need not include source code for modules which are standard
-libraries that accompany the operating system on which the executable
-file runs, or for standard header files or definitions files that
-accompany that operating system.
+tools/linesync/gitsync.sh
+  Copyright (C) 2015 Rubin
+  License: GNU General Public License (version unspecified)
 
-  4. You may not copy, modify, sublicense, distribute or transfer the
-Program except as expressly provided under this General Public License.
-Any attempt otherwise to copy, modify, sublicense, distribute or transfer
-the Program is void, and will automatically terminate your rights to use
-the Program under this License.  However, parties who have received
-copies, or rights to use copies, from you under this General Public
-License will not have their licenses terminated so long as such parties
-remain in full compliance.
+tools/iauthd.pl
+  No explicit license header. Part of Nefarious2 distribution.
 
-  5. By copying, distributing or modifying the Program (or any work based
-on the Program) you indicate your acceptance of this license to do so,
-and all its terms and conditions.
+tools/iauthd-ts/ (TypeScript IAuth daemon)
+  License: GPL-2.0 (per package.json)
+  No per-file license headers in .ts source files.
+  README.md states: "GPL-2.0 - Same as Nefarious IRCd"
 
-  6. Each time you redistribute the Program (or any work based on the
-Program), the recipient automatically receives a license from the original
-licensor to copy, distribute or modify the Program subject to these
-terms and conditions.  You may not impose any further restrictions on the
-recipients' exercise of the rights granted herein.
-
-  7. The Free Software Foundation may publish revised and/or new versions
-of the General Public License from time to time.  Such new versions will
-be similar in spirit to the present version, but may differ in detail to
-address new problems or concerns.
+tools/hashtoy, tools/untabify, tools/autodoc.py
+  No explicit license headers. Part of ircu2 distribution.
 
-Each version is given a distinguishing version number.  If the Program
-specifies a version number of the license which applies to it and "any
-later version", you have the option of following the terms and conditions
-either of that version or of any later version published by the Free
-Software Foundation.  If the Program does not specify a version number of
-the license, you may choose any version ever published by the Free Software
-Foundation.
+tools/sidconvert/num2sid.c, tools/sidconvert/sid2num.c
+  No explicit license headers. Part of Nefarious2 distribution.
 
-  8. If you wish to incorporate parts of the Program into other free
-programs whose distribution conditions are different, write to the author
-to ask for permission.  For software which is copyrighted by the Free
-Software Foundation, write to the Free Software Foundation; we sometimes
-make exceptions for this.  Our decision will be guided by the two goals
-of preserving the free status of all derivatives of our free software and
-of promoting the sharing and reuse of software generally.
+tools/makepem/makepem
+  No explicit license header. Build helper script.
 
-			    NO WARRANTY
+tools/docker/, tools/letsencrypt/, tools/icinga_update.sh
+  No explicit license headers. Deployment/operations scripts.
 
-  9. BECAUSE THE PROGRAM IS LICENSED FREE OF CHARGE, THERE IS NO WARRANTY
-FOR THE PROGRAM, TO THE EXTENT PERMITTED BY APPLICABLE LAW.  EXCEPT WHEN
-OTHERWISE STATED IN WRITING THE COPYRIGHT HOLDERS AND/OR OTHER PARTIES
-PROVIDE THE PROGRAM "AS IS" WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESSED
-OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
-MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.  THE ENTIRE RISK AS
-TO THE QUALITY AND PERFORMANCE OF THE PROGRAM IS WITH YOU.  SHOULD THE
-PROGRAM PROVE DEFECTIVE, YOU ASSUME THE COST OF ALL NECESSARY SERVICING,
-REPAIR OR CORRECTION.
+===========================================================================
+                       BUILD SYSTEM
+===========================================================================
 
-  10. IN NO EVENT UNLESS REQUIRED BY APPLICABLE LAW OR AGREED TO IN WRITING
-WILL ANY COPYRIGHT HOLDER, OR ANY OTHER PARTY WHO MAY MODIFY AND/OR
-REDISTRIBUTE THE PROGRAM AS PERMITTED ABOVE, BE LIABLE TO YOU FOR DAMAGES,
-INCLUDING ANY GENERAL, SPECIAL, INCIDENTAL OR CONSEQUENTIAL DAMAGES ARISING
-OUT OF THE USE OR INABILITY TO USE THE PROGRAM (INCLUDING BUT NOT LIMITED
-TO LOSS OF DATA OR DATA BEING RENDERED INACCURATE OR LOSSES SUSTAINED BY
-YOU OR THIRD PARTIES OR A FAILURE OF THE PROGRAM TO OPERATE WITH ANY OTHER
-PROGRAMS), EVEN IF SUCH HOLDER OR OTHER PARTY HAS BEEN ADVISED OF THE
-POSSIBILITY OF SUCH DAMAGES.
+install-sh
+  Copyright (C) 1991 Massachusetts Institute of Technology
+  License: MIT/X11 (permissive — "Permission to use, copy, modify,
+  distribute, and sell this software... is hereby granted without fee")
+  Compatibility: GPL-compatible.
 
-		     END OF TERMS AND CONDITIONS
-
-	Appendix: How to Apply These Terms to Your New Programs
+config.guess, config.sub
+  Copyright (C) 1992-2005 Free Software Foundation, Inc.
+  License: GNU General Public License v2 or later
 
-  If you develop a new program, and you want it to be of the greatest
-possible use to humanity, the best way to achieve this is to make it
-free software which everyone can redistribute and change under these
-terms.
+configure, configure.in, aclocal.m4, Makefile.in, ircd/Makefile.in
+  Generated/authored by GNU Autoconf/Automake
+  License: GNU General Public License (FSF boilerplate)
 
-  To do so, attach the following notices to the program.  It is safest to
-attach them to the start of each source file to most effectively convey
-the exclusion of warranty; and each file should have at least the
-"copyright" line and a pointer to where the full notice is found.
+acinclude.m4
+  No explicit license header. Autoconf macros.
 
-    <one line to give the program's name and a brief idea of what it does.>
-    Copyright (C) 19yy  <name of author>
+ircd-patch
+  Copyright (C) 2002 Alex Badea <vampire@p16.pub.ro>
+  License: GNU General Public License v1 or later
 
-    This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 1, or (at your option)
-    any later version.
+ircd/gen_parser.py
+  No explicit license header. Build-time parser generator.
 
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+===========================================================================
+                       TESTS
+===========================================================================
 
-    You should have received a copy of the GNU General Public License
-    along with this program; if not, write to the Free Software
-    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+tests/iauth-test
+  Copyright (C) 2006-2007 Michael Poole
+  License: GNU General Public License version 2 ONLY
+  NOTE: This file specifies "version 2 as published by the Free
+  Software Foundation" WITHOUT the "or any later version" clause.
+  It cannot be relicensed to GPL v3.
 
-Also add information on how to contact you by electronic and paper mail.
+tests/test-driver.pl
+  No explicit license header.
 
-If the program is interactive, make it output a short notice like this
-when it starts in an interactive mode:
+tests/*.cmd, tests/*.conf
+  Test data files. No license headers.
 
-    Gnomovision version 69, Copyright (C) 19xx name of author
-    Gnomovision comes with ABSOLUTELY NO WARRANTY; for details type `show w'.
-    This is free software, and you are welcome to redistribute it
-    under certain conditions; type `show c' for details.
+===========================================================================
+                       DOCUMENTATION
+===========================================================================
 
-The hypothetical commands `show w' and `show c' should show the
-appropriate parts of the General Public License.  Of course, the
-commands you use may be called something other than `show w' and `show
-c'; they could even be mouse-clicks or menu items--whatever suits your
-program.
+doc/Authors, doc/Authors.nefarious
+  Required to be included in all distributions of IRC and derived
+  works per the terms specified in the file header. Licensed GPL v1+.
 
-You should also get your employer (if you work as a programmer) or your
-school, if any, to sign a "copyright disclaimer" for the program, if
-necessary.  Here a sample; alter the names:
+doc/fda.txt
+  Copyright (C) 1998 Thomas Helvey <tomh@inxpress.net>
+  No explicit license terms. Part of ircu2 distribution.
 
-  Yoyodyne, Inc., hereby disclaims all copyright interest in the
-  program `Gnomovision' (a program to direct compilers to make passes
-  at assemblers) written by James Hacker.
+doc/history/Manual, doc/history/2.4.notes, doc/history/history.pre24
+doc/history/README-2.6
+  GPL licensed (contain GPL notices).
 
-  <signature of Ty Coon>, 1 April 1989
-  Ty Coon, President of Vice
+doc/api/*.txt, doc/readme.*, doc/features.txt, doc/modes.txt,
+doc/extendedbans.txt, doc/snomask.txt, doc/snomask.html,
+doc/p10.txt, doc/p10.html, doc/iso-time.html, doc/strings.txt,
+doc/freebsd.txt, doc/rfc1413.txt, doc/rfc1459.unet,
+doc/example.conf, doc/ircd.conf, doc/ircd.opermotd, doc/ircd.rules
+  No explicit license headers. Documentation and configuration
+  distributed as part of the ircu2/Nefarious2 GPL project.
 
-That's all there is to it!
+ChangeLog, ChangeLog.11, ChangeLog.nefarious, RELEASE.NOTES
+  Project history files. No explicit license headers.
+
+===========================================================================
+                       MISCELLANEOUS
+===========================================================================
+
+Dockerfile, .dockerignore, docker-compose.yml-example
+cathexis.service
+ircd.conf (root)
+setup.sh, release.sh
+Doxyfile, stamp-h.in
+.github/workflows/docker-publish.yml
+.gitignore, .mailmap
+patches/diffs/*.diff
+  Configuration, deployment, and project management files.
+  No explicit license headers. Covered by project-level GPL.
+
+===========================================================================
+                    GPL VERSION COMPATIBILITY
+===========================================================================
+
+All heritage code permits redistribution under later GPL versions:
+
+  Source                    | Original License | Permits GPL v3?
+  --------------------------+------------------+----------------
+  IRC (Oikarinen, 1988)    | GPL v1+          | Yes
+  ircu2 (Undernet, 1990)   | GPL v1+          | Yes
+  ircu2 (1998+ files)      | GPL v2+          | Yes
+  Nefarious2 (2004)        | GPL v2+          | Yes
+  Nefarious2 (some files)  | GPL v3+          | Yes (native)
+  Cathexis (2026)           | GPL v3+          | Yes (native)
+  ircd_md5.c               | Public Domain    | Yes (no restrictions)
+  ircd_reslib.c (UC Berk)  | BSD 4-Clause     | Yes (permissive)
+  ircd_reslib.c (DEC)      | DEC Permissive   | Yes (permissive)
+  ircd_reslib.c (ISC)      | ISC License      | Yes (permissive)
+  install-sh               | MIT/X11          | Yes (permissive)
+  tests/iauth-test         | GPL v2 only      | No* (standalone script)
+
+* tests/iauth-test is GPL v2 only (no "or later" clause). It is a
+  standalone test script not compiled into or linked with the daemon
+  binary. The daemon itself is not affected.
+
+The combined work (the ircd daemon) is distributed under GPL v3 or later.
+
+No Apache or LGPL licensed code exists in this codebase.
+
+===========================================================================
+              HERITAGE FILES WITHOUT PER-FILE HEADERS
+===========================================================================
+
+The following heritage files from ircu2/Nefarious2 do not contain
+per-file license headers. They are part of the GPL-licensed project
+distribution and are covered by the project-level GPL:
+
+Source files:
+  ircd/crule.c         — Tony Vencill (Tonto), author attribution only
+  ircd/ircd_res.c      — Hybrid Group rewrite of Darren Reed's res.c,
+                          informal "buy us a beer" permissive notice
+  ircd/memdebug.c      — No header (debug allocator wrapper)
+  ircd/test/*.c        — Test harnesses, no headers (5 files)
+
+Header files (31 files):
+  include/IPcheck.h     include/crule.h       include/fileio.h
+  include/ircd.h        include/ircd_cloaking.h
+  include/ircd_crypt_native.h  include/ircd_geoip.h
+  include/ircd_osdep.h  include/ircd_reslib.h
+  include/ircd_signal.h include/ircd_string.h include/list.h
+  include/match.h       include/memdebug.h    include/opercmds.h
+  include/packet.h      include/parse.h       include/querycmds.h
+  include/random.h      include/res.h         include/s_bsd.h
+  include/s_conf.h      include/s_debug.h     include/s_misc.h
+  include/s_numeric.h   include/s_serv.h      include/s_user.h
+  include/send.h        include/version.h     include/whocmds.h
+
+These files have been distributed as part of the ircu2 and Nefarious2
+GPL-licensed source distributions since the 1990s. The absence of
+per-file headers does not change their license status — they are
+governed by the project-level GPL as derivative components of the
+original IRC daemon.

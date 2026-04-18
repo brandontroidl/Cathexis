@@ -45,6 +45,7 @@
 #include "s_misc.h"
 #include "s_stats.h"
 #include "s_user.h"
+#include "ircd_chattr.h"
 #include "send.h"
 #include "struct.h"
 #include "sys.h"    /* FALSE bleah */
@@ -244,14 +245,34 @@ feature_notify_oplevels(void)
   add_isupport_s("CHANMODES", cmodebuf);
 }
 
-/** Update whether #me has halfops support or not.
-*/
+/** Update PREFIX and STATUSMSG based on halfops and owner/protect settings. */
 static void
 feature_notify_halfops(void)
 {
-  add_isupport_s("PREFIX", feature_bool(FEAT_HALFOPS) ? "(ohv)@%+" : "(ov)@+");
-  add_isupport_s("STATUSMSG", feature_bool(FEAT_HALFOPS) ? "@%+" : "@+");
+  int h = feature_bool(FEAT_HALFOPS);
+  int qp = feature_bool(FEAT_OWNERPROTECT);
+
+  if (qp && h)
+    add_isupport_s("PREFIX", "(qaohv)~&@%+");
+  else if (qp)
+    add_isupport_s("PREFIX", "(qaov)~&@+");
+  else if (h)
+    add_isupport_s("PREFIX", "(ohv)@%+");
+  else
+    add_isupport_s("PREFIX", "(ov)@+");
+
+  if (qp && h)
+    add_isupport_s("STATUSMSG", "~&@%+");
+  else if (qp)
+    add_isupport_s("STATUSMSG", "~&@+");
+  else if (h)
+    add_isupport_s("STATUSMSG", "@%+");
+  else
+    add_isupport_s("STATUSMSG", "@+");
 }
+
+/** Alias so the owner/protect feature uses the same notification. */
+#define feature_notify_ownerprotect feature_notify_halfops
 
 static void
 feature_notify_excepts(void)
@@ -315,24 +336,38 @@ set_isupport_extbans(void)
   char imaxlist[BUFSIZE] = "";
 
   if (feature_bool(FEAT_EXTBANS)) {
-    strcat(imaxlist, "~,");
+    strncat(imaxlist, "~,", sizeof(imaxlist) - strlen(imaxlist) - 1);
 
     if (feature_bool(FEAT_EXTBAN_a))
-      strcat(imaxlist, "a");
+      strncat(imaxlist, "a", sizeof(imaxlist) - strlen(imaxlist) - 1);
     if (feature_bool(FEAT_EXTBAN_c))
-      strcat(imaxlist, "c");
+      strncat(imaxlist, "c", sizeof(imaxlist) - strlen(imaxlist) - 1);
     if (feature_bool(FEAT_EXTBAN_j))
-      strcat(imaxlist, "j");
+      strncat(imaxlist, "j", sizeof(imaxlist) - strlen(imaxlist) - 1);
     if (feature_bool(FEAT_EXTBAN_n))
-      strcat(imaxlist, "n");
+      strncat(imaxlist, "n", sizeof(imaxlist) - strlen(imaxlist) - 1);
     if (feature_bool(FEAT_EXTBAN_q))
-      strcat(imaxlist, "q");
+      strncat(imaxlist, "q", sizeof(imaxlist) - strlen(imaxlist) - 1);
     if (feature_bool(FEAT_EXTBAN_r))
-      strcat(imaxlist, "r");
+      strncat(imaxlist, "r", sizeof(imaxlist) - strlen(imaxlist) - 1);
     if (feature_bool(FEAT_EXTBAN_m))
-      strcat(imaxlist, "m");
+      strncat(imaxlist, "m", sizeof(imaxlist) - strlen(imaxlist) - 1);
     if (feature_bool(FEAT_EXTBAN_M))
-      strcat(imaxlist, "M");
+      strncat(imaxlist, "M", sizeof(imaxlist) - strlen(imaxlist) - 1);
+    if (feature_bool(FEAT_EXTBAN_s))
+      strncat(imaxlist, "s", sizeof(imaxlist) - strlen(imaxlist) - 1);
+    if (feature_bool(FEAT_EXTBAN_f))
+      strncat(imaxlist, "f", sizeof(imaxlist) - strlen(imaxlist) - 1);
+    if (feature_bool(FEAT_EXTBAN_o))
+      strncat(imaxlist, "o", sizeof(imaxlist) - strlen(imaxlist) - 1);
+    if (feature_bool(FEAT_EXTBAN_R))
+      strncat(imaxlist, "R", sizeof(imaxlist) - strlen(imaxlist) - 1);
+    if (feature_bool(FEAT_EXTBAN_T))
+      strncat(imaxlist, "T", sizeof(imaxlist) - strlen(imaxlist) - 1);
+    if (feature_bool(FEAT_EXTBAN_C))
+      strncat(imaxlist, "C", sizeof(imaxlist) - strlen(imaxlist) - 1);
+    if (feature_bool(FEAT_EXTBAN_N))
+      strncat(imaxlist, "N", sizeof(imaxlist) - strlen(imaxlist) - 1);
 
     add_isupport_s("EXTBANS", imaxlist);
   }
@@ -348,18 +383,6 @@ static void feature_notify_geoip_enable(void)
 static void feature_notify_geoip_mmdb_file(void)
 {
   geoip_handle_mmdb_file();
-}
-
-/** Handle update to FEAT_GEOIP_FILE. */
-static void feature_notify_geoip_file(void)
-{
-  geoip_handle_file();
-}
-
-/** Handle update to FEAT_GEOIP_IPV6_FILE. */
-static void feature_notify_geoip_ipv6_file(void)
-{
-  geoip_handle_ipv6_file();
 }
 
 /** Set WATCH if they are enabled. */
@@ -392,11 +415,11 @@ set_isupport_maxbans(void)
 
     add_isupport_i("MAXBANS", feature_int(FEAT_MAXBANS));
 
-    strcat(imaxlist, "b:");
-    strcat(imaxlist, itoa(feature_int(FEAT_MAXBANS)));
+    strncat(imaxlist, "b:", sizeof(imaxlist) - strlen(imaxlist) - 1);
+    strncat(imaxlist, itoa(feature_int(FEAT_MAXBANS)), sizeof(imaxlist) - strlen(imaxlist) - 1);
     if (feature_bool(FEAT_EXCEPTS)) {
-      strcat(imaxlist, ",e:");
-      strcat(imaxlist, itoa(feature_int(FEAT_MAXEXCEPTS)));
+      strncat(imaxlist, ",e:", sizeof(imaxlist) - strlen(imaxlist) - 1);
+      strncat(imaxlist, itoa(feature_int(FEAT_MAXEXCEPTS)), sizeof(imaxlist) - strlen(imaxlist) - 1);
     }
 
     add_isupport_s("MAXLIST", imaxlist);    
@@ -418,11 +441,20 @@ set_isupport_channellen(void)
     add_isupport_i("CHANNELLEN", feature_int(FEAT_CHANNELLEN));
 }
 
-/** Set CHANTYPES, self explanatory */
+/** Build CHANTYPES string based on enabled channel type features.
+ * # = always enabled (global channels)
+ * & = FEAT_LOCAL_CHANNELS
+ */
 static void
 set_isupport_chantypes(void)
 {
-    add_isupport_s("CHANTYPES", feature_bool(FEAT_LOCAL_CHANNELS) ? "#&" : "#");
+    static char buf[4];
+    char *p = buf;
+    *p++ = '#';
+    if (feature_bool(FEAT_LOCAL_CHANNELS))
+      *p++ = '&';
+    *p = '\0';
+    add_isupport_s("CHANTYPES", buf);
 }
 
 /** Set NETWORK, self explanatory */
@@ -535,14 +567,24 @@ static struct FeatureDesc {
   F_S(DEFAULT_LIST_PARAM, FEAT_NULL, 0, list_set_default),
   F_I(NICKNAMEHISTORYLENGTH, 0, 800, whowas_realloc),
   F_B(HOST_HIDING, 0, 1, 0),
-  F_S(HIDDEN_HOST, FEAT_CASE, "Users.Nefarious", 0),
+  F_S(HIDDEN_HOST, FEAT_CASE, "Users.Cathexis", 0),
   F_S(HIDDEN_IP, 0, "127.0.0.1", 0),
-  F_B(CONNEXIT_NOTICES, 0, 0, 0),
+  F_B(CONNEXIT_NOTICES, 0, 1, 0),
   F_B(OPLEVELS, 0, 0, feature_notify_oplevels),
   F_B(ZANNELS, 0, 0, 0),
   F_B(LOCAL_CHANNELS, 0, 1, set_isupport_chantypes),
   F_B(TOPIC_BURST, 0, 1, 0),
   F_B(DISABLE_GLINES, 0, 0, 0),
+
+  /* DNSBL features */
+  F_B(DNSBL, 0, 0, 0),
+  F_S(DNSBL_HOST, 0, "dnsbl.dronebl.org", 0),
+  F_S(DNSBL_HOST2, FEAT_NULL, 0, 0),
+  F_S(DNSBL_HOST3, FEAT_NULL, 0, 0),
+  F_B(DNSBL_REJECT, 0, 1, 0),
+  F_S(DNSBL_REASON, 0, "Your IP is listed in a DNS blacklist. Visit https://dronebl.org/lookup or https://rbl.efnetrbl.org for removal.", 0),
+  F_S(DNSBL_MARK, 0, "DNSBL", 0),
+  F_B(CRYPT_ALLOW_PLAIN, 0, 0, 0),
 
   /* features that probably should not be touched */
   F_I(KILLCHASETIMELIMIT, 0, 30, 0),
@@ -603,7 +645,6 @@ static struct FeatureDesc {
   F_B(HIS_STATS_k, 0, 1, 0),
   F_B(HIS_STATS_l, 0, 1, 0),
   F_B(HIS_STATS_L, 0, 1, 0),
-  F_B(HIS_STATS_M, 0, 1, 0),
   F_B(HIS_STATS_m, 0, 1, 0),
   F_B(HIS_STATS_o, 0, 1, 0),
   F_B(HIS_STATS_p, 0, 1, 0),
@@ -632,16 +673,16 @@ static struct FeatureDesc {
   F_B(HIS_REWRITE, 0, 1, 0),
   F_I(HIS_REMOTE, 0, 1, 0),
   F_B(HIS_NETSPLIT, 0, 1, 0),
-  F_S(HIS_SERVERNAME, 0, "*.Nefarious", feature_notify_servername),
+  F_S(HIS_SERVERNAME, 0, "*.Cathexis", feature_notify_servername),
   F_S(HIS_SERVERINFO, 0, "evilnet development", feature_notify_serverinfo),
   F_S(HIS_URLSERVERS, 0, "http://sourceforge.net/projects/evilnet/", 0),
 
   /* Misc. random stuff */
-  F_S(NETWORK, 0, "Nefarious", set_isupport_network),
+  F_S(NETWORK, 0, "Cathexis", set_isupport_network),
   F_S(URL_CLIENTS, 0, "http://www.ircreviews.org/clients/", 0),
   F_S(URLREG, 0, "http://sourceforge.net/projects/evilnet/", 0),
 
-  /* Nefarious FEAT_'s */
+  /* Extended FEAT_ definitions */
   F_B(CHECK, 0, 1, 0),
   F_B(CHECK_EXTENDED, 0, 1, 0),
   F_I(MAX_CHECK_OUTPUT, 0, 1000, 0),
@@ -654,7 +695,9 @@ static struct FeatureDesc {
   F_S(DIEPASS, FEAT_NULL | FEAT_CASE | FEAT_NODISP | FEAT_READ, 0, 0),
   F_B(HIS_STATS_W, 0, 1, 0),
   F_S(WHOIS_OPER, 0, "is an IRC Operator", 0),
-  F_S(WHOIS_ADMIN, 0, "is an IRC Administrator", 0),
+  F_S(WHOIS_LOCOPER, 0, "is a Local IRC Operator", 0),
+  F_S(WHOIS_ADMIN, 0, "is a Server Administrator", 0),
+  F_S(WHOIS_NETADMIN, 0, "is a Network Administrator", 0),
   F_S(WHOIS_SERVICE, 0, "is a Network Service", 0),
   F_B(TARGET_LIMITING, 0, 1, 0),
   F_B(OPER_XTRAOP, 0, 0, 0),
@@ -677,6 +720,7 @@ static struct FeatureDesc {
   F_B(HOST_IN_TOPIC, 0, 1, 0),
   F_B(HIS_STATS_s, 0, 1, 0),
   F_B(SETHOST, 0, 1, 0),
+  F_B(SETHOST_FREEFORM, 0, 0, 0),
   F_B(FLEXIBLEKEYS, 0, 0, 0),
   F_B(HIS_STATS_E, 0, 1, 0),
   F_S(SASL_SERVER, 0, "*", 0),
@@ -717,6 +761,7 @@ static struct FeatureDesc {
   F_B(CHMODE_T, 0, 1, 0),
   F_B(CHMODE_Z, 0, 1, 0),
   F_B(HALFOPS, FEAT_READ, 0, feature_notify_halfops),
+  F_B(OWNERPROTECT, FEAT_READ, 0, feature_notify_ownerprotect),
   F_B(EXCEPTS, FEAT_READ, 0, feature_notify_excepts),
   F_I(MAXEXCEPTS, 0, 45, set_isupport_maxexcepts),
   F_I(AVEXCEPTLEN, 0, 40, 0),
@@ -737,8 +782,15 @@ static struct FeatureDesc {
   F_B(EXTBAN_r, 0, 1, set_isupport_extbans),
   F_B(EXTBAN_m, 0, 1, set_isupport_extbans),
   F_B(EXTBAN_M, 0, 1, set_isupport_extbans),
+  F_B(EXTBAN_s, 0, 1, set_isupport_extbans),
+  F_B(EXTBAN_f, 0, 1, set_isupport_extbans),
+  F_B(EXTBAN_o, 0, 1, set_isupport_extbans),
+  F_B(EXTBAN_R, 0, 1, set_isupport_extbans),
+  F_B(EXTBAN_T, 0, 0, set_isupport_extbans),
+  F_B(EXTBAN_C, 0, 1, set_isupport_extbans),
+  F_B(EXTBAN_N, 0, 1, set_isupport_extbans),
 
-  /* Some misc. Nefarious default paths */
+  /* Miscellaneous default paths */
   F_S(OMPATH, FEAT_CASE | FEAT_MYOPER, "ircd.opermotd", motd_init),
   F_S(EPATH, FEAT_CASE | FEAT_MYOPER, "ircd.rules", motd_init),
 
@@ -748,13 +800,12 @@ static struct FeatureDesc {
   F_S(HIDDEN_HOST_UNSET_MESSAGE, 0, "UnRegistered", 0),
   F_B(ALLOWRMX, 0, 0, 0),
   F_B(OPERHOST_HIDING, 0, 1, 0),
-  F_S(HIDDEN_OPERHOST, FEAT_CASE, "Staff.Nefarious", 0),
+  F_S(HIDDEN_OPERHOST, FEAT_CASE, "Staff.Cathexis", 0),
   F_I(HOST_HIDING_STYLE, 0, 1, 0),
-  F_S(HOST_HIDING_PREFIX, 0, "Nefarious", 0),
+  F_S(HOST_HIDING_PREFIX, 0, "Cathexis", 0),
   F_S(HOST_HIDING_KEY1, 0, "aoAr1HnR6gl3sJ7hVz4Zb7x4YwpW", 0),
   F_S(HOST_HIDING_KEY2, 0, "sdfjkLJKHlkjdkfjsdklfjlkjKLJ", 0),
   F_S(HOST_HIDING_KEY3, 0, "KJklJSDFLkjLKDFJSLKjlKJFlkjS", 0),
-  F_A(HOST_HIDING_COMPONANTS, HOST_HIDING_COMPONENTS),
   F_I(HOST_HIDING_COMPONENTS, 0, 1, 0),
 
   /* CTCP VERSION FEAT_'s */
@@ -769,8 +820,6 @@ static struct FeatureDesc {
   /* GeoIP FEAT_'s */
   F_B(GEOIP_ENABLE, 0, 0, feature_notify_geoip_enable),
   F_S(MMDB_FILE, 0, "GeoLite2-Country.mmdb", feature_notify_geoip_mmdb_file),
-  F_S(GEOIP_FILE, 0, "GeoIP.dat", feature_notify_geoip_file),
-  F_S(GEOIP_IPV6_FILE, 0, "GeoIPv6.dat", feature_notify_geoip_ipv6_file),
 
   /* SSL FEAT_'s */
   F_S(SSL_CERTFILE, FEAT_CASE, "ircd.pem", 0),
@@ -779,10 +828,9 @@ static struct FeatureDesc {
   F_B(SSL_VERIFYCERT, 0, 0, 0),
   F_B(SSL_NOSELFSIGNED, 0, 0, 0),
   F_B(SSL_REQUIRECLIENTCERT, 0, 0, 0),
-  F_B(SSL_NOSSLV2, 0, 1, 0),
-  F_B(SSL_NOSSLV3, 0, 1, 0),
-  F_B(SSL_NOTLSV1, 0, 1, 0),
-  F_S(SSL_CIPHERS, FEAT_NULL, 0, 0),
+  F_S(SSL_CIPHERS, FEAT_NULL, "ECDHE+AESGCM:ECDHE+CHACHA20:!aNULL:!eNULL:!MD5:!DSS:!RC4:!3DES:!SEED:!IDEA", 0),
+  F_S(SSL_CIPHERSUITES, FEAT_NULL, "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256", 0),
+  F_S(SSL_GROUPS, FEAT_NULL, 0, 0),
 
   /* ZLINE FEAT_'s */
   F_B(DISABLE_ZLINES, 0, 0, 0),
@@ -800,8 +848,41 @@ static struct FeatureDesc {
   F_B(CAP_tls, 0, 1, 0),
 #endif
 
+  /* IRCv3.2+ CAP features */
+  F_B(CAP_cap_notify, 0, 1, 0),
+  F_B(CAP_server_time, 0, 1, 0),
+  F_B(CAP_account_tag, 0, 1, 0),
+  F_B(CAP_message_tags, 0, 1, 0),
+  F_B(CAP_echo_message, 0, 1, 0),
+  F_B(CAP_invite_notify, 0, 1, 0),
+  F_B(CAP_chghost, 0, 1, 0),
+  F_B(CAP_setname, 0, 1, 0),
+  F_B(CAP_batch, 0, 1, 0),
+  F_B(CAP_labeled_response, 0, 1, 0),
+  F_B(CAP_standard_replies, 0, 1, 0),
+
+  /* IRCv3 draft/extended CAP features */
+  F_B(CAP_message_ids, 0, 1, 0),
+  F_B(CAP_monitor, 0, 1, 0),
+  F_B(CAP_bot_mode, 0, 1, 0),
+  F_B(CAP_chathistory, 0, 1, 0),
+  F_B(CAP_typing, 0, 1, 0),
+  F_B(CAP_no_implicit_names, 0, 1, 0),
+  F_B(CAP_channel_rename, 0, 1, 0),
+  F_B(CAP_read_marker, 0, 1, 0),
+  F_B(CAP_multiline, 0, 1, 0),
+  F_B(CAP_pre_away, 0, 1, 0),
+  F_B(CAP_account_registration, 0, 1, 0),
+  F_B(CAP_extended_monitor, 0, 1, 0),
+  F_B(CAP_message_redaction, 0, 1, 0),
+
   F_B(UPING_ENABLE, FEAT_READ, 1, 0),
   F_I(UPING_PORT, FEAT_READ, UDP_PORT, 0),
+
+  F_B(S2S_HMAC, 0, 0, 0),
+  F_S(SERVICES_HUB_NUMERIC, FEAT_NULL, 0, 0),
+  F_I(STS_PORT, 0, 0, 0),
+  F_I(STS_DURATION, 0, 2592000, 0),
 
 #undef F_S
 #undef F_B
@@ -899,6 +980,9 @@ feature_set(struct Client* from, const char* const* fields, int count)
 	feat->flags &= ~FEAT_MARK;
       } else { /* ok, figure out the value and whether to mark it */
 	feat->v_int = strtoul(fields[1], 0, 0);
+	/* If strtoul returned 0 but the input has letters, try snomask letters */
+	if (feat->v_int == 0 && fields[1][0] != '0' && IsAlpha(fields[1][0]))
+	  feat->v_int = snomask_str_to_mask(fields[1]);
 	if (feat->v_int == feat->def_int)
 	  feat->flags &= ~FEAT_MARK;
 	else
@@ -1104,8 +1188,15 @@ feature_get(struct Client* from, const char* const* fields, int count)
       break;
 
     case FEAT_INT: /* integer, report integer value */
-      send_reply(from, SND_EXPLICIT | RPL_FEATURE,
-		 ":Integer value of %s: %d", feat->type, feat->v_int);
+      if (!strncmp(feat->type, "SNOMASK_", 8)) {
+        char snobuf[24];
+        send_reply(from, SND_EXPLICIT | RPL_FEATURE,
+                   ":Value of %s: %d (%s)", feat->type, feat->v_int,
+                   snomask_to_str(feat->v_int, snobuf, sizeof(snobuf)));
+      } else {
+        send_reply(from, SND_EXPLICIT | RPL_FEATURE,
+                   ":Integer value of %s: %d", feat->type, feat->v_int);
+      }
       break;
 
     case FEAT_BOOL: /* boolean, report boolean value */
@@ -1241,9 +1332,17 @@ feature_report(struct Client* to, const struct StatDesc* sd, char* param)
 
 
     case FEAT_INT: /* Report an F-line with integer values */
-      if (report) /* it's been changed */
-	send_reply(to, SND_EXPLICIT | RPL_STATSFLINE, "%c %s %d",
-		   changed, features[i].type, features[i].v_int);
+      if (report) { /* it's been changed */
+        if (!strncmp(features[i].type, "SNOMASK_", 8)) {
+          char snobuf[24];
+          send_reply(to, SND_EXPLICIT | RPL_STATSFLINE, "%c %s %d (%s)",
+                     changed, features[i].type, features[i].v_int,
+                     snomask_to_str(features[i].v_int, snobuf, sizeof(snobuf)));
+        } else {
+          send_reply(to, SND_EXPLICIT | RPL_STATSFLINE, "%c %s %d",
+                     changed, features[i].type, features[i].v_int);
+        }
+      }
       break;
 
     case FEAT_BOOL: /* Report an F-line with boolean values */

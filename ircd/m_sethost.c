@@ -123,7 +123,12 @@ int m_sethost(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
   } else if (parc < 3) {
     return need_more_params(sptr, "SETHOST");
   } else {
-    if (!valid_hostname(parv[1])) {
+    /* Use relaxed validation if SETHOST_FREEFORM is enabled,
+     * allowing IRC control codes (bold, color, etc.) in vhosts. */
+    int hostok = feature_bool(FEAT_SETHOST_FREEFORM)
+                 ? valid_vhost(parv[1])
+                 : valid_hostname(parv[1]);
+    if (!hostok) {
       send_reply(sptr, ERR_BADHOSTMASK, parv[1]);
     } else {
       sconf = find_shost_conf(sptr, parv[1], parv[2], &res);
@@ -180,14 +185,17 @@ int mo_sethost(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
     return need_more_params(sptr, "SETHOST");
   } else {
     ircd_snprintf(0, hostmask, USERLEN + HOSTLEN + 1, "%s@%s", parv[1], parv[2]);
-    if (!valid_username(parv[1]) || !valid_hostname(parv[2])) {
-      send_reply(sptr, ERR_BADHOSTMASK, hostmask);
-    } else if (HasPriv(sptr, PRIV_FREEFORM)) {
+    if (HasPriv(sptr, PRIV_FREEFORM)) {
+      /* FREEFORM privilege bypasses hostname validation entirely.
+       * Allows control codes (bold, color, etc.) in vhosts. */
       ircd_strncpy(cli_user(sptr)->sethost, hostmask, USERLEN + HOSTLEN + 1);
       if (FlagHas(&setflags, FLAG_SETHOST))
         FlagClr(&setflags, FLAG_SETHOST);
       SetSetHost(sptr);
       SetHiddenHost(sptr);
+    } else if (!valid_username(parv[1]) ||
+               !(feature_bool(FEAT_SETHOST_FREEFORM) ? valid_vhost(parv[2]) : valid_hostname(parv[2]))) {
+      send_reply(sptr, ERR_BADHOSTMASK, hostmask);
     } else {
       sconf = find_shost_conf(sptr, hostmask, NULL, &res);
       if ((res == 0) && (sconf != 0)) {

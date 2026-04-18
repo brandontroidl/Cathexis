@@ -45,6 +45,7 @@
 #include "ircd_chattr.h"
 #include "ircd_events.h"
 #include "ircd_features.h"
+#include "ircd_crypto.h"
 #include "ircd_geoip.h"
 #include "ircd_log.h"
 #include "ircd_osdep.h"
@@ -79,6 +80,7 @@
 enum AuthRequestFlag {
     AR_AUTH_PENDING,    /**< ident connecting or waiting for response */
     AR_DNS_PENDING,     /**< dns request sent, waiting for response */
+    AR_DNSBL_PENDING,   /**< DNSBL lookup sent, waiting for response */
     AR_CAP_PENDING,     /**< in middle of CAP negotiations */
     AR_NEEDS_PONG,      /**< user has not PONGed */
     AR_NEEDS_USER,      /**< user must send USER command */
@@ -109,6 +111,9 @@ struct AuthRequest {
   struct AuthRequestFlags flags;  /**< current state of request */
   unsigned int        cookie;     /**< cookie the user must PONG */
   unsigned short      port;       /**< client's remote port number */
+  int                 dnsbl_pending; /**< number of DNSBL queries still pending */
+  int                 dnsbl_listed;  /**< 1 if any DNSBL matched */
+  char                dnsbl_host[64]; /**< which DNSBL zone matched */
 };
 
 /** Array of message text (with length) pairs for AUTH status
@@ -128,7 +133,10 @@ static struct {
   MSG("NOTICE * :*** \r\n"),
   MSG("NOTICE * :*** Your forward and reverse DNS do not match, "
     "ignoring hostname.\r\n"),
-  MSG("NOTICE * :*** Invalid hostname\r\n")
+  MSG("NOTICE * :*** Invalid hostname\r\n"),
+  MSG("NOTICE * :*** Checking your IP against DNS blacklists\r\n"),
+  MSG("NOTICE * :*** Your IP is not blacklisted\r\n"),
+  MSG("NOTICE * :*** Your IP is listed in a DNS blacklist\r\n")
 #undef MSG
 };
 
@@ -142,7 +150,10 @@ typedef enum {
   REPORT_FAIL_ID,
   REPORT_FAIL_IAUTH,
   REPORT_IP_MISMATCH,
-  REPORT_INVAL_DNS
+  REPORT_INVAL_DNS,
+  REPORT_DO_DNSBL,
+  REPORT_FIN_DNSBL,
+  REPORT_FAIL_DNSBL
 } ReportType;
 
 /** Sends response \a r (from #ReportType) to client \a c. */
@@ -422,9 +433,9 @@ static void auth_loc_timeout_callback(struct Event* ev)
       return;
 
     sendcmdto_one(&me, CMD_NOTICE, cptr, "%s :Service '%s' is not available (timeout)",
-                  (cli_name(cptr) ? cli_name(cptr) : "*"), cli_loc(cptr)->service);
+                  (cli_name(cptr)[0] ? cli_name(cptr) : "*"), cli_loc(cptr)->service);
     sendcmdto_one(&me, CMD_NOTICE, cptr, "%s :Type \002/QUOTE PASS\002 to "
-                  "connect anyway", (cli_name(cptr) ? cli_name(cptr) : "*"));
+                  "connect anyway", (cli_name(cptr)[0] ? cli_name(cptr) : "*"));
   }
 }
 
@@ -454,18 +465,18 @@ static void auth_do_loc(struct Client *client, struct Client *service)
   } while (!cli_loc(client)->cookie);
 
   sendcmdto_one(&me, CMD_NOTICE, client, "%s :Attempting service login to %s",
-                (cli_name(client) ? cli_name(client) : "*"), cli_loc(client)->service);
+                (cli_name(client)[0] ? cli_name(client) : "*"), cli_loc(client)->service);
 
   if ( feature_bool(FEAT_LOC_SENDHOST) ) {
     char realhost[HOSTLEN + 3];
-    char *hoststr = (cli_sockhost(client) ? cli_sockhost(client) : cli_sock_ip(client));
+    char *hoststr = cli_sockhost(client);
 
     if (strchr(hoststr, ':') != NULL)
       ircd_snprintf(0, realhost, sizeof(realhost), "[%s]", hoststr);
     else
       ircd_strncpy(realhost, hoststr, sizeof(realhost));
 
-    if (cli_sslclifp(client) && !EmptyString(cli_sslclifp(client)) && feature_bool(FEAT_LOC_SENDSSLFP)) {
+    if (!EmptyString(cli_sslclifp(client)) && feature_bool(FEAT_LOC_SENDSSLFP)) {
       sendcmdto_one(&me, CMD_ACCOUNT, service, "%C S .%u.%u %s@%s:%s %s %s :%s", service,
                     cli_fd(client), cli_loc(client)->cookie, cli_username(client),
                     realhost, cli_sock_ip(client), cli_sslclifp(client), cli_loc(client)->account,
@@ -499,6 +510,10 @@ static int check_auth_finished(struct AuthRequest *auth)
   struct Client *acptr;
   struct Client *cptr = auth->client;
 
+  /* Guard: if client connection was freed, nothing to finish */
+  if (!cptr || !cli_connect(cptr))
+    return 0;
+
   /* Check non-iauth registration blocking flags. */
   for (flag = 0; flag <= AR_LAST_SCAN; ++flag)
     if (FlagHas(&auth->flags, flag))
@@ -519,10 +534,10 @@ static int check_auth_finished(struct AuthRequest *auth)
       return 0;
     } else {
       sendcmdto_one(&me, CMD_NOTICE, cptr, "%s :Service '%s' is not available (%s)",
-                    (cli_name(cptr) ? cli_name(cptr) : "*"), cli_loc(cptr)->service,
+                    (cli_name(cptr)[0] ? cli_name(cptr) : "*"), cli_loc(cptr)->service,
                     (acptr ? "not a service" : "no such service"));
       sendcmdto_one(&me, CMD_NOTICE, cptr, "%s :Type \002/QUOTE PASS\002 to "
-                    "connect anyway", (cli_name(cptr) ? cli_name(cptr) : "*"));
+                    "connect anyway", (cli_name(cptr)[0] ? cli_name(cptr) : "*"));
       return 0;
     }
   }
@@ -557,7 +572,7 @@ static int check_auth_finished(struct AuthRequest *auth)
 
     if (aconf
         && !EmptyString(aconf->passwd)
-        && strcmp(cli_passwd(auth->client), aconf->passwd))
+        && ircd_constcmp(cli_passwd(auth->client), aconf->passwd))
     {
       ServerStats->is_ref++;
       send_reply(auth->client, ERR_PASSWDMISMATCH);
@@ -1010,6 +1025,12 @@ static void auth_timeout_callback(struct Event* ev)
         sendheader(auth->client, REPORT_FAIL_DNS);
     }
 
+    /* Likewise if DNSBL lookup timed out — treat as clean. */
+    if (FlagHas(&auth->flags, AR_DNSBL_PENDING)) {
+      FlagClr(&auth->flags, AR_DNSBL_PENDING);
+      auth->dnsbl_pending = 0;
+    }
+
     /* Try to register the client. */
     check_auth_finished(auth);
   }
@@ -1062,6 +1083,180 @@ static void auth_dns_callback(void* vptr, const struct irc_in_addr *addr, const 
     sendto_iauth(auth->client, "N %s", h_name);
   }
   check_auth_finished(auth);
+}
+
+/* ================================================================
+ * DNSBL (DNS Blacklist) checking
+ *
+ * When a client connects, we reverse their IP address and query
+ * configured DNSBL zones. If the query returns an address (typically
+ * 127.0.0.x), the IP is listed. If it fails (NXDOMAIN), the IP is
+ * clean.
+ *
+ * Multiple DNSBL zones can be queried in parallel. Registration is
+ * blocked until all queries complete.
+ * ================================================================ */
+
+/** Context for a DNSBL DNS query callback. */
+struct DnsblQuery {
+  struct AuthRequest *auth;     /**< The auth request this query belongs to */
+  char zone[64];                /**< Which DNSBL zone was queried */
+};
+
+/** Build a DNSBL query name by reversing the IP and appending the zone.
+ * @param[out] buf    Output buffer for the query name.
+ * @param[in]  buflen Size of output buffer.
+ * @param[in]  addr   Client's IP address.
+ * @param[in]  zone   DNSBL zone name (e.g., "dnsbl.dronebl.org").
+ * @return 1 on success, 0 if the address type is unsupported.
+ */
+static int dnsbl_build_query(char *buf, size_t buflen,
+                             const struct irc_in_addr *addr,
+                             const char *zone)
+{
+  if (irc_in_addr_is_ipv4(addr)) {
+    /* IPv4: reverse octets. 1.2.3.4 -> 4.3.2.1.zone */
+    unsigned int ip4 = (ntohs(addr->in6_16[6]) << 16) | ntohs(addr->in6_16[7]);
+    ircd_snprintf(0, buf, buflen, "%u.%u.%u.%u.%s",
+                  ip4 & 0xFF, (ip4 >> 8) & 0xFF,
+                  (ip4 >> 16) & 0xFF, (ip4 >> 24) & 0xFF,
+                  zone);
+    return 1;
+  } else {
+    /* IPv6: reverse nibbles.
+     * 2001:db8::1 -> 1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.zone
+     */
+    char *p = buf;
+    char *end = buf + buflen - strlen(zone) - 2;
+    int i;
+    for (i = 7; i >= 0 && p < end; i--) {
+      unsigned int word = ntohs(addr->in6_16[i]);
+      p += ircd_snprintf(0, p, end - p, "%x.%x.%x.%x.",
+                         word & 0xF, (word >> 4) & 0xF,
+                         (word >> 8) & 0xF, (word >> 12) & 0xF);
+    }
+    ircd_strncpy(p, zone, buf + buflen - p - 1);
+    return 1;
+  }
+}
+
+/** Callback for a DNSBL DNS query.
+ * If addr is non-NULL, the IP is listed in this DNSBL.
+ * If addr is NULL, the query failed (NXDOMAIN) — IP is clean.
+ */
+static void dnsbl_callback(void *vptr, const struct irc_in_addr *addr,
+                           const char *h_name)
+{
+  struct DnsblQuery *query = (struct DnsblQuery *)vptr;
+  struct AuthRequest *auth = query->auth;
+
+  /* Guard: client may have disconnected before DNSBL reply arrived */
+  if (!auth->client || !cli_connect(auth->client)) {
+    MyFree(query);
+    return;
+  }
+
+  /* Decrement pending counter */
+  if (auth->dnsbl_pending > 0)
+    auth->dnsbl_pending--;
+
+  if (addr) {
+    /* Listed! addr is typically 127.0.0.x */
+    auth->dnsbl_listed = 1;
+    ircd_strncpy(auth->dnsbl_host, query->zone, sizeof(auth->dnsbl_host) - 1);
+
+    if (IsUserPort(auth->client))
+      sendheader(auth->client, REPORT_FAIL_DNSBL);
+
+    sendto_opmask_butone(0, SNO_CONNEXIT,
+      "DNSBL: %s listed in %s (result: %s)",
+      cli_sock_ip(auth->client), query->zone,
+      h_name ? h_name : ircd_ntoa(addr));
+
+    Debug((DEBUG_INFO, "DNSBL: %s listed in %s",
+           cli_sock_ip(auth->client), query->zone));
+  }
+
+  /* If all DNSBL queries are done, clear the pending flag */
+  if (auth->dnsbl_pending <= 0) {
+    FlagClr(&auth->flags, AR_DNSBL_PENDING);
+
+    if (!auth->dnsbl_listed && IsUserPort(auth->client))
+      sendheader(auth->client, REPORT_FIN_DNSBL);
+
+    /* Handle the result */
+    if (auth->dnsbl_listed) {
+      const char *mark = feature_str(FEAT_DNSBL_MARK);
+
+      /* Apply mark regardless of reject setting */
+      if (mark && mark[0]) {
+        add_mark(auth->client, mark);
+        SetMarked(auth->client);
+      }
+
+      if (feature_bool(FEAT_DNSBL_REJECT)) {
+        const char *reason = feature_str(FEAT_DNSBL_REASON);
+        if (!reason || !reason[0])
+          reason = "Your IP is listed in a DNS blacklist";
+        exit_client_msg(auth->client, auth->client, &me,
+                        "%s (%s)", reason, auth->dnsbl_host);
+        MyFree(query);
+        return;
+      }
+    }
+
+    check_auth_finished(auth);
+  }
+
+  MyFree(query);
+}
+
+/** Start DNSBL lookups for a client.
+ * Queries up to 3 configured DNSBL zones in parallel.
+ * @param[in] auth The auth request for the connecting client.
+ */
+static void start_dnsbl_lookup(struct AuthRequest *auth)
+{
+  const char *zones[3];
+  int i, count = 0;
+  char qname[256];
+
+  if (!feature_bool(FEAT_DNSBL))
+    return;
+
+  /* Skip DNSBL for server ports */
+  if (!IsUserPort(auth->client))
+    return;
+
+  /* Skip localhost/loopback */
+  if (irc_in_addr_is_loopback(&cli_ip(auth->client)))
+    return;
+
+  /* Gather configured zones */
+  zones[0] = feature_str(FEAT_DNSBL_HOST);
+  zones[1] = feature_str(FEAT_DNSBL_HOST2);
+  zones[2] = feature_str(FEAT_DNSBL_HOST3);
+
+  for (i = 0; i < 3; i++) {
+    if (zones[i] && zones[i][0]) {
+      if (dnsbl_build_query(qname, sizeof(qname),
+                            &cli_ip(auth->client), zones[i])) {
+        struct DnsblQuery *query = (struct DnsblQuery *)MyMalloc(sizeof(*query));
+        query->auth = auth;
+        ircd_strncpy(query->zone, zones[i], sizeof(query->zone) - 1);
+        count++;
+        gethost_byname(qname, dnsbl_callback, query);
+      }
+    }
+  }
+
+  if (count > 0) {
+    auth->dnsbl_pending = count;
+    auth->dnsbl_listed = 0;
+    auth->dnsbl_host[0] = '\0';
+    FlagSet(&auth->flags, AR_DNSBL_PENDING);
+    sendheader(auth->client, REPORT_DO_DNSBL);
+  }
 }
 
 /** Flag the client to show an attempt to contact the ident server on
@@ -1131,7 +1326,7 @@ static void start_dns_query(struct AuthRequest *auth)
   }
 
   if (irc_in_addr_is_loopback(&cli_ip(auth->client))) {
-    strcpy(cli_sockhost(auth->client), cli_name(&me));
+    ircd_strncpy(cli_sockhost(auth->client), cli_name(&me), HOSTLEN);
     sendto_iauth(auth->client, "N %s", cli_sockhost(auth->client));
     return;
   }
@@ -1156,7 +1351,7 @@ static void start_iauth_query(struct AuthRequest *auth)
     return;
   }
 
-  if (IAuthHas(iauth, IAUTH_SSLFP) && cli_sslclifp(auth->client) && !EmptyString(cli_sslclifp(auth->client)))
+  if (IAuthHas(iauth, IAUTH_SSLFP) && !EmptyString(cli_sslclifp(auth->client)))
     sendto_iauth(auth->client, "F %s", cli_sslclifp(auth->client));
 }
 
@@ -1220,6 +1415,9 @@ void start_auth(struct Client* client)
 
   /* Try to start ident lookup. */
   start_auth_query(auth);
+
+  /* Try to start DNSBL lookup. */
+  start_dnsbl_lookup(auth);
 
   /* Add client to GlobalClientList. */
   add_client_to_list(client);

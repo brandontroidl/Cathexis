@@ -87,8 +87,16 @@ struct Client;
 					 */
 #define CHFL_HALFOP             0x800000 /**< Channel half operator */
 
-#define CHFL_OVERLAP         (CHFL_CHANOP | CHFL_HALFOP | CHFL_VOICE)
-#define CHFL_VOICED_OR_OPPED (CHFL_CHANOP | CHFL_HALFOP | CHFL_VOICE)
+#define CHFL_PROTECT            0x080000 /**< Channel admin/protect (+a, &) — services only */
+#define CHFL_OWNER              0x200000 /**< Channel owner (+q, ~) — services only */
+
+#define CHFL_BURST_ALREADY_PROTECTED    0x1000000
+                                        /**< In oob BURST, already protected */
+#define CHFL_BURST_ALREADY_OWNED        0x2000000
+                                        /**< In oob BURST, already owner */
+
+#define CHFL_OVERLAP         (CHFL_OWNER | CHFL_PROTECT | CHFL_CHANOP | CHFL_HALFOP | CHFL_VOICE)
+#define CHFL_VOICED_OR_OPPED (CHFL_OWNER | CHFL_PROTECT | CHFL_CHANOP | CHFL_HALFOP | CHFL_VOICE)
 
 #define MBFL_BANVALID           0x0001  /**< MBFL_BANNED bit is valid */
 #define MBFL_BANNED             0x0002  /**< Channel member is banned */
@@ -107,6 +115,9 @@ struct Client;
 
 #define MODE_CHANOP     CHFL_CHANOP	/**< +o Chanop */
 #define MODE_VOICE      CHFL_VOICE	/**< +v Voice */
+#define MODE_HALFOP     CHFL_HALFOP     /**< +h Halfop */
+#define MODE_PROTECT    CHFL_PROTECT    /**< +a Channel admin/protect — services only */
+#define MODE_OWNER      CHFL_OWNER      /**< +q Channel owner — services only */
 #define MODE_PRIVATE    0x0004		/**< +p Private */
 #define MODE_SECRET     0x0008		/**< +s Secret */
 #define MODE_MODERATED  0x0010		/**< +m Moderated */
@@ -130,11 +141,10 @@ struct Client;
 #define MODE_WASDELJOINS 0x400000 	/**< Not DELJOINS, but some joins 
 					 * pending */
 
-#define MODE_HALFOP     CHFL_HALFOP     /**< +h Halfop */
 #define MODE_EXCEPT     0x1000000       /**< +e Ban exception */
 #define MODE_REDIRECT   0x2000000       /**< +L Channel redirect */
 
-#define EXMODE_ADMINONLY    0x00000001	/**< +a User mode +a only may join */
+#define EXMODE_ADMINONLY    0x00000001	/**< +G User mode +a only may join */
 #define EXMODE_OPERONLY     0x00000002	/**< +O User mode +o only may join */
 #define EXMODE_REGMODERATED 0x00000004	/**< +M Like +m but allows registered users too */
 #define EXMODE_NONOTICES    0x00000008	/**< +N No notices allowed to the channel */
@@ -145,13 +155,16 @@ struct Client;
 #define EXMODE_NOMULTITARG  0x00000100  /**< +T Block messages with a list of targets */
 #define EXMODE_NOCOLOR      0x00000200  /**< +c Block messages containing color */
 #define EXMODE_STRIPCOLOR   0x00000400  /**< +S Strip color from messages */
+#define EXMODE_NOKNOCK      0x00000800  /**< +K No KNOCK requests allowed */
+#define EXMODE_JOINTHROTTLE 0x00001000  /**< +j n:t Join throttle (max n joins per t secs) */
+#define EXMODE_FLOODPROT    0x00002000  /**< +f Flood protection with configurable action */
 
 /** mode flags which take another parameter (With PARAmeterS)
  */
-#define MODE_WPARAS     (MODE_CHANOP|MODE_HALFOP|MODE_VOICE|MODE_BAN|MODE_KEY|MODE_LIMIT|MODE_APASS|MODE_UPASS)
+#define MODE_WPARAS     (MODE_OWNER|MODE_PROTECT|MODE_CHANOP|MODE_HALFOP|MODE_VOICE|MODE_BAN|MODE_KEY|MODE_LIMIT|MODE_APASS|MODE_UPASS)
 
 /** Available Channel modes */
-#define infochanmodes feature_bool(FEAT_OPLEVELS) ? "AabCcDdhikLlMmNnOopQRrSsTtUvZz" : "abCcDdhikLlMmNnOopQRrSsTtvZz"
+#define infochanmodes feature_bool(FEAT_OPLEVELS) ? "AabCcDdGhikLlMmNnOopQRrSsTtUvZz" : "abCcDdGhikLlMmNnOopQRrSsTtvZz"
 /** Available Channel modes that take parameters */
 #define infochanmodeswithparams feature_bool(FEAT_OPLEVELS) ? \
                                 (feature_bool(FEAT_HALFOPS) ? "AbhkLloUv" : "AbkLloUv") : \
@@ -163,13 +176,80 @@ struct Client;
 /** channel not shown but names are */
 #define HiddenChannel(x)        ((x) && ((x)->mode.mode & MODE_PRIVATE))
 /** channel visible */
-#define ShowChannel(v,c)        (PubChannel(c) || find_channel_member((v),(c)))
 #define PubChannel(x)           ((!x) || ((x)->mode.mode & \
                                     (MODE_PRIVATE | MODE_SECRET)) == 0)
 
-#define IsGlobalChannel(name)   (*(name) == '#')
-#define IsLocalChannel(name)    (*(name) == '&')
-#define IsChannelName(name)     (IsGlobalChannel(name) || IsLocalChannel(name))
+
+/** @name Channel type detection macros and functions
+ * IRC supports two channel prefixes, each with different semantics.
+ * Local channels can be enabled/disabled via FEAT_LOCAL_CHANNELS.
+ * @{
+ */
+
+/** Standard global channel (#channel) — network-wide, full modes. */
+#define IsGlobalChannel(name)   ((name) && *(name) == '#')
+
+/** Local channel (&channel) — server-local, not propagated across links. */
+#define IsLocalChannel(name)    ((name) && *(name) == '&')
+
+/** True if the string is a valid channel name (starts with # or &). */
+#define IsChannelName(name)     ((name) && (*(name) == '#' || *(name) == '&'))
+
+/** True if the channel type supports modes (+o, +v, +b, +t, etc.).
+ * All supported channel types (#, &) have full mode support. */
+#define UsesModes(name)         IsChannelName(name)
+
+/** True if the channel is propagated to other servers.
+ * Local (&) channels are server-only. All others propagate. */
+#define IsNetworkChannel(name)  ((name) && *(name) != '&')
+
+/** True if the channel supports operator status. */
+#define HasOps(name)            UsesModes(name)
+
+/** True if the channel supports topic locking (+t). */
+#define HasTopicLock(name)      UsesModes(name)
+
+/** True if the channel supports bans (+b). */
+#define HasBans(name)           UsesModes(name)
+
+/** True if the channel supports invite-only mode (+i). */
+#define HasInviteMode(name)     UsesModes(name)
+
+/** True if the channel supports a key (+k). */
+#define HasKeyMode(name)        UsesModes(name)
+
+/** True if the channel supports a user limit (+l). */
+#define HasLimitMode(name)      UsesModes(name)
+
+/** True if the channel is secret (+s). */
+#define IsSecretChannel(chptr)  ((chptr) && ((chptr)->mode.mode & MODE_SECRET))
+
+/** True if the channel is private (+p). */
+#define IsPrivateChannel(chptr) ((chptr) && ((chptr)->mode.mode & MODE_PRIVATE))
+
+/** True if the channel is public (not secret and not private). */
+#define IsPublicChannel(chptr)  ((chptr) && !((chptr)->mode.mode & (MODE_SECRET | MODE_PRIVATE)))
+
+/** True if the channel is visible to a user (public, or user is a member). */
+#define ShowChannel(v, chptr)   (IsPublicChannel(chptr) || find_member_link(chptr, v))
+
+/** True if the channel is moderated (+m). */
+#define IsModeratedChannel(chptr) ((chptr) && ((chptr)->mode.mode & MODE_MODERATED))
+
+/** True if the channel blocks external messages (+n). */
+#define IsNoExternalChannel(chptr) ((chptr) && ((chptr)->mode.mode & MODE_NOPRIVMSGS))
+
+/** True if the channel is SSL-only (+Z). */
+#define IsSSLOnlyChannel(chptr) ((chptr) && ((chptr)->mode.exmode & EXMODE_SSLONLY))
+
+
+/** True if the channel is persistent (+z). */
+#define IsPersistentChannel(chptr) ((chptr) && ((chptr)->mode.exmode & EXMODE_PERSIST))
+
+/** True if the channel is registered (+R). */
+#define IsRegisteredChannel(chptr) ((chptr) && ((chptr)->mode.mode & MODE_REGISTERED))
+
+/** @} */
 
 typedef enum ChannelGetType {
   CGT_NO_CREATE,
@@ -247,6 +327,8 @@ struct Membership {
 #define IsBanValidNick(x)   ((x)->banflags & MBFL_BANVALID_NICK)
 #define IsChanOp(x)         ((x)->status & CHFL_CHANOP)
 #define IsHalfOp(x)         ((x)->status & CHFL_HALFOP)
+#define IsOwner(x)          ((x)->status & CHFL_OWNER)
+#define IsProtect(x)        ((x)->status & CHFL_PROTECT)
 #define ExtBanTypes(x)      ((x)->extbantype)
 #define OpLevel(x)          ((x)->oplevel)
 #define HasVoice(x)         ((x)->status & CHFL_VOICE)
@@ -327,10 +409,13 @@ struct Mode {
 #define EBAN_MARK       0x00000100	/* Extended Ban matches marks on all users. */
 #define EBAN_MARKUA     0x00000200	/* Extended Ban matches marks on unauthenticated users. */
 
-#define EBAN_TYPES      0x000003FF      /* Mask of all extended ban types. */
+/* Extended extban types — see extban_ext.h */
+#include "extban_ext.h"
+
+#define EBAN_TYPES      0x00007FFF      /* Mask of all extended ban types. */
 #define EBAN_CRITERIA   0xF0000000      /* Mask of all extended ban criteria. */
-#define EBAN_MASKTYPE   0x000003F0      /* Mask of all mask types. */
-#define EBAN_ACTIVITY   0x0000000F      /* Mask of all extended bans that block a specific activity. */
+#define EBAN_MASKTYPE   0x00003FF0      /* Mask of all mask types. */
+#define EBAN_ACTIVITY   0x0000400F      /* Mask of all extended bans that block a specific activity. */
 
 struct ExtBanInfo {
   char banchar;
@@ -570,3 +655,7 @@ extern int SetAutoChanModes(struct Channel *chptr);
 extern int common_chan_count(struct Client *a, struct Client *b, int max);
 
 #endif /* INCLUDED_channel_h */
+
+/* Activity-type extban enforcement (~T, ~C, ~N) */
+extern int check_activity_extbans(struct Client *cptr, struct Channel *chptr,
+                                  const char *text, int is_ctcp, int is_notice);

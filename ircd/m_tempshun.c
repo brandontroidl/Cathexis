@@ -130,7 +130,7 @@ int ms_tempshun(struct Client* cptr, struct Client* sptr, int parc, char* parv[]
     if (remove) {
       if (IsTempShun(acptr)) {
         /* let the ops know about it */
-        sendto_opmask_butone_global(&me, SNO_GLINE, "Temporary shun removed from %s (%s)",
+        sendto_opmask_butone_global(&me, SNO_SHUN, "Temporary shun removed from %s (%s)",
                                     get_client_name(acptr, SHOW_IP), reason);
       }
       ClearTempShun(acptr);
@@ -142,7 +142,7 @@ int ms_tempshun(struct Client* cptr, struct Client* sptr, int parc, char* parv[]
         }
 
         /* let the ops know about it */
-        sendto_opmask_butone_global(&me, SNO_GLINE, "Temporary shun applied to %s (%s)",
+        sendto_opmask_butone_global(&me, SNO_SHUN, "Temporary shun applied to %s (%s)",
                                     get_client_name(acptr, SHOW_IP), reason);
       }
 
@@ -199,7 +199,7 @@ int mo_tempshun(struct Client* cptr, struct Client* sptr, int parc, char* parv[]
     if (remove) {
       if (IsTempShun(acptr)) {
         /* let the ops know about it */
-        sendto_opmask_butone_global(&me, SNO_GLINE, "Temporary shun removed from %s (%s)",
+        sendto_opmask_butone_global(&me, SNO_SHUN, "Temporary shun removed from %s (%s)",
                                     get_client_name(acptr, SHOW_IP), reason);
       }
       ClearTempShun(acptr);
@@ -211,7 +211,7 @@ int mo_tempshun(struct Client* cptr, struct Client* sptr, int parc, char* parv[]
         }
 
         /* let the ops know about it */
-        sendto_opmask_butone_global(&me, SNO_GLINE, "Temporary shun applied to %s (%s)",
+        sendto_opmask_butone_global(&me, SNO_SHUN, "Temporary shun applied to %s (%s)",
                                     get_client_name(acptr, SHOW_IP), reason);
       }
 

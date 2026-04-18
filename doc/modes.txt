@@ -92,8 +92,11 @@ CHANNEL MODES
 A - APASS
  Used with OPLEVEL
 
-a - Admin Only
- Marks a channel as admin restricted, allowing only IRC Administrators to join
+a - Admin Only / Channel Protect
+ When OWNERPROTECT is FALSE: Marks a channel as admin restricted, allowing only IRC Administrators to join
+ When OWNERPROTECT is TRUE: Sets +a (protect) on a user, granting channel protect status (& prefix).
+ Protect users can set +a +o +h +v but not +q. They cannot be kicked by +o or +h.
+ Can be set by +q users, services, or /SAMODE.
 
 b - Ban
  Sets a ban on the channel of the specified nick!user@host mask (wildcards permitted)
@@ -146,6 +149,11 @@ O - Oper Only
 o - Channel Operator
  Sets +o on the user granting them channel operator abilities
 
+q - Channel Owner
+ Sets +q on a user, granting channel owner status (~ prefix). Requires OWNERPROTECT=TRUE.
+ Owner users can set +q +a +o +h +v and cannot be kicked except by another +q.
+ Can be set by other +q users, services, or /SAMODE.
+
 p - Private
  Marks a channel as private
 
@@ -181,3 +189,35 @@ z - Persistant
 
 Z - SSL Users Only
  Only allow users using SSL to join the channel
+
+New Modes in Cathexis 1.3.0
+============================
+
+CHANNEL MODES:
+  +j <n:t>  Join throttle. Maximum n joins in t seconds.
+            Example: /MODE #chan +j 3:10 (3 joins per 10 seconds)
+            Feature: FEAT_JOINTHROTTLE (default: ON)
+
+  +f        Flood protection with configurable action.
+            Feature: FEAT_FLOODPROT (default: OFF)
+
+  +K        No KNOCK. Blocks KNOCK requests to the channel.
+            Feature: FEAT_KNOCK (default: ON)
+
+USER MODES:
+  +G        CallerID. When set, only users on your ACCEPT list
+            can send you private messages. Others get a notice
+            that you are not accepting messages.
+            Manage list: /ACCEPT +nick, /ACCEPT -nick, /ACCEPT *
+            Feature: FEAT_CALLERID (default: ON)
+
+NEW COMMANDS:
+  KNOCK     <#channel> — Request invite to +i channel. Blocked by +K.
+  MONITOR   [+|-]<nicks> | C | L | S — IRCv3 online notification.
+  DLINE     <ip> [duration] :reason — Local IP-only deny line.
+  UNDLINE   <ip> — Remove local D-line.
+  KLINE     <user@host> [duration] :reason — Alias for local GLINE.
+  UNKLINE   <user@host> — Remove local K-line.
+  LOCOPS    :message — Message to local opers only (not propagated).
+  ACCEPT    [+nick|-nick|*] — CallerID accept list management.
+  HELPOP    [topic] — Alias for /HELP.

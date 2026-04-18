@@ -568,6 +568,15 @@ extern const struct Numeric* get_error_numeric(int err);
 #define RPL_HELPTXT          705	/* RatBox */
 #define RPL_ENDOFHELP        706	/* RatBox */
 
+/* IRCv3 MONITOR numerics */
+#define RPL_MONONLINE        730	/* IRCv3 MONITOR: target is online */
+#define RPL_MONOFFLINE       731	/* IRCv3 MONITOR: target is offline */
+#define RPL_MONLIST          732	/* IRCv3 MONITOR: list entry */
+#define RPL_ENDOFMONLIST     733	/* IRCv3 MONITOR: end of list */
+#define ERR_MONLISTFULL      734	/* IRCv3 MONITOR: list is full */
+
+#define ERR_SSLONLYPM        759	/* Cathexis: Target only accepts PMs from SSL users (+S) */
+
 #define RPL_LOGGEDIN         900	/* IRCv3 - SASL extension */
 #define RPL_LOGGEDOUT        901	/* IRCv3 - SASL extension */
 

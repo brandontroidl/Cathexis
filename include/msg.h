@@ -120,6 +120,83 @@ struct Client;
 #define TOK_HELP                "HELP"
 #define CMD_HELP		MSG_HELP, TOK_HELP
 
+#define MSG_HELPOP              "HELPOP"
+#define TOK_HELPOP              "HELPOP"
+#define CMD_HELPOP              MSG_HELPOP, TOK_HELPOP
+
+#define MSG_KNOCK              "KNOCK"
+#define TOK_KNOCK              "KNOCK"
+#define CMD_KNOCK              MSG_KNOCK, TOK_KNOCK
+
+#define MSG_MONITOR            "MONITOR"
+#define TOK_MONITOR            "MONITOR"
+#define CMD_MONITOR            MSG_MONITOR, TOK_MONITOR
+
+#define MSG_DLINE              "DLINE"
+#define TOK_DLINE              "DLINE"
+#define CMD_DLINE              MSG_DLINE, TOK_DLINE
+
+#define MSG_UNDLINE            "UNDLINE"
+#define TOK_UNDLINE            "UNDLINE"
+#define CMD_UNDLINE            MSG_UNDLINE, TOK_UNDLINE
+
+#define MSG_KLINE              "KLINE"
+#define TOK_KLINE              "KLINE"
+#define CMD_KLINE              MSG_KLINE, TOK_KLINE
+
+#define MSG_UNKLINE            "UNKLINE"
+#define TOK_UNKLINE            "UNKLINE"
+#define CMD_UNKLINE            MSG_UNKLINE, TOK_UNKLINE
+
+#define MSG_LOCOPS             "LOCOPS"
+#define TOK_LOCOPS             "LOCOPS"
+#define CMD_LOCOPS             MSG_LOCOPS, TOK_LOCOPS
+
+#define MSG_ACCEPT             "ACCEPT"
+#define TOK_ACCEPT             "ACCEPT"
+#define CMD_ACCEPT             MSG_ACCEPT, TOK_ACCEPT
+
+
+
+
+
+
+/* IRCv3 CHATHISTORY */
+#define MSG_CHATHISTORY        "CHATHISTORY"
+#define TOK_CHATHISTORY        "CHATHISTORY"
+#define CMD_CHATHISTORY        MSG_CHATHISTORY, TOK_CHATHISTORY
+
+/* IRCv3 RENAME (draft/channel-rename) */
+#define MSG_RENAME             "RENAME"
+#define TOK_RENAME             "RENAME"
+#define CMD_RENAME             MSG_RENAME, TOK_RENAME
+
+/* IRCv3 REDACT (draft/message-redaction) */
+#define MSG_REDACT             "REDACT"
+#define TOK_REDACT             "REDACT"
+#define CMD_REDACT             MSG_REDACT, TOK_REDACT
+
+/* IRCv3 MARKREAD (draft/read-marker) */
+#define MSG_MARKREAD           "MARKREAD"
+#define TOK_MARKREAD           "MARKREAD"
+#define CMD_MARKREAD           MSG_MARKREAD, TOK_MARKREAD
+
+/* IRCv3 client-to-server BATCH (for draft/multiline) */
+/* Note: MSG_BATCH conflicts with bits/socket.h MSG_BATCH, so use IRCBATCH */
+#define MSG_IRCBATCH           "BATCH"
+#define TOK_IRCBATCH           "BATCH"
+#define CMD_IRCBATCH           MSG_IRCBATCH, TOK_IRCBATCH
+
+/* IRCv3 REGISTER (draft/account-registration) */
+#define MSG_REGISTER           "REGISTER"
+#define TOK_REGISTER           "REGISTER"
+#define CMD_REGISTER           MSG_REGISTER, TOK_REGISTER
+
+/* IRCv3 VERIFY (draft/account-registration) */
+#define MSG_VERIFY             "VERIFY"
+#define TOK_VERIFY             "VERIFY"
+#define CMD_VERIFY             MSG_VERIFY, TOK_VERIFY
+
 #define MSG_ERROR               "ERROR"         /* ERRO */
 #define TOK_ERROR               "Y"
 #define CMD_ERROR		MSG_ERROR, TOK_ERROR
@@ -380,17 +457,17 @@ struct Client;
 #define TOK_PROTOCTL		"PROTOCTL"
 #define CMD_PROTOCTL		MSG_PROTOCTL, CMD_PROTOCTL
 
-#define MSG_SVSIDENT		"SVSIDENT"
-#define TOK_SVSIDENT		"SID"
-#define CMD_SVSIDENT		MSG_SVSIDENT, TOK_SVSIDENT
+#define MSG_SAIDENT		"SAIDENT"
+#define TOK_SAIDENT		"SID"
+#define CMD_SAIDENT		MSG_SAIDENT, TOK_SAIDENT
 
-#define MSG_SVSINFO		"SVSINFO"
-#define TOK_SVSINFO		"SI"
-#define CMD_SVSINFO		MSG_SVSINFO, TOK_SVSINFO
+#define MSG_SAINFO		"SAINFO"
+#define TOK_SAINFO		"SI"
+#define CMD_SAINFO		MSG_SAINFO, TOK_SAINFO
 
-#define MSG_SVSQUIT		"SVSQUIT"
-#define TOK_SVSQUIT		"SX"
-#define CMD_SVSQUIT		MSG_SVSQUIT, TOK_SVSQUIT
+#define MSG_SAQUIT		"SAQUIT"
+#define TOK_SAQUIT		"SX"
+#define CMD_SAQUIT		MSG_SAQUIT, TOK_SAQUIT
 
 #define MSG_SNO			"SNO"
 #define TOK_SNO			"SNO"
@@ -408,29 +485,37 @@ struct Client;
 #define TOK_MARK		"MK"
 #define CMD_MARK		MSG_MARK, TOK_MARK
 
-#define MSG_SVSNOOP		"SVSNOOP"
-#define TOK_SVSNOOP		"SO"
-#define CMD_SVSNOOP		MSG_SVSNOOP, TOK_SVSNOOP
+#define MSG_SANOOP		"SANOOP"
+#define TOK_SANOOP		"SO"
+#define CMD_SANOOP		MSG_SANOOP, TOK_SANOOP
 
-#define MSG_SVSMODE		"SVSMODE"
-#define TOK_SVSMODE		"SM"
-#define CMD_SVSMODE		MSG_SVSMODE, TOK_SVSMODE
+#define MSG_SAMODE		"SAMODE"
+#define TOK_SAMODE		"SM"
+#define CMD_SAMODE		MSG_SAMODE, TOK_SAMODE
 
-#define MSG_SVSNICK		"SVSNICK"
-#define TOK_SVSNICK		"SN"
-#define CMD_SVSNICK		MSG_SVSNICK, TOK_SVSNICK
+#define MSG_SANICK		"SANICK"
+#define TOK_SANICK		"SN"
+#define CMD_SANICK		MSG_SANICK, TOK_SANICK
 
-#define MSG_SVSPART		"SVSPART"
-#define TOK_SVSPART		"SP"
-#define CMD_SVSPART		MSG_SVSPART, TOK_SVSPART
+#define MSG_SAPART		"SAPART"
+#define TOK_SAPART		"SP"
+#define CMD_SAPART		MSG_SAPART, TOK_SAPART
 
-#define MSG_SVSJOIN		"SVSJOIN"
-#define TOK_SVSJOIN		"SJ"
-#define CMD_SVSJOIN		MSG_SVSJOIN, TOK_SVSJOIN
+#define MSG_SAJOIN		"SAJOIN"
+#define TOK_SAJOIN		"SJ"
+#define CMD_SAJOIN		MSG_SAJOIN, TOK_SAJOIN
 
-#define MSG_SWHOIS		"SWHOIS"
-#define TOK_SWHOIS		"SW"
-#define CMD_SWHOIS		MSG_SWHOIS, TOK_SWHOIS
+#define MSG_SAWHOIS		"SAWHOIS"
+#define TOK_SAWHOIS		"SW"
+#define CMD_SAWHOIS		MSG_SAWHOIS, TOK_SAWHOIS
+
+#define MSG_SATOPIC		"SATOPIC"
+#define TOK_SATOPIC		"ST"
+#define CMD_SATOPIC		MSG_SATOPIC, TOK_SATOPIC
+
+#define MSG_SACYCLE		"SACYCLE"
+#define TOK_SACYCLE		"SC"
+#define CMD_SACYCLE		MSG_SACYCLE, TOK_SACYCLE
 
 #define MSG_FAKE		"FAKE"
 #define TOK_FAKE		"FA"
@@ -496,10 +581,6 @@ struct Client;
 #define TOK_TEMPSHUN	"TS"
 #define CMD_TEMPSHUN	MSG_TEMPSHUN, TOK_TEMPSHUN
 
-#define MSG_BOUNCER_TRANSFER	"BOUNCER_TRANSFER"
-#define TOK_BOUNCER_TRANSFER	"BX"
-#define CMD_BOUNCER_TRANSFER	MSG_BOUNCER_TRANSFER, TOK_BOUNCER_TRANSFER
-
 /*
  * Constants
  */
@@ -514,6 +595,14 @@ struct Client;
                                          * mptr->extra be passed in
                                          * parv[1]. */
 #define   MFLG_NOSHUN            0x10   /** Command is SHUN exempt. */
+
+#define MSG_SETNAME	"SETNAME"
+#define TOK_SETNAME	"SETNAME"
+#define CMD_SETNAME	MSG_SETNAME, TOK_SETNAME
+
+#define MSG_TAGMSG	"TAGMSG"
+#define TOK_TAGMSG	"TAGMSG"
+#define CMD_TAGMSG	MSG_TAGMSG, TOK_TAGMSG
 
 /*
  * Structures

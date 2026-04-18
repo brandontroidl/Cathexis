@@ -33,6 +33,7 @@
 #include "ircd.h"
 #include "ircd_chattr.h"
 #include "ircd_features.h"
+#include "ircd_crypto.h"
 #include "ircd_log.h"
 #include "ircd_reply.h"
 #include "ircd_string.h"
@@ -173,9 +174,9 @@ void do_join(struct Client *cptr, struct Client *sptr, struct JoinBuf *join,
      * "key" per channel now, this hampers brute force attacks. */
     if (feature_bool(FEAT_CHMODE_Z_STRICT) && (chptr->mode.exmode & EXMODE_SSLONLY) && !IsSSL(sptr))
       err = ERR_SSLONLYCHAN;
-    else if (key && !strcmp(key, chptr->mode.apass))
+    else if (key && !ircd_constcmp(key, chptr->mode.apass))
       flags = CHFL_CHANOP | CHFL_CHANNEL_MANAGER;
-    else if (key && !strcmp(key, chptr->mode.upass))
+    else if (key && !ircd_constcmp(key, chptr->mode.upass))
       flags = CHFL_CHANOP;
     else if (chptr->users == 0 && !chptr->mode.apass[0] && !(chptr->mode.exmode & EXMODE_PERSIST)) {
       /* Joining a zombie channel (zannel): give ops and increment TS. */
@@ -187,9 +188,9 @@ void do_join(struct Client *cptr, struct Client *sptr, struct JoinBuf *join,
       err = ERR_SSLONLYCHAN;
     else if (IsInvited(sptr, chptr)) {
       /* Invites bypass these other checks. */
-    } else if (*chptr->mode.key && (!key || strcmp(key, chptr->mode.key)) && !exceptkli)
+    } else if (*chptr->mode.key && (!key || ircd_constcmp(key, chptr->mode.key)) && !exceptkli)
       err = ERR_BADCHANNELKEY;
-    else if (*chptr->mode.key && feature_bool(FEAT_FLEXIBLEKEYS) && (key && !strcmp(key, chptr->mode.key))) {
+    else if (*chptr->mode.key && feature_bool(FEAT_FLEXIBLEKEYS) && (key && !ircd_constcmp(key, chptr->mode.key))) {
       /* Assume key checked by previous condition was found to be correct
          and allow join because FEAT_FLEXIBLEKEYS was enabled */
     } else if ((chptr->mode.mode & MODE_INVITEONLY) && !exceptkli)
@@ -228,7 +229,7 @@ void do_join(struct Client *cptr, struct Client *sptr, struct JoinBuf *join,
       case ERR_BANNEDFROMCHAN: err = 'b'; break;
       case ERR_BADCHANNELKEY:  err = 'k'; break;
       case ERR_NEEDREGGEDNICK: err = 'r'; break;
-      case ERR_ADMINONLYCHAN:  err = 'a'; break;
+      case ERR_ADMINONLYCHAN:  err = 'G'; break;
       case ERR_OPERONLYCHAN:   err = 'O'; break;
       case ERR_SSLONLYCHAN:    err = 'Z'; break;
       default: err = '?'; break;
@@ -280,7 +281,22 @@ void do_join(struct Client *cptr, struct Client *sptr, struct JoinBuf *join,
                chptr->topic_time);
   }
 
-  do_names(sptr, chptr, NAMES_ALL|NAMES_EON); /* send /names list */
+  /* IRCv3 no-implicit-names: skip automatic NAMES reply on JOIN
+   * if the client has negotiated this capability. */
+  if (!HasCap(sptr, CAP_NOIMPLICITNAMES))
+    do_names(sptr, chptr, NAMES_ALL|NAMES_EON); /* send /names list */
+
+  /* IRCv3 draft/pre-away: send RPL_AWAY for each away user in the
+   * channel so the client knows who is away before any interaction. */
+  if (HasCap(sptr, CAP_PREAWAY)) {
+    struct Membership *member;
+    for (member = chptr->members; member; member = member->next_member) {
+      if (member->user != sptr && cli_user(member->user)
+          && cli_user(member->user)->away)
+        send_reply(sptr, RPL_AWAY, cli_name(member->user),
+                   cli_user(member->user)->away);
+    }
+  }
 }
 
 /** Handle a JOIN message from a client connection.
@@ -333,6 +349,8 @@ int m_join(struct Client *cptr, struct Client *sptr, int parc, char *parv[])
       send_reply(sptr, ERR_NOSUCHCHANNEL, name);
       continue;
     }
+
+    /* Validate channel type is enabled */
 
     if (feature_bool(FEAT_VALID_UTF8_CHANNELS_ONLY) && !string_character_structure_is_sane(name)) {
         send_reply(sptr, ERR_NOSUCHCHANNEL, name);

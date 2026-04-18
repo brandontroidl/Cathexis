@@ -330,7 +330,7 @@ void SetRemoteNumNick(struct Client* acptr, const char *yxx)
   struct Client*  server = cli_user(acptr)->server;
 
   if (5 == strlen(yxx)) {
-    strcpy(cli_yxx(acptr), yxx + 2);
+    ircd_strncpy(cli_yxx(acptr), yxx + 2, 4);
   }
   else {
     (cli_yxx(acptr))[0] = *++yxx;
@@ -453,7 +453,7 @@ const char* iptobase64(char* buf, const struct irc_in_addr* addr, unsigned int c
     else if ((addr->in6_16[0] == htons(0x2001)) && (addr->in6_16[1] == 0))
         inttobase64(buf, (ntohs(addr->in6_16[6] ^ 0xFFFF) << 16) | ntohs(addr->in6_16[7] ^ 0xFFFF), 6);
     else
-        strcpy(buf, "AAAAAA");
+        ircd_strncpy(buf, "AAAAAA", sizeof(buf) - 1);
   } else {
     unsigned int max_start, max_zeros, curr_zeros, zero, ii;
     char *output = buf;

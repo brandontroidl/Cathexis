@@ -42,11 +42,13 @@ struct VarData {
 };
 
 #ifndef HAVE_VA_COPY
+#ifndef va_copy
 #if HAVE___VA_COPY
 #define va_copy(DEST, SRC) __va_copy(DEST, SRC)
 #else
 /** Fallback macro to copy to \a DEST from \a SRC. */
 #define va_copy(DEST, SRC) memcpy(&(DEST), &(SRC), sizeof(DEST))
+#endif
 #endif
 #endif
 

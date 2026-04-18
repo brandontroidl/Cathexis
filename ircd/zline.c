@@ -187,7 +187,7 @@ do_zline(struct Client *cptr, struct Client *sptr, struct Zline *zline)
       	   zline->zl_reason);
 
       /* let the ops know about it */
-      sendto_opmask_butone_global(&me, SNO_GLINE, "Z-line active for %s",
+      sendto_opmask_butone_global(&me, SNO_ZLINE, "Z-line active for %s",
                            get_client_name(acptr, SHOW_IP));
 
       /* and get rid of him */
@@ -467,7 +467,7 @@ zline_activate(struct Client *cptr, struct Client *sptr, struct Zline *zline,
     return 0; /* was active to begin with */
 
   /* Inform ops and log it */
-  sendto_opmask_butone(0, SNO_GLINE, "%s activating global ZLINE for %s, "
+  sendto_opmask_butone(0, SNO_ZLINE, "%s activating global ZLINE for %s, "
                        "expiring at %Tu: %s",
                        (feature_bool(FEAT_HIS_SNOTICES) || IsServer(sptr)) ?
                          cli_name(sptr) :
@@ -529,7 +529,7 @@ zline_deactivate(struct Client *cptr, struct Client *sptr, struct Zline *zline,
   }
 
   /* Inform ops and log it */
-  sendto_opmask_butone(0, SNO_GLINE, "%s %s ZLINE for %s, expiring at %Tu: "
+  sendto_opmask_butone(0, SNO_ZLINE, "%s %s ZLINE for %s, expiring at %Tu: "
 		       "%s",
                        (feature_bool(FEAT_HIS_SNOTICES) || IsServer(sptr)) ?
                          cli_name(sptr) :

@@ -546,7 +546,7 @@ static void emit_client(const char *mask, const char *passwd, const char *class,
     char *delim;
     size_t len;
 
-    delim = strchr(mask, '@');
+    delim = (char *)strchr(mask, '@');
     if (delim) {
         *delim++ = '\0';
         if (is_ip) {

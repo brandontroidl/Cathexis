@@ -14,13 +14,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
- *
- * $Id: patchlevel.h 1942 2010-02-02 23:29:03Z entrope $
- *
  */
-#define PATCHLEVEL "14+Nefarious(2.0.0)"
+#define PATCHLEVEL "1.5.1"
 
-#define RELEASE ".12."
+#define RELEASE ""
 
 /*
  * Deliberate empty lines
@@ -28,7 +25,7 @@
 /* Do NOT edit those: */
 
 #ifndef BASE_VERSION
-#define BASE_VERSION "u2.10"
+#define BASE_VERSION "Cathexis-"
 #endif
 
 #ifndef MAJOR_PROTOCOL

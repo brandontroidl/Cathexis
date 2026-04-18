@@ -52,6 +52,7 @@
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <unistd.h>
+#include "ircd_snprintf.h"
 
 #define UPINGTIMEOUT 60   /**< Timeout waiting for ping responses */
 
@@ -287,7 +288,7 @@ void uping_send(struct UPing* pptr)
   memset(buf, 0, sizeof(buf));
 
   gettimeofday(&tv, NULL);
-  sprintf(buf, " %10lu%c%6lu", (unsigned long)tv.tv_sec, '\0', (unsigned long)tv.tv_usec);
+  ircd_snprintf(0, buf, sizeof(buf), " %10lu%c%6lu", (unsigned long)tv.tv_sec, '\0', (unsigned long)tv.tv_usec);
 
   Debug((DEBUG_SEND, "send_ping: sending [%s %s] to %s.%d on %d",
 	  buf, &buf[12],
@@ -357,7 +358,7 @@ void uping_read(struct UPing* pptr)
   timer_chg(&pptr->killer, TT_RELATIVE, UPINGTIMEOUT);
 
   s = pptr->buf + strlen(pptr->buf);
-  sprintf(s, " %u", pingtime);
+  ircd_snprintf(0, s, sizeof(pptr->buf) - (s - pptr->buf), " %u", pingtime);
 
   if (pptr->received == pptr->count)
     uping_end(pptr);
@@ -419,7 +420,7 @@ int uping_server(struct Client* sptr, struct ConfItem* aconf, int port, int coun
   pptr->count               = IRCD_MIN(20, count);
   pptr->client              = sptr;
   pptr->freeable            = UPING_PENDING_SOCKET;
-  strcpy(pptr->name, aconf->name);
+  ircd_strncpy(pptr->name, aconf->name, sizeof(pptr->name) - 1);
 
   pptr->next = pingList;
   pingList   = pptr;

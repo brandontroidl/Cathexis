@@ -683,18 +683,40 @@ irc_decode_bitstring(const char **cpp, char *dn, const char *eom)
                 return(-1);
 
         cp++;
-        dn += sprintf(dn, "\\[x");
-        for (b = blen; b > 7; b -= 8, cp++)
-                dn += sprintf(dn, "%02x", *cp & 0xff);
-        if (b > 4) {
-                tc = *cp++;
-                dn += sprintf(dn, "%02x", tc & (0xff << (8 - b)));
-        } else if (b > 0) {
-                tc = *cp++;
-               dn += sprintf(dn, "%1x",
-                               ((tc >> 4) & 0x0f) & (0x0f << (4 - b)));
+        {
+          int n;
+          size_t remain;
+
+          remain = eom - dn;
+          n = snprintf(dn, remain, "\\[x");
+          if (n < 0 || (size_t)n >= remain) return(-1);
+          dn += n;
+
+          for (b = blen; b > 7; b -= 8, cp++) {
+            remain = eom - dn;
+            n = snprintf(dn, remain, "%02x", *cp & 0xff);
+            if (n < 0 || (size_t)n >= remain) return(-1);
+            dn += n;
+          }
+          if (b > 4) {
+            tc = *cp++;
+            remain = eom - dn;
+            n = snprintf(dn, remain, "%02x", tc & (0xff << (8 - b)));
+            if (n < 0 || (size_t)n >= remain) return(-1);
+            dn += n;
+          } else if (b > 0) {
+            tc = *cp++;
+            remain = eom - dn;
+            n = snprintf(dn, remain, "%1x",
+                         ((tc >> 4) & 0x0f) & (0x0f << (4 - b)));
+            if (n < 0 || (size_t)n >= remain) return(-1);
+            dn += n;
+          }
+          remain = eom - dn;
+          n = snprintf(dn, remain, "/%d]", blen);
+          if (n < 0 || (size_t)n >= remain) return(-1);
+          dn += n;
         }
-        dn += sprintf(dn, "/%d]", blen);
 
         *cpp = cp;
         return(dn - beg);
@@ -712,7 +734,7 @@ int
 irc_ns_name_pton(const char *src, unsigned char *dst, size_t dstsiz)
 {
   unsigned char *label, *bp, *eom;
-  char *cp;
+  const char *cp;
   int c, n, escaped, e = 0;
 
   escaped = 0;

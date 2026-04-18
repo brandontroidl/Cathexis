@@ -80,7 +80,7 @@
 #define VERSIONLEN      250
 /** Maximum length for a password used for connecting servers and clients.
  */
-#define PASSWDLEN       20
+#define PASSWDLEN       128
 /** Maximum length for a password used with the login-on-connect feature, and
  * it should match the length used by your service bot (e.g. gnuworld)
  */
@@ -98,7 +98,7 @@
 /** Exactly long enough to hold one protocol message (RFC 1459)
  * including the line termination (\\r\\n).  DO NOT CHANGE THIS!!!!
  */
-#define BUFSIZE         512
+#define BUFSIZE         1024
 
 /** Maximum available targets for a user. */
 #define MAXTARGETS      20

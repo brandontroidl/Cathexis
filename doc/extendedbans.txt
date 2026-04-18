@@ -51,3 +51,34 @@ You cannot currently construct a ban which combines the special fields such as a
 Each extended ban type can be enabled/disabled using feature lines in ircd.conf.
 
 
+
+New Extended Ban Types (Cathexis 1.3.0)
+=======================================
+
+7 new extban types have been added, expanding the total from 8 to 15.
+
+  Type  EBAN Flag       Feature Toggle    Description
+  ----  ---------       --------------    -----------
+  ~s    EBAN_SERVER     FEAT_EXTBAN_s     Match user's server name
+  ~f    EBAN_CERTFP     FEAT_EXTBAN_f     Match TLS certificate fingerprint
+  ~o    EBAN_OPER       FEAT_EXTBAN_o     Match IRC operators
+  ~R    EBAN_REGNICK    FEAT_EXTBAN_R     Match registered/identified users
+  ~T    EBAN_TEXTBAN    FEAT_EXTBAN_T     Block messages matching text pattern
+  ~C    EBAN_NOCTCP     FEAT_EXTBAN_C     Block CTCP messages from matching users
+  ~N    EBAN_NONOTICE   FEAT_EXTBAN_N     Block NOTICE messages from matching users
+
+Examples:
+  /MODE #chan +b ~s:bad.server.net       Ban users from a specific server
+  /MODE #chan +e ~f:AA:BB:CC:DD:...      Exempt by TLS fingerprint
+  /MODE #chan +e ~o:*                    Exempt all IRC operators from bans
+  /MODE #chan +I ~R:*                    Invite-exempt all registered users
+  /MODE #chan +b ~!~R:*                  Ban all unregistered users
+  /MODE #chan +b ~T:block:*badword*      Block messages containing "badword"
+  /MODE #chan +b ~C:*!*@bot.host         Block CTCPs from bot.host
+  /MODE #chan +b ~N:*!*@*.spammer.net    Block notices from spammer nets
+
+Notes:
+  - ~T (textban) defaults to OFF due to CPU cost. Enable with SET EXTBAN_T TRUE.
+  - All new types can be combined with ~! negation modifier.
+  - ~s, ~f, ~o, ~R are match types (used with +b, +e, +I).
+  - ~T, ~C, ~N are activity types (control what banned users can do).

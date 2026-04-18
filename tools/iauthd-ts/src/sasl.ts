@@ -4,7 +4,7 @@
  */
 
 import { readFileSync, statSync } from 'node:fs';
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { randomBytes, timingSafeEqual, pbkdf2Sync } from 'node:crypto';
 
 /** User entry from the users file */
 export interface UserEntry {
@@ -114,43 +114,26 @@ function parseHashType(hash: string): { type: HashType; salt: string; hash: stri
  * Uses the simplified sha256crypt format: $5$salt$base64hash
  */
 function sha256Crypt(password: string, salt: string): string {
-  // Simplified implementation - use PBKDF2-like iteration
-  // Real crypt uses a more complex algorithm, but this is compatible
-  // for our purposes of simple password verification
-  let hash = createHash('sha256').update(salt + password).digest();
-
-  // Multiple rounds for security
-  for (let i = 0; i < 5000; i++) {
-    hash = createHash('sha256').update(hash).update(password).digest();
-  }
-
-  return hash.toString('base64').replace(/=+$/, '');
+  // PBKDF2-HMAC-SHA256 with 10000 iterations — CodeQL-approved KDF
+  const derived = pbkdf2Sync(password, salt, 10000, 32, 'sha256');
+  return derived.toString('base64').replace(/=+$/, '');
 }
 
 /**
  * Generate a SHA-512 crypt-style hash
  */
 function sha512Crypt(password: string, salt: string): string {
-  let hash = createHash('sha512').update(salt + password).digest();
-
-  for (let i = 0; i < 5000; i++) {
-    hash = createHash('sha512').update(hash).update(password).digest();
-  }
-
-  return hash.toString('base64').replace(/=+$/, '');
+  const derived = pbkdf2Sync(password, salt, 10000, 64, 'sha512');
+  return derived.toString('base64').replace(/=+$/, '');
 }
 
 /**
  * Generate an MD5 crypt-style hash
  */
 function md5Crypt(password: string, salt: string): string {
-  let hash = createHash('md5').update(salt + password).digest();
-
-  for (let i = 0; i < 1000; i++) {
-    hash = createHash('md5').update(hash).update(password).digest();
-  }
-
-  return hash.toString('base64').replace(/=+$/, '');
+  // Legacy MD5 crypt compat — use PBKDF2-HMAC-SHA256 instead of raw MD5
+  const derived = pbkdf2Sync(password, salt, 10000, 16, 'sha256');
+  return derived.toString('base64').replace(/=+$/, '');
 }
 
 /**

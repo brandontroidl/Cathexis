@@ -652,8 +652,8 @@ ircd_aton_ip4(const char *input, unsigned int *output, unsigned char *pbits)
 int
 ipmask_parse(const char *input, struct irc_in_addr *ip, unsigned char *pbits)
 {
-  char *colon;
-  char *dot;
+  const char *colon;
+  const char *dot;
 
   assert(ip);
   assert(input);
@@ -945,6 +945,39 @@ int valid_hostname(const char* name) {
 
   for (c = name; *c; c++) {
     if (!IsHostChar(*c))
+      return 0;
+  }
+
+  return 1;
+}
+
+/** Check if a character is an IRC formatting control code.
+ * Includes: bold (0x02), color (0x03), reset (0x0F), reverse (0x16),
+ *           italic (0x1D), strikethrough (0x1E), underline (0x1F),
+ *           monospace (0x11), and comma (used in color codes like 4,5).
+ */
+static int IsIRCFormat(char c) {
+  unsigned char uc = (unsigned char)c;
+  return (uc == 0x02 || uc == 0x03 || uc == 0x0F || uc == 0x11 ||
+          uc == 0x16 || uc == 0x1D || uc == 0x1E || uc == 0x1F ||
+          uc == ',');
+}
+
+/** Validate a vhost string (relaxed hostname validation).
+ * Accepts all standard hostname characters plus IRC formatting
+ * control codes (bold, color, italic, underline, etc.).
+ * Used by SETHOST when FEAT_SETHOST_FREEFORM is enabled.
+ * @param[in] name Hostname string to validate.
+ * @return Non-zero if the hostname is valid, zero if not.
+ */
+int valid_vhost(const char* name) {
+  const char *c = NULL;
+
+  if (EmptyString(name))
+    return 0;
+
+  for (c = name; *c; c++) {
+    if (!IsHostChar(*c) && !IsIRCFormat(*c))
       return 0;
   }
 

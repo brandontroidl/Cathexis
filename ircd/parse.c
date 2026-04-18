@@ -29,6 +29,8 @@
 #include "channel.h"
 #include "handlers.h"
 #include "hash.h"
+#include "capab.h"
+#include "ircd_batch.h"
 #include "ircd.h"
 #include "ircd_alloc.h"
 #include "ircd_chattr.h"
@@ -36,6 +38,8 @@
 #include "ircd_log.h"
 #include "ircd_reply.h"
 #include "ircd_string.h"
+#include "ircd_crypto.h"
+#include "s2s_crypto.h"
 #include "msg.h"
 #include "numeric.h"
 #include "numnicks.h"
@@ -114,7 +118,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_privmsg, ms_privmsg, mo_privmsg, m_ignore },
-    "<target> :<message> - Sends a message to a channel or a user",
+    "<target> :<message> - Send a message to a user or channel. Target can be a nick, #channel, or mask.",
   },
   {
     MSG_NICK,
@@ -122,7 +126,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW | MFLG_UNREG | MFLG_NOSHUN, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_nick, m_nick, ms_nick, m_nick, m_ignore },
-    "<nick> - Changes your nick"
+    "<nickname> - Change your nickname. Nicknames must not exceed the server's NICKLEN."
   },
   {
     MSG_NOTICE,
@@ -130,7 +134,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW | MFLG_UNREG | MFLG_IGNORE, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { mr_notice, m_notice, ms_notice, mo_notice, m_ignore },
-    "<target> :<message> - Sends a message to a channel or a user",
+    "<target> :<message> - Send a notice to a user or channel. Unlike PRIVMSG, notices must not generate automatic replies.",
   },
   {
     MSG_WALLCHOPS,
@@ -138,7 +142,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_wallchops, ms_wallchops, m_wallchops, m_ignore },
-    "<channel> :<message> - Sends a message to all channel operators in the channel",
+    "<#channel> :<message> - Send a notice to all channel operators (+o/+h) on the given channel.",
   },
   {
     MSG_WALLVOICES,
@@ -146,7 +150,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_wallvoices, ms_wallvoices, m_wallvoices, m_ignore },
-    "<channel> :<message> - Sends a message to all voiced users in the channel",
+    "<#channel> :<message> - Send a notice to all voiced (+v) and above users on the given channel.",
   },
   {
     MSG_CPRIVMSG,
@@ -154,7 +158,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_cprivmsg, m_ignore, m_cprivmsg, m_ignore },
-    "<nick> <channel> :<message> - Whispers a message to one person as if it was sent to the given channel",
+    "<nick> <#channel> :<message> - Send a private message to a user via a shared channel (bypasses target limits).",
   },
   {
     MSG_CNOTICE,
@@ -162,7 +166,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_cnotice, m_ignore, m_cnotice, m_ignore },
-    "<nick> <channel> :<message> - Whispers a message to one person as if it was sent to the given channel",
+    "<nick> <#channel> :<message> - Send a notice to a user via a shared channel (bypasses target limits).",
   },
   {
     MSG_JOIN,
@@ -170,7 +174,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_join, ms_join, m_join, m_ignore },
-    "<channel> - Joins a channel"
+    "<#channel> [<key>] - Join a channel. Use a comma-separated list for multiple channels. Channels prefixed with # are global, & are local."
   },
   {
     MSG_MODE,
@@ -178,7 +182,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_mode, ms_mode, m_mode, m_ignore },
-    "<target> [<modestring> [<mode arguments>...]] - Changes the parameter of a user or channel"
+    "<target> [<modes> [<params>]] - View or change modes. Target is a nick or #channel. Use /HELP UMODE or /HELP CMODE for mode lists."
   },
   {
     MSG_BURST,
@@ -186,7 +190,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_ignore, m_ignore, ms_burst, m_ignore, m_ignore },
-    ""
+    "(Server only) Synchronize channel state during network burst."
   },
   {
     MSG_CREATE,
@@ -194,7 +198,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_ignore, m_ignore, ms_create, m_ignore, m_ignore },
-    ""
+    "(Server only) Create a new channel during network burst."
   },
   {
     MSG_DESTRUCT,
@@ -202,7 +206,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_ignore, m_ignore, ms_destruct, m_ignore, m_ignore },
-    ""
+    "(Server only) Destroy an empty channel."
   },
   {
     MSG_QUIT,
@@ -210,7 +214,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW | MFLG_UNREG | MFLG_NOSHUN, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_quit, m_quit, ms_quit, m_quit, m_ignore },
-    "[:<message>] - Disconnect from the network, optionally with a message."
+    "[:<message>] - Disconnect from the server with an optional quit message."
   },
   {
     MSG_PART,
@@ -218,7 +222,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW | MFLG_NOSHUN, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_part, ms_part, m_part, m_ignore },
-    "<channel> [:<message>] - Leaves a channel, optionally with a message."
+    "<#channel> [:<message>] - Leave a channel with an optional part message. Comma-separated list for multiple channels."
   },
   {
     MSG_TOPIC,
@@ -226,7 +230,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_topic, ms_topic, m_topic, m_ignore },
-    "<channel> [:<new topic>] - Gets or sets the current topic of the channel."
+    "<#channel> [:<new topic>] - View or change a channel's topic. Without a new topic, shows the current one."
   },
   {
     MSG_INVITE,
@@ -234,7 +238,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_invite, ms_invite, m_invite, m_ignore },
-    "<nick> <channel> - Invites someone to join the channel."
+    "<nick> <#channel> - Invite a user to join a channel. Required for +i (invite-only) channels."
   },
   {
     MSG_KICK,
@@ -242,7 +246,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_kick, ms_kick, m_kick, m_ignore },
-    "<channel> <nick> - Kicks someone out of the channel."
+    "<#channel> <nick> [:<reason>] - Remove a user from a channel. Requires channel operator status."
   },
   {
     MSG_WALLOPS,
@@ -250,7 +254,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_not_oper, ms_wallops, mo_wallops, m_ignore },
-    ":<message> - Sends a message to everyone"
+    ":<message> - Send a message to all users with +w (wallops) mode. Requires IRC operator status."
   },
   {
     MSG_WALLUSERS,
@@ -258,7 +262,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_not_oper, ms_wallusers, mo_wallusers, m_ignore },
-    ":<message> - Sends a message to everyone"
+    ":<message> - Send a message to all connected users. Requires IRC operator status."
   },
   {
     MSG_DESYNCH,
@@ -266,7 +270,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_ignore, m_ignore, ms_desynch, m_ignore, m_ignore },
-    ""
+    "(Server only) Report a desynchronization between servers."
   },
   {
     MSG_PING,
@@ -274,7 +278,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW | MFLG_NOSHUN, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_ping, ms_ping, mo_ping, m_ignore },
-    ""
+    "<server> - Test connection latency to a server. The server will respond with PONG."
   },
   {
     MSG_PONG,
@@ -282,7 +286,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW | MFLG_UNREG | MFLG_NOSHUN, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { mr_pong, m_pong, ms_pong, m_pong, m_ignore },
-    ""
+    "<server> - Reply to a PING. Sent automatically by your client to maintain the connection."
   },
   {
     MSG_ERROR,
@@ -290,7 +294,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW | MFLG_UNREG, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { mr_error, m_ignore, ms_error, m_ignore, m_ignore },
-    ""
+    "(Server only) Report a fatal error on a server link."
   },
   {
     MSG_KILL,
@@ -298,7 +302,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_not_oper, ms_kill, mo_kill, m_ignore },
-    "<nick> [:<reason>] - Disconnects someone else."
+    "<nick> :<reason> - Forcefully disconnect a user from the network. Requires IRC operator status."
   },
   {
     MSG_USER,
@@ -306,7 +310,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW | MFLG_NOSHUN, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_user, m_registered, m_ignore, m_registered, m_ignore },
-    ""
+    "<username> <unused> <unused> :<realname> - Set username and realname during registration. Sent automatically by your client."
   },
   {
     MSG_AWAY,
@@ -314,7 +318,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_away, ms_away, m_away, m_ignore },
-    "[:<reason>] - Marks yourself as away, or back."
+    "[:<message>] - Mark yourself as away with a reason, or remove away status if no message given."
   },
   {
     MSG_ISON,
@@ -322,7 +326,7 @@ struct Message msgtab[] = {
     0, 1, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_ison, m_ignore, m_ison, m_ignore },
-    "<nick> - Returns whether someone is online."
+    "<nick> [<nick2> ...] - Check if one or more nicknames are currently online. Returns those that are."
   },
   {
     MSG_SERVER,
@@ -330,7 +334,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW | MFLG_UNREG | MFLG_NOSHUN, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { mr_server, m_registered, ms_server, m_registered, m_ignore },
-    ""
+    "(Internal) Server introduction message for establishing server-to-server links."
   },
   {
     MSG_SQUIT,
@@ -338,7 +342,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_not_oper, ms_squit, mo_squit, m_ignore },
-    ""
+    "<server> :<reason> - Disconnect a server from the network. Requires IRC operator status."
   },
   {
     MSG_WHOIS,
@@ -346,7 +350,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_whois, ms_whois, m_whois, m_ignore },
-    "<nick> - Returns information on someone"
+    "[<server>] <nick> - Look up detailed information about a user including channels, idle time, and server."
   },
   {
     MSG_WHO,
@@ -354,7 +358,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_who, m_ignore, m_who, m_ignore },
-    "<nick> - Returns information on someone"
+    "<mask> [<flags>] - Search for users matching a mask. Supports WHOX extended flags (see /HELP WHO for details)."
   },
   {
     MSG_WHOWAS,
@@ -362,7 +366,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_whowas, m_whowas, m_whowas, m_ignore },
-    "<nick> - Returns information on someone who left the network"
+    "<nick> [<count>] - Look up information about a user who has recently left the network."
   },
   {
     MSG_LIST,
@@ -370,7 +374,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_list, m_ignore, m_list, m_ignore },
-    "- Lists all channels"
+    "[<params>] - List channels. Params: >N (min users), <N (max users), T>N/T<N (topic age). Use /LIST ? for help."
   },
   {
     MSG_NAMES,
@@ -378,7 +382,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_names, m_names, m_names, m_ignore },
-    "<channel> - Returns a list of users in the channel"
+    "<#channel> - Show all visible users in a channel with their prefixes (@, +, %)."
   },
   {
     MSG_USERHOST,
@@ -386,7 +390,7 @@ struct Message msgtab[] = {
     0, 1, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_userhost, m_ignore, m_userhost, m_ignore },
-    ""
+    "<nick> [<nick2> ...] - Return user@host information for up to 5 nicknames."
   },
   {
     MSG_USERIP,
@@ -394,7 +398,7 @@ struct Message msgtab[] = {
     0, 1, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_userip, m_ignore, m_userip, m_ignore },
-    ""
+    "<nick> [<nick2> ...] - Return user@ip information for up to 5 nicknames. Requires IRC operator status."
   },
   {
     MSG_TRACE,
@@ -402,7 +406,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_trace, ms_trace, mo_trace, m_ignore },
-    "<server> - Returns the list of links between the local server and the other one"
+    "[<server>] - Show the connection path between you and a server, including all intermediate links."
   },
   {
     MSG_PASS,
@@ -410,7 +414,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW | MFLG_UNREG | MFLG_NOSHUN, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { mr_pass, m_registered, m_ignore, m_registered, m_ignore },
-    ""
+    "<password> - Set a connection password during registration. Must be sent before NICK/USER."
   },
   {
     MSG_LUSERS,
@@ -418,7 +422,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_lusers, ms_lusers, m_lusers, m_ignore },
-    "- Returns user statistics of the local server and the network"
+    "- Show network statistics: total users, invisible, operators, channels, servers, and local/global clients."
   },
   {
     MSG_TIME,
@@ -426,7 +430,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_time, m_time, m_time, m_ignore },
-    "- Returns the current time"
+    "[<server>] - Show the current date and time on the server."
   },
   {
     MSG_SETTIME,
@@ -434,7 +438,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_not_oper, ms_settime, mo_settime, m_ignore },
-    ""
+    "<timestamp> [<server>] - Synchronize server clocks. Requires SET privilege."
   },
   {
     MSG_RPING,
@@ -442,7 +446,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_not_oper, ms_rping, mo_rping, m_ignore },
-    ""
+    "<server> - Measure round-trip time to a remote server via the IRC protocol."
   },
   {
     MSG_RPONG,
@@ -450,7 +454,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_ignore, ms_rpong, m_ignore, m_ignore },
-    ""
+    "(Internal) Reply to an RPING request."
   },
   {
     MSG_OPER,
@@ -458,7 +462,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_oper, ms_oper, mo_oper, m_ignore },
-    ""
+    "<name> <password> - Authenticate as an IRC operator. Levels: +O local, +o global, +a admin, +N netadmin."
   },
   {
     MSG_CONNECT,
@@ -466,7 +470,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_not_oper, ms_connect, mo_connect, m_ignore },
-    ""
+    "<server> [<port> [<remote>]] - Instruct a server to connect to another. Requires IRC operator status."
   },
   {
     MSG_MAP,
@@ -474,7 +478,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_map, m_ignore, m_map, m_ignore },
-    "- Returns the complete tree of the network's server"
+    "- Show a visual map of all servers in the network with user counts and lag."
   },
   {
     MSG_VERSION,
@@ -482,7 +486,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW | MFLG_UNREG, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_version, m_version, ms_version, mo_version, m_ignore },
-    "- Returns the version of the local server"
+    "[<server>] - Show the IRC server software version and enabled features."
   },
   {
     MSG_STATS,
@@ -490,7 +494,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_stats, m_stats, m_stats, m_ignore },
-    ""
+    "<letter> [<server>] - Query server statistics. Common: c(connects), i(clients), k(kills), l(links), m(commands), o(opers), u(uptime), y(classes)."
   },
   {
     MSG_LINKS,
@@ -498,7 +502,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_links, ms_links, m_links, m_ignore },
-    "- Returns the list of server links in the network"
+    "[<mask>] - Show servers linked to the network matching the optional mask."
   },
   {
     MSG_ADMIN,
@@ -506,7 +510,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW | MFLG_UNREG | MFLG_NOSHUN, 0,  NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_admin, m_admin, ms_admin, mo_admin, m_ignore },
-    "- Returns details about the local administrator"
+    "[<server>] - Show the administrative contact information for a server."
   },
   {
     MSG_HELP,
@@ -514,7 +518,136 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_help, m_ignore, m_help, m_ignore },
-    "- Returns this message"
+    "[<command>] - Show help for a command, or list all commands if none specified."
+  },
+  {
+    MSG_HELPOP,
+    TOK_HELPOP,
+    0, MAXPARA, MFLG_SLOW, 0, NULL,
+    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
+    { m_unregistered, m_help, m_ignore, m_help, m_ignore },
+    "[<command>] - Alias for /HELP. Show help for a command."
+  },
+  /* ── New Cathexis commands ── */
+  {
+    MSG_KNOCK,
+    TOK_KNOCK,
+    0, MAXPARA, MFLG_SLOW, 0, NULL,
+    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
+    { m_unregistered, m_knock, m_ignore, m_knock, m_ignore },
+    "<#channel> - Request an invite to an invite-only (+i) channel."
+  },
+  {
+    MSG_MONITOR,
+    TOK_MONITOR,
+    0, MAXPARA, MFLG_SLOW, 0, NULL,
+    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
+    { m_unregistered, m_monitor, m_ignore, m_monitor, m_ignore },
+    "[+|-]<nick>[,nick2,...] | C | L | S - IRCv3 online notification list."
+  },
+  {
+    MSG_DLINE,
+    TOK_DLINE,
+    0, MAXPARA, MFLG_SLOW, 0, NULL,
+    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
+    { m_unregistered, m_not_oper, m_ignore, mo_dline, m_ignore },
+    "<ip> [<duration> :<reason>] - Add a local IP deny line."
+  },
+  {
+    MSG_UNDLINE,
+    TOK_UNDLINE,
+    0, MAXPARA, MFLG_SLOW, 0, NULL,
+    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
+    { m_unregistered, m_not_oper, m_ignore, mo_undline, m_ignore },
+    "<ip> - Remove a local IP deny line."
+  },
+  {
+    MSG_KLINE,
+    TOK_KLINE,
+    0, MAXPARA, MFLG_SLOW, 0, NULL,
+    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
+    { m_unregistered, m_not_oper, m_ignore, mo_kline, m_ignore },
+    "<user@host> [<duration> :<reason>] - Add a local host ban (alias for local GLINE)."
+  },
+  {
+    MSG_UNKLINE,
+    TOK_UNKLINE,
+    0, MAXPARA, MFLG_SLOW, 0, NULL,
+    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
+    { m_unregistered, m_not_oper, m_ignore, mo_unkline, m_ignore },
+    "<user@host> - Remove a local host ban."
+  },
+  {
+    MSG_LOCOPS,
+    TOK_LOCOPS,
+    0, MAXPARA, MFLG_SLOW, 0, NULL,
+    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
+    { m_unregistered, m_not_oper, m_ignore, mo_locops, m_ignore },
+    ":<message> - Send a message to local server operators only."
+  },
+  {
+    MSG_ACCEPT,
+    TOK_ACCEPT,
+    0, MAXPARA, MFLG_SLOW, 0, NULL,
+    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
+    { m_unregistered, m_accept, m_ignore, m_accept, m_ignore },
+    "[+nick|-nick|*] - Manage CallerID accept list (requires user mode +G)."
+  },
+  {
+    MSG_CHATHISTORY,
+    TOK_CHATHISTORY,
+    0, MAXPARA, MFLG_SLOW, 0, NULL,
+    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
+    { m_unregistered, m_chathistory, m_ignore, m_chathistory, m_ignore },
+    "<subcommand> <target> <reference> <limit> - Retrieve channel/DM history."
+  },
+  {
+    MSG_RENAME,
+    TOK_RENAME,
+    0, MAXPARA, MFLG_SLOW, 0, NULL,
+    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
+    { m_unregistered, m_rename, ms_rename, m_rename, m_ignore },
+    "<#old> <#new> [:<reason>] - Rename a channel."
+  },
+  {
+    MSG_REDACT,
+    TOK_REDACT,
+    0, MAXPARA, MFLG_SLOW, 0, NULL,
+    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
+    { m_unregistered, m_redact, m_ignore, m_redact, m_ignore },
+    "<target> <msgid> [:<reason>] - Delete a message."
+  },
+  {
+    MSG_MARKREAD,
+    TOK_MARKREAD,
+    0, MAXPARA, MFLG_SLOW, 0, NULL,
+    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
+    { m_ignore, m_markread, m_ignore, m_markread, m_ignore },
+    "<target> [<timestamp>] - Mark channel as read."
+  },
+  {
+    MSG_IRCBATCH,
+    TOK_IRCBATCH,
+    0, MAXPARA, MFLG_SLOW, 0, NULL,
+    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
+    { m_unregistered, m_batch, m_ignore, m_batch, m_ignore },
+    "+|-<ref> [<type> <target>] - Client-to-server batch (draft/multiline)."
+  },
+  {
+    MSG_REGISTER,
+    TOK_REGISTER,
+    0, MAXPARA, MFLG_SLOW, 0, NULL,
+    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
+    { m_register, m_register, m_ignore, m_register, m_ignore },
+    "<account> {<email>|*} <password> - Register an account."
+  },
+  {
+    MSG_VERIFY,
+    TOK_VERIFY,
+    0, MAXPARA, MFLG_SLOW, 0, NULL,
+    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
+    { m_verify, m_verify, m_ignore, m_verify, m_ignore },
+    "<account> <code> - Verify account registration."
   },
   {
     MSG_INFO,
@@ -522,7 +655,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_info, ms_info, mo_info, m_ignore },
-    "- Returns information about the local server"
+    "[<server>] - Show server version, compile options, and credits."
   },
   {
     MSG_MOTD,
@@ -530,7 +663,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_motd, m_motd, m_motd, m_ignore },
-    "- Returns the message of the day"
+    "[<server>] - Show the Message of the Day for a server."
   },
   {
     MSG_CLOSE,
@@ -538,7 +671,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_not_oper, m_ignore, mo_close, m_ignore },
-    ""
+    "- Close all unregistered connections to the server. Requires IRC operator status."
   },
   {
     MSG_SILENCE,
@@ -546,7 +679,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_silence, ms_silence, m_silence, m_ignore },
-    ""
+    "[+|-<mask>] - Manage your server-side ignore list. Silenced masks cannot send you messages."
   },
   {
     MSG_GLINE,
@@ -554,7 +687,7 @@ struct Message msgtab[] = {
     0, MAXPARA,         0, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_gline, ms_gline, mo_gline, m_ignore },
-    ""
+    "[[!]<user@host> [<duration> :<reason>]] - View, set, or remove a network-wide ban (G-line). Requires GLINE privilege."
   },
   {
     MSG_JUPE,
@@ -562,7 +695,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_not_oper, ms_jupe, mo_jupe, m_ignore },
-    ""
+    "<server> [<duration> :<reason>] - Prevent a server name from being used on the network. Requires JUPE privilege."
   },
   {
     MSG_OPMODE,
@@ -570,7 +703,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_not_oper, ms_opmode, mo_opmode, m_ignore },
-    ""
+    "<#channel> <modes> [<params>] - Change channel modes with operator override, bypassing channel operator requirements."
   },
   {
     MSG_CLEARMODE,
@@ -578,7 +711,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_not_oper, ms_clearmode, mo_clearmode, m_ignore },
-    ""
+    "<#channel> <modes> - Remove all instances of the specified modes from a channel (e.g., bans, ops)."
   },
   {
     MSG_UPING,
@@ -586,7 +719,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_not_oper, ms_uping, mo_uping, m_ignore },
-    ""
+    "<server> - Measure round-trip time to a remote server via UDP ping."
   },
   {
     MSG_END_OF_BURST,
@@ -618,7 +751,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_not_oper, ms_rehash, mo_rehash, m_ignore },
-    "- Reloads the server's configuration"
+    "[<server>] - Reload the server configuration file. Optionally target a remote server."
   },
   {
     MSG_RESTART,
@@ -626,7 +759,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_not_oper, m_ignore, mo_restart, m_ignore },
-    "- Restarts the server"
+    "[:<reason>] - Restart the IRC server process. Requires the RESTART privilege."
   },
   {
     MSG_DIE,
@@ -634,7 +767,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_not_oper, m_ignore, mo_die, m_ignore },
-    "- Stops the server"
+    "[:<reason>] - Shut down the IRC server. Requires the DIE privilege."
   },
   {
     MSG_PROTO,
@@ -642,7 +775,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_proto, m_proto, m_proto, m_proto, m_ignore },
-    ""
+    "(Internal) Protocol negotiation during server handshake."
   },
   {
     MSG_SET,
@@ -650,7 +783,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_not_oper, m_ignore, mo_set, m_ignore },
-    ""
+    "<feature> [<value>] - View or change a runtime server feature. Use /STATS f to see all features."
   },
   {
     MSG_RESET,
@@ -658,7 +791,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_not_oper, m_ignore, mo_reset, m_ignore },
-    ""
+    "<feature> - Reset a runtime feature to its default value."
   },
   {
     MSG_GET,
@@ -666,7 +799,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_not_oper, m_ignore, mo_get, m_ignore },
-    ""
+    "<feature> - View the current value of a runtime server feature."
   },
   {
     MSG_PRIVS,
@@ -674,7 +807,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_not_oper, ms_privs, mo_privs, m_ignore },
-    ""
+    "[<nick>] - Show the IRC operator privileges for yourself or another operator."
   },
   {
     MSG_ACCOUNT,
@@ -682,7 +815,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_ignore, m_ignore, ms_account, m_ignore, m_ignore },
-    ""
+    "(Server only) Propagate account login information across the network."
   },
   {
     MSG_ASLL,
@@ -690,7 +823,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_ignore, m_not_oper, ms_asll, mo_asll, m_ignore },
-    ""
+    "<server> - Show asymmetric link latency to a server."
    },
   {
     MSG_XQUERY,
@@ -698,7 +831,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_ignore, m_ignore, ms_xquery, mo_xquery, m_ignore },
-    ""
+    "<service> :<query> - Send a query to a network service. Requires IRC operator status."
   },
   {
     MSG_XREPLY,
@@ -706,7 +839,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_ignore, m_ignore, ms_xreply, m_ignore, m_ignore },
-    ""
+    "(Services only) Reply to an XQUERY from a service."
   },
   {
     MSG_CAP,
@@ -714,7 +847,7 @@ struct Message msgtab[] = {
     0, MAXPARA, 0, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_cap, m_cap, m_ignore, m_cap, m_ignore },
-    ""
+    "<subcommand> [:<capabilities>] - Negotiate IRCv3 client capabilities. Subcommands: LS, REQ, ACK, END, LIST."
   },
   {
     MSG_ISNEF,
@@ -722,7 +855,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_isnef, m_ignore, m_isnef, m_ignore },
-    ""
+    "- Check if the server is running Nefarious/Cathexis IRCd."
   },
   {
     MSG_CHECK,
@@ -730,7 +863,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_not_oper, mo_check, mo_check, m_ignore },
-    ""
+    "<nick|#channel|mask> - Detailed inspection of a user, channel, or hostmask. Requires CHECK privilege."
   },
   {
     MSG_PROTOCTL,
@@ -738,31 +871,23 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_ignore, m_protoctl, m_ignore, m_protoctl, m_ignore },
-    ""
+    "(Internal) Protocol capability negotiation during server handshake."
   },
   {
-    MSG_SVSIDENT,
-    TOK_SVSIDENT,
+    MSG_SAIDENT,
+    TOK_SAIDENT,
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
-    { m_ignore, m_ignore, ms_svsident, m_ignore, m_ignore },
-    ""
+    { m_ignore, m_not_oper, ms_saident, mo_saident, m_ignore },
+    "<nick> <newident> - Force a user's ident change. Requires +N (Network Administrator)."
   },
   {
-    MSG_SVSINFO,
-    TOK_SVSINFO,
+    MSG_SAINFO,
+    TOK_SAINFO,
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
-    { m_ignore, m_ignore, ms_svsinfo, m_ignore, m_ignore },
-    ""
-  },
-  {
-    MSG_SVSQUIT,
-    TOK_SVSQUIT,
-    0, MAXPARA, MFLG_SLOW, 0, NULL,
-    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
-    { m_ignore, m_ignore, ms_svsquit, m_ignore, m_ignore },
-    ""
+    { m_ignore, m_not_oper, ms_sainfo, mo_sainfo, m_ignore },
+    "<nick> :<realname> - Force a user's realname change. Requires +N (Network Administrator)."
   },
   {
     MSG_SNO,
@@ -786,7 +911,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW | MFLG_UNREG | MFLG_NOSHUN, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_webirc, m_registered, m_ignore, m_registered, m_ignore },
-    ""
+    "<password> <gateway> <hostname> <ip> - Identify a web-based IRC client gateway. Configured via WebIRC blocks."
   },
   {
     MSG_MARK,
@@ -794,55 +919,79 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_ignore, m_ignore, ms_mark, m_ignore, m_ignore },
-    ""
+    "(Server only) Set or clear metadata marks on a client."
   },
   {
-    MSG_SVSNOOP,
-    TOK_SVSNOOP,
+    MSG_SANOOP,
+    TOK_SANOOP,
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
-    { m_ignore, m_ignore, ms_svsnoop, m_ignore, m_ignore },
-    ""
+    { m_ignore, m_not_oper, ms_sanoop, mo_sanoop, m_ignore },
+    "<server> <+/-> - Toggle NOOP mode on a server. Requires +N (Network Administrator)."
   },
   {
-    MSG_SVSMODE,
-    TOK_SVSMODE,
+    MSG_SAMODE,
+    TOK_SAMODE,
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
-    { m_ignore, m_ignore, ms_svsmode, m_ignore, m_ignore },
-    ""
+    { m_ignore, m_not_oper, ms_samode, mo_samode, m_ignore },
+    "<nick|#channel> <modes> [params] - Force mode changes. Requires +N (Network Administrator)."
   },
   {
-    MSG_SVSNICK,
-    TOK_SVSNICK,
+    MSG_SAJOIN,
+    TOK_SAJOIN,
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
-    { m_ignore, m_ignore, ms_svsnick, m_ignore, m_ignore },
-    ""
+    { m_ignore, m_not_oper, ms_sajoin, mo_sajoin, m_ignore },
+    "<nick> <#channel> - Force a user to join channel(s). Requires +N (Network Administrator)."
   },
   {
-    MSG_SVSPART,
-    TOK_SVSPART,
+    MSG_SAPART,
+    TOK_SAPART,
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
-    { m_ignore, m_ignore, ms_svspart, m_ignore, m_ignore },
-    ""
+    { m_ignore, m_not_oper, ms_sapart, mo_sapart, m_ignore },
+    "<nick> <#channel> [:<reason>] - Force a user to part channel(s). Requires +N (Network Administrator)."
   },
   {
-    MSG_SVSJOIN,
-    TOK_SVSJOIN,
+    MSG_SACYCLE,
+    TOK_SACYCLE,
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
-    { m_ignore, m_ignore, ms_svsjoin, m_ignore, m_ignore },
-    ""
+    { m_ignore, m_not_oper, ms_sacycle, mo_sacycle, m_ignore },
+    "<nick> <#channel> - Force a user to part and rejoin channel(s). Requires +N (Network Administrator)."
   },
   {
-    MSG_SWHOIS,
-    TOK_SWHOIS,
+    MSG_SANICK,
+    TOK_SANICK,
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
-    { m_ignore, m_ignore, ms_swhois, m_ignore, m_ignore },
-    ""
+    { m_ignore, m_not_oper, ms_sanick, mo_sanick, m_ignore },
+    "<nick> <newnick> - Force a user to change their nickname. Requires +N (Network Administrator)."
+  },
+  {
+    MSG_SAQUIT,
+    TOK_SAQUIT,
+    0, MAXPARA, MFLG_SLOW, 0, NULL,
+    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
+    { m_ignore, m_not_oper, ms_saquit, mo_saquit, m_ignore },
+    "<nick> [:<reason>] - Force a user to disconnect. Requires +N (Network Administrator)."
+  },
+  {
+    MSG_SATOPIC,
+    TOK_SATOPIC,
+    0, MAXPARA, MFLG_SLOW, 0, NULL,
+    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
+    { m_ignore, m_not_oper, m_ignore, mo_satopic, m_ignore },
+    "<#channel> :<topic> - Force a topic change. Requires +N (Network Administrator)."
+  },
+  {
+    MSG_SAWHOIS,
+    TOK_SAWHOIS,
+    0, MAXPARA, MFLG_SLOW, 0, NULL,
+    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
+    { m_ignore, m_not_oper, ms_sawhois, mo_sawhois, m_ignore },
+    "<nick> [:<text>] - Set or clear a custom WHOIS line. Requires +N (Network Administrator)."
   },
   {
     MSG_FAKE,
@@ -850,7 +999,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_ignore, m_ignore, ms_fake, m_ignore, m_ignore },
-    ""
+    "(Server only) Set fake hostmask information."
   },
   {
     MSG_MKPASSWD,
@@ -858,7 +1007,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_mkpasswd, m_ignore, m_mkpasswd, m_ignore },
-    ""
+    "<mechanism> <password> - Generate a hashed password for use in ircd.conf. Mechanisms: crypt, bcrypt, smd5."
   },
   {
     MSG_OPERMOTD,
@@ -866,7 +1015,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_not_oper, ms_opermotd, m_opermotd, m_ignore },
-    "- Returns the current Operator Message of the Day"
+    "- Show the Operator Message of the Day. Requires IRC operator status."
   },
   {
     MSG_RULES,
@@ -874,7 +1023,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_rules, ms_rules, m_rules, m_ignore },
-    "- Returns server rules"
+    "- Show the network rules file."
   },
   {
     MSG_SHUN,
@@ -882,7 +1031,7 @@ struct Message msgtab[] = {
     0, MAXPARA,         0, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_shun, ms_shun, mo_shun, m_ignore },
-    ""
+    "[[!]<user@host> [<duration> :<reason>]] - View, set, or remove a network-wide shun. Shunned users can connect but not send commands."
   },
   {
     MSG_SETHOST,
@@ -890,7 +1039,7 @@ struct Message msgtab[] = {
     0, MAXPARA,         0, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_sethost, m_ignore, mo_sethost, m_ignore },
-    ""
+    "<new.host> - Change your visible hostname. Requires SETHOST or FREEFORM privilege."
   },
   {
     MSG_FINGERPRINT,
@@ -898,7 +1047,7 @@ struct Message msgtab[] = {
     0, MAXPARA,         0, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_fingerprint, m_ignore, m_fingerprint, m_ignore },
-    ""
+    "(Server only) Propagate SSL certificate fingerprint information."
   },
   {
     MSG_STARTTLS,
@@ -906,7 +1055,7 @@ struct Message msgtab[] = {
     0, MAXPARA,         0, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_starttls, m_registered, m_ignore, m_registered, m_ignore },
-    ""
+    "- Upgrade the current connection to SSL/TLS encryption. Must be done before registration completes."
   },
   {
     MSG_WALLHOPS,
@@ -914,7 +1063,7 @@ struct Message msgtab[] = {
     0, MAXPARA,         0, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_wallhops, ms_wallhops, m_wallhops, m_ignore },
-    "<channel> :<message> - Sends a message to all halfops in the channel",
+    "<#channel> :<message> - Send a notice to all halfops (+h) and above on the given channel.",
   },
   {
     MSG_AUTHENTICATE,
@@ -922,7 +1071,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_UNREG | MFLG_NOSHUN, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_authenticate, m_registered, m_ignore, m_registered, m_ignore },
-    ""
+    "<mechanism|*> - Perform SASL authentication. Use PLAIN or EXTERNAL. Requires CAP sasl."
   },
   {
     MSG_SASL,
@@ -930,7 +1079,7 @@ struct Message msgtab[] = {
     0, MAXPARA,         0, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_ignore, m_ignore, ms_sasl, m_ignore, m_ignore },
-    ""
+    "(Server only) Relay SASL authentication messages between servers and services."
   },
   {
     MSG_REMOVE,
@@ -938,7 +1087,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_not_oper, ms_remove, mo_remove, m_ignore },
-    ""
+    "<type> <mask> - Forcefully remove a G-line, Shun, or Z-line by mask. Requires REMOVE privilege."
   },
   {
     MSG_WATCH,
@@ -946,7 +1095,23 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_watch, m_ignore, m_watch, m_ignore },
-    ""
+    "[+|-<nick>] [S|L|C] - Manage your notification list for user signon/signoff. S=status, L=list, C=clear."
+  },
+  {
+    MSG_SETNAME,
+    TOK_SETNAME,
+    0, MAXPARA, MFLG_SLOW, 0, NULL,
+    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
+    { m_unregistered, m_setname, ms_setname, m_setname, m_ignore },
+    ":<new realname> - Change your realname (GECOS) field. Requires the setname IRCv3 capability."
+  },
+  {
+    MSG_TAGMSG,
+    TOK_TAGMSG,
+    0, MAXPARA, MFLG_SLOW, 0, NULL,
+    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
+    { m_unregistered, m_tagmsg, m_ignore, m_tagmsg, m_ignore },
+    "<target> - Send a tag-only message (typing indicators, reactions). Requires message-tags capability."
   },
   {
     MSG_ZLINE,
@@ -954,7 +1119,7 @@ struct Message msgtab[] = {
     0, MAXPARA,         0, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_zline, ms_zline, mo_zline, m_ignore },
-    ""
+    "[[!]<ip> [<duration> :<reason>]] - View, set, or remove an IP-based network ban (Z-line). Requires ZLINE privilege."
   },
   {
     MSG_IRCOPS,
@@ -962,7 +1127,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
     /* UNREG, CLIENT, SERVER, OPER, SERVICE */
     { m_unregistered, m_ircops, m_ignore, m_ircops, m_ignore },
-    ""
+    "- List all visible IRC operators currently online on the network."
   },
   {
     MSG_TEMPSHUN,
@@ -970,7 +1135,7 @@ struct Message msgtab[] = {
     0, MAXPARA, MFLG_SLOW, 0, NULL,
    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
    { m_unregistered, m_not_oper, ms_tempshun, mo_tempshun, m_ignore },
-    ""
+    "<nick> :<reason> - Temporarily shun a user for the duration of their connection. Requires TEMPSHUN privilege."
   },
 
   /* This command is an alias for QUIT during the unregistered part of
@@ -1022,19 +1187,18 @@ struct Message msgtab[] = {
     { m_ignore, m_ignore, m_ignore, m_ignore, m_ignore },
     ""
   },
-  {
-    MSG_BOUNCER_TRANSFER,
-    TOK_BOUNCER_TRANSFER,
-    0, MAXPARA, 0, 0, NULL,
-    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
-    { m_ignore, m_ignore, ms_bouncer_transfer, m_ignore, m_ignore },
-    ""
-  },
   { 0 }
 };
 
 /** Array of command parameters. */
 static char *para[MAXPARA + 2]; /* leave room for prefix and null */
+
+/* IRCv3: Preserve raw client tags for TAGMSG relay */
+static char raw_client_tags[512];
+
+const char *parse_get_raw_tags(void) {
+    return raw_client_tags[0] ? raw_client_tags : NULL;
+}
 
 
 /** Add a message to the lookup trie.
@@ -1214,6 +1378,68 @@ parse_client(struct Client *cptr, char *buffer, char *bufend)
 
   para[0] = cli_name(from);
   for (ch = buffer; *ch == ' '; ch++);  /* Eat leading spaces */
+
+  /* IRCv3 message tags: extract @label= for labeled-response, then skip. */
+  raw_client_tags[0] = '\0';  /* Clear for this parse cycle */
+  if (*ch == '@') {
+    const char *tag_start = ch + 1;
+    const char *tag_end;
+    for (++ch; *ch && *ch != ' '; ++ch)
+      ;  /* find end of tags */
+    tag_end = ch;
+    /* Preserve raw client tags for TAGMSG relay */
+    {
+      size_t tlen = tag_end - tag_start;
+      if (tlen > 0 && tlen < sizeof(raw_client_tags)) {
+        memcpy(raw_client_tags, tag_start, tlen);
+        raw_client_tags[tlen] = '\0';
+      }
+    }
+    /* Extract label= value if present */
+    if (MyConnect(from) && CapActive(from, CAP_LABELEDRESP)) {
+      const char *lp = tag_start;
+      while (lp < tag_end) {
+        if ((lp == tag_start || *(lp-1) == ';') &&
+            !strncmp(lp, "label=", 6)) {
+          const char *val = lp + 6;
+          const char *ve = val;
+          while (ve < tag_end && *ve != ';') ve++;
+          {
+            size_t llen = ve - val;
+            if (llen > 0 && llen < LABEL_MAXLEN) {
+              char labelbuf[LABEL_MAXLEN];
+              int valid = 1;
+              size_t j;
+              /* FIX-2: Validate label characters.
+               * Reject control chars (injection), % (format string),
+               * and anything that could break the IRC wire protocol.
+               * IRCv3 spec: labels are opaque tokens, typically
+               * alphanumeric + a few safe punctuation chars. */
+              for (j = 0; j < llen; j++) {
+                unsigned char c = (unsigned char)val[j];
+                if (c < 0x20 || c == '%' || c == ':' || c == ' '
+                    || c == '\r' || c == '\n' || c == 0x7F) {
+                  valid = 0;
+                  break;
+                }
+              }
+              if (valid) {
+                memcpy(labelbuf, val, llen);
+                labelbuf[llen] = '\0';
+                label_set_pending(from, labelbuf);
+              }
+            }
+          }
+          break;
+        }
+        /* Skip to next tag */
+        while (lp < tag_end && *lp != ';') lp++;
+        if (lp < tag_end) lp++;
+      }
+    }
+    while (*ch == ' ')
+      ch++;  /* skip spaces after tags */
+  }
   if (*ch == ':')               /* Is any client doing this ? */
   {
     for (++ch; *ch && *ch != ' '; ++ch)
@@ -1343,7 +1569,14 @@ parse_client(struct Client *cptr, char *buffer, char *bufend)
       handler != m_ping && handler != m_ignore)
     cli_user(from)->last = CurrentTime;
 
-  return (*handler) (cptr, from, i, para);
+  {
+    int ret = (*handler) (cptr, from, i, para);
+    /* IRCv3 labeled-response: clear any unconsumed label after dispatch.
+     * Guard: handler may have killed the client (cli_connect NULLed). */
+    if (cli_connect(cptr) && MyConnect(cptr))
+      cli_label(cptr)[0] = '\0';
+    return ret;
+  }
 }
 
 /** Parse a line of data from a server.
@@ -1369,15 +1602,49 @@ int parse_server(struct Client *cptr, char *buffer, char *bufend)
   if (IsDead(cptr))
     return 0;
 
-  /* Skip P10 message tags if present (compat with tag-aware servers).
-   * Doesn't parse or store — just advances past the @... prefix so
-   * the parser reaches the source numeric correctly. */
-  if (*ch == '@') {
-    ch = strchr(ch, ' ');
-    if (!ch)
-      return -1;
-    while (*ch == ' ')
-      ch++;
+  /* Cathexis 1.2.0: Per-message HMAC verification.
+   * If S2S_HMAC is active on this link, every incoming message must
+   * carry a valid @hmac= tag. Messages without a tag or with an
+   * invalid HMAC are silently dropped and logged.
+   *
+   * The tag is stripped after verification so the rest of the parser
+   * sees a normal P10 message. */
+  if (cli_serv(cptr) && cli_serv(cptr)->s2s_active)
+  {
+    struct S2SKey tmpkey;
+    const char *verified_content = NULL;
+
+    /* Build a temporary key struct from the stored key material */
+    memcpy(tmpkey.hmac_key, cli_serv(cptr)->s2s_hmac_key, 32);
+    memcpy(tmpkey.sacert_key, cli_serv(cptr)->s2s_sacert_key, 32);
+    tmpkey.active = 1;
+
+    if (!s2s_verify_message(buffer, &tmpkey, &verified_content))
+    {
+      /* HMAC verification failed — drop the message */
+      sendto_opmask_butone(0, SNO_NETWORK,
+        "S2S-HMAC: Rejected message from %s (invalid HMAC)",
+        cli_name(cptr));
+      Debug((DEBUG_ERROR, "S2S-HMAC: bad HMAC from %s: %s",
+             cli_name(cptr), buffer));
+      /* Clear key material from stack */
+      ircd_clearsecret(&tmpkey, sizeof(tmpkey));
+      return 0; /* Drop silently */
+    }
+
+    /* Clear key material from stack */
+    ircd_clearsecret(&tmpkey, sizeof(tmpkey));
+
+    /* Shift the verified content to the start of the buffer.
+     * This strips the @hmac=... tag so the parser sees clean P10. */
+    if (verified_content != buffer)
+    {
+      size_t content_len = bufend - verified_content;
+      memmove(buffer, verified_content, content_len);
+      buffer[content_len] = '\0';
+      bufend = buffer + content_len;
+      ch = buffer;
+    }
   }
 
   para[0] = cli_name(from);

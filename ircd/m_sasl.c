@@ -150,12 +150,12 @@ int ms_sasl(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
     return 0;
 
   /* If there is no fd then it is an invalid token */
-  if ((fdstr = strchr(token, '!')) == NULL)
+  if ((fdstr = (char *)strchr(token, '!')) == NULL)
     return 0;
   fdstr++;
 
   /* If there is no cookie then it is also an invalid token */
-  if ((cookiestr = strchr(token, '.')) == NULL)
+  if ((cookiestr = (char *)strchr(token, '.')) == NULL)
     return 0;
   *cookiestr++ = '\0';
 
@@ -187,6 +187,9 @@ int ms_sasl(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
                (!cli_user(acptr) || BadPtr(cli_user(acptr)->username)) ? "*" : cli_user(acptr)->username,
                (!cli_user(acptr) || BadPtr(cli_user(acptr)->host)) ? "*" : cli_user(acptr)->host,
                cli_saslaccount(acptr), cli_saslaccount(acptr));
+    sendto_opmask_butone(0, SNO_SASL, "SASL: %s authenticated as %s",
+                         BadPtr(cli_name(acptr)) ? "*" : cli_name(acptr),
+                         cli_saslaccount(acptr));
     if (cli_auth(acptr))
       auth_set_account(cli_auth(acptr), cli_saslaccount(acptr));
     if (((feature_int(FEAT_HOST_HIDING_STYLE) == 1) ||
@@ -200,6 +203,8 @@ int ms_sasl(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
       send_reply(acptr, RPL_SASLSUCCESS);
     } else if (data[0] == 'F') {
       send_reply(acptr, ERR_SASLFAIL, "");
+      sendto_opmask_butone(0, SNO_SASL, "SASL: %s failed authentication",
+                           BadPtr(cli_name(acptr)) ? "*" : cli_name(acptr));
     } else if (data[0] == 'A') {
       send_reply(acptr, ERR_SASLABORTED);
     }

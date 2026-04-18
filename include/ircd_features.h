@@ -61,6 +61,16 @@ enum Feature {
   FEAT_TOPIC_BURST,
   FEAT_DISABLE_GLINES,
 
+  /* DNSBL (DNS Blacklist) checking */
+  FEAT_DNSBL,
+  FEAT_DNSBL_HOST,
+  FEAT_DNSBL_HOST2,
+  FEAT_DNSBL_HOST3,
+  FEAT_DNSBL_REJECT,
+  FEAT_DNSBL_REASON,
+  FEAT_DNSBL_MARK,
+  FEAT_CRYPT_ALLOW_PLAIN,
+
   /* features that probably should not be touched */
   FEAT_KILLCHASETIMELIMIT,
   FEAT_MAXCHANNELSPERUSER,
@@ -120,7 +130,6 @@ enum Feature {
   FEAT_HIS_STATS_k,
   FEAT_HIS_STATS_l,
   FEAT_HIS_STATS_L,
-  FEAT_HIS_STATS_M,
   FEAT_HIS_STATS_m,
   FEAT_HIS_STATS_o,
   FEAT_HIS_STATS_p,
@@ -171,7 +180,9 @@ enum Feature {
   FEAT_DIEPASS,
   FEAT_HIS_STATS_W,
   FEAT_WHOIS_OPER,
+  FEAT_WHOIS_LOCOPER,
   FEAT_WHOIS_ADMIN,
+  FEAT_WHOIS_NETADMIN,
   FEAT_WHOIS_SERVICE,
   FEAT_TARGET_LIMITING,
   FEAT_OPER_XTRAOP,
@@ -194,6 +205,7 @@ enum Feature {
   FEAT_HOST_IN_TOPIC,
   FEAT_HIS_STATS_s,
   FEAT_SETHOST,
+  FEAT_SETHOST_FREEFORM,
   FEAT_FLEXIBLEKEYS,
   FEAT_HIS_STATS_E,
   FEAT_SASL_SERVER,
@@ -234,6 +246,7 @@ enum Feature {
   FEAT_CHMODE_T,
   FEAT_CHMODE_Z,
   FEAT_HALFOPS,
+  FEAT_OWNERPROTECT,
   FEAT_EXCEPTS,
   FEAT_MAXEXCEPTS,
   FEAT_AVEXCEPTLEN,
@@ -254,6 +267,13 @@ enum Feature {
   FEAT_EXTBAN_r,
   FEAT_EXTBAN_m,
   FEAT_EXTBAN_M,
+  FEAT_EXTBAN_s,
+  FEAT_EXTBAN_f,
+  FEAT_EXTBAN_o,
+  FEAT_EXTBAN_R,
+  FEAT_EXTBAN_T,
+  FEAT_EXTBAN_C,
+  FEAT_EXTBAN_N,
 
   /* Some misc. Nefarious default paths */
   FEAT_OMPATH,
@@ -271,7 +291,6 @@ enum Feature {
   FEAT_HOST_HIDING_KEY1,
   FEAT_HOST_HIDING_KEY2,
   FEAT_HOST_HIDING_KEY3,
-  FEAT_HOST_HIDING_COMPONANTS,
   FEAT_HOST_HIDING_COMPONENTS,
 
   /* CTCP VERSION FEAT_'s */
@@ -286,8 +305,6 @@ enum Feature {
   /* GeoIP FEAT_'s */
   FEAT_GEOIP_ENABLE,
   FEAT_MMDB_FILE,
-  FEAT_GEOIP_FILE,
-  FEAT_GEOIP_IPV6_FILE,
 
   /* SSL FEAT_'s */
   FEAT_SSL_CERTFILE,
@@ -296,10 +313,9 @@ enum Feature {
   FEAT_SSL_VERIFYCERT,
   FEAT_SSL_NOSELFSIGNED,
   FEAT_SSL_REQUIRECLIENTCERT,
-  FEAT_SSL_NOSSLV2,
-  FEAT_SSL_NOSSLV3,
-  FEAT_SSL_NOTLSV1,
   FEAT_SSL_CIPHERS,
+  FEAT_SSL_CIPHERSUITES,
+  FEAT_SSL_GROUPS,
 
   /* ZLINE FEAT_'s */
   FEAT_DISABLE_ZLINES,
@@ -317,9 +333,38 @@ enum Feature {
   FEAT_CAP_tls,
 #endif
 
+  /* IRCv3.2+ CAP features */
+  FEAT_CAP_cap_notify,
+  FEAT_CAP_server_time,
+  FEAT_CAP_account_tag,
+  FEAT_CAP_message_tags,
+  FEAT_CAP_echo_message,
+  FEAT_CAP_invite_notify,
+  FEAT_CAP_chghost,
+  FEAT_CAP_setname,
+  FEAT_CAP_batch,
+  FEAT_CAP_labeled_response,
+  FEAT_CAP_standard_replies,
+  FEAT_CAP_message_ids,
+  FEAT_CAP_monitor,
+  FEAT_CAP_bot_mode,
+  FEAT_CAP_chathistory,
+  FEAT_CAP_typing,
+  FEAT_CAP_no_implicit_names,
+  FEAT_CAP_channel_rename,
+  FEAT_CAP_read_marker,
+  FEAT_CAP_multiline,
+  FEAT_CAP_pre_away,
+  FEAT_CAP_account_registration,
+  FEAT_CAP_extended_monitor,
+  FEAT_CAP_message_redaction,
   FEAT_UPING_ENABLE,
   FEAT_UPING_PORT,
 
+  FEAT_S2S_HMAC,
+  FEAT_SERVICES_HUB_NUMERIC,
+  FEAT_STS_PORT,
+  FEAT_STS_DURATION,
   FEAT_LAST_F
 };
 

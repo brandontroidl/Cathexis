@@ -193,7 +193,9 @@ void checkUsers(struct Client *sptr, struct Channel *chptr, int flags) {
    int cntr = 0, opcntr = 0, hopcntr = 0, vcntr = 0, clones = 0, bans = 0, c = 0, authed = 0, delayed = 0;
 
    if (flags & CHECK_SHOWUSERS) {
-     if (feature_bool(FEAT_HALFOPS))
+     if (feature_bool(FEAT_OWNERPROTECT) && feature_bool(FEAT_HALFOPS))
+       send_reply(sptr, RPL_DATASTR, "Users (~ = owner, & = protect, @ = op, % = halfop, + = voice, < = delayed)");
+     else if (feature_bool(FEAT_HALFOPS))
        send_reply(sptr, RPL_DATASTR, "Users (@ = op, % = halfop, + = voice, < = delayed)");
      else
        send_reply(sptr, RPL_DATASTR, "Users (@ = op, + = voice, < = delayed)");
@@ -212,40 +214,54 @@ void checkUsers(struct Client *sptr, struct Channel *chptr, int flags) {
       }
       else
       {
-         strcpy(ustat, "   ");
+         ircd_strncpy(ustat, "   ", sizeof(ustat) - 1);
       }
 
       if (chptr && IsZombie(lp))
-         strcat(ustat, "!");
+         strncat(ustat, "!", sizeof(ustat) - strlen(ustat) - 1);
       else
-         strcat(ustat, " ");
+         strncat(ustat, " ", sizeof(ustat) - strlen(ustat) - 1);
 
       if (chptr && IsDelayedJoin(lp))
       {
-         strcat(ustat, "<");
+         strncat(ustat, "<", sizeof(ustat) - strlen(ustat) - 1);
          delayed++;
+      }
+
+      else if (chptr && feature_bool(FEAT_OWNERPROTECT) && IsOwner(lp))
+      {
+         strncat(ustat, "~", sizeof(ustat) - strlen(ustat) - 1);
+         opcntr++;
+         opped = 1;
+      }
+
+      else if (chptr && feature_bool(FEAT_OWNERPROTECT) && IsProtect(lp))
+      {
+         strncat(ustat, "&", sizeof(ustat) - strlen(ustat) - 1);
+         opcntr++;
+         opped = 1;
       }
 
       else if (chptr && IsChanOp(lp))
       {
-         strcat(ustat, "@");
+         strncat(ustat, "@", sizeof(ustat) - strlen(ustat) - 1);
          opcntr++;
          opped = 1;
       }
 
       else if (chptr && IsHalfOp(lp))
       {
-         strcat(ustat, "%");
+         strncat(ustat, "%", sizeof(ustat) - strlen(ustat) - 1);
          hopcntr++;
       }
 
       else if (chptr && HasVoice(lp))
       {
-         strcat(ustat, "+");
+         strncat(ustat, "+", sizeof(ustat) - strlen(ustat) - 1);
          vcntr++;
       }
       else
-         strcat(ustat, " ");
+         strncat(ustat, " ", sizeof(ustat) - strlen(ustat) - 1);
 
       if (feature_bool(FEAT_OPLEVELS) && opped)
          ircd_snprintf(0, oplvl, sizeof(oplvl), "%3d", OpLevel(lp));
@@ -352,7 +368,7 @@ void checkChannel(struct Client *sptr, struct Channel *chptr)
 
    /* Channel Modes */
 
-   strcpy(outbuf, " Channel mode(s):: ");
+   ircd_strncpy(outbuf, " Channel mode(s):: ", sizeof(outbuf) - 1);
 
    modebuf[0] = '\0';
    parabuf[0] = '\0';
@@ -360,13 +376,13 @@ void checkChannel(struct Client *sptr, struct Channel *chptr)
    channel_modes(sptr, modebuf, parabuf, sizeof(modebuf), chptr, NULL);
 
    if(modebuf[1] == '\0')
-      strcat(outbuf, "<none>");
+      strncat(outbuf, "<none>", sizeof(outbuf) - strlen(outbuf) - 1);
    else if(*parabuf) {
-      strcat(outbuf, modebuf);
-      strcat(outbuf, " ");
-      strcat(outbuf, parabuf);
+      strncat(outbuf, modebuf, sizeof(outbuf) - strlen(outbuf) - 1);
+      strncat(outbuf, " ", sizeof(outbuf) - strlen(outbuf) - 1);
+      strncat(outbuf, parabuf, sizeof(outbuf) - strlen(outbuf) - 1);
    } else
-      strcat(outbuf, modebuf);
+      strncat(outbuf, modebuf, sizeof(outbuf) - strlen(outbuf) - 1);
 
    send_reply(sptr, RPL_DATASTR, outbuf);
 
@@ -508,14 +524,14 @@ void checkClient(struct Client *sptr, struct Client *acptr)
 #endif /* USE_SSL */
 
    if ((eflags = get_except_flags(acptr)) != 0) {
-     if (eflags & EFLAG_SHUN) { if (ebuf[0]) { strcat(ebuf, ", "); } strcat(ebuf, "Shuns"); }
-     if (eflags & EFLAG_KLINE) { if (ebuf[0]) { strcat(ebuf, ", "); } strcat(ebuf, "K:Lines"); }
-     if (eflags & EFLAG_GLINE) { if (ebuf[0]) { strcat(ebuf, ", "); } strcat(ebuf, "G:Lines"); }
-     if (eflags & EFLAG_ZLINE) { if (ebuf[0]) { strcat(ebuf, ", "); } strcat(ebuf, "Z:Lines"); }
-     if (eflags & EFLAG_IDENT) { if (ebuf[0]) { strcat(ebuf, ", "); } strcat(ebuf, "Ident Lookups"); }
-     if (eflags & EFLAG_RDNS) { if (ebuf[0]) { strcat(ebuf, ", "); } strcat(ebuf, "rDNS Lookups"); }
-     if (eflags & EFLAG_IPCHECK) { if (ebuf[0]) { strcat(ebuf, ", "); } strcat(ebuf, "IPCheck"); }
-     if (eflags & EFLAG_TARGLIMIT) { if (ebuf[0]) { strcat(ebuf, ", "); } strcat(ebuf, "Target Limiting"); }
+     if (eflags & EFLAG_SHUN) { if (ebuf[0]) { strncat(ebuf, ", ", sizeof(ebuf) - strlen(ebuf) - 1); } strncat(ebuf, "Shuns", sizeof(ebuf) - strlen(ebuf) - 1); }
+     if (eflags & EFLAG_KLINE) { if (ebuf[0]) { strncat(ebuf, ", ", sizeof(ebuf) - strlen(ebuf) - 1); } strncat(ebuf, "K:Lines", sizeof(ebuf) - strlen(ebuf) - 1); }
+     if (eflags & EFLAG_GLINE) { if (ebuf[0]) { strncat(ebuf, ", ", sizeof(ebuf) - strlen(ebuf) - 1); } strncat(ebuf, "G:Lines", sizeof(ebuf) - strlen(ebuf) - 1); }
+     if (eflags & EFLAG_ZLINE) { if (ebuf[0]) { strncat(ebuf, ", ", sizeof(ebuf) - strlen(ebuf) - 1); } strncat(ebuf, "Z:Lines", sizeof(ebuf) - strlen(ebuf) - 1); }
+     if (eflags & EFLAG_IDENT) { if (ebuf[0]) { strncat(ebuf, ", ", sizeof(ebuf) - strlen(ebuf) - 1); } strncat(ebuf, "Ident Lookups", sizeof(ebuf) - strlen(ebuf) - 1); }
+     if (eflags & EFLAG_RDNS) { if (ebuf[0]) { strncat(ebuf, ", ", sizeof(ebuf) - strlen(ebuf) - 1); } strncat(ebuf, "rDNS Lookups", sizeof(ebuf) - strlen(ebuf) - 1); }
+     if (eflags & EFLAG_IPCHECK) { if (ebuf[0]) { strncat(ebuf, ", ", sizeof(ebuf) - strlen(ebuf) - 1); } strncat(ebuf, "IPCheck", sizeof(ebuf) - strlen(ebuf) - 1); }
+     if (eflags & EFLAG_TARGLIMIT) { if (ebuf[0]) { strncat(ebuf, ", ", sizeof(ebuf) - strlen(ebuf) - 1); } strncat(ebuf, "Target Limiting", sizeof(ebuf) - strlen(ebuf) - 1); }
 
      ircd_snprintf(0, outbuf, sizeof(outbuf), "     Exemptions:: %s", ebuf);
      send_reply(sptr, RPL_DATASTR, outbuf);
@@ -528,7 +544,7 @@ void checkClient(struct Client *sptr, struct Client *acptr)
     */
 
    if (strlen(umode_str(acptr)) < 1)
-      strcpy(outbuf, "       Umode(s):: <none>");
+      ircd_strncpy(outbuf, "       Umode(s):: <none>", sizeof(outbuf) - 1);
    else
       ircd_snprintf(0, outbuf, sizeof(outbuf), "       Umode(s):: +%s", umode_str(acptr));
 
@@ -556,13 +572,13 @@ void checkClient(struct Client *sptr, struct Client *acptr)
       int mlen = strlen(me.cli_name) + len + strlen(sptr->cli_name);
       *chntext = '\0';
 
-      strcpy(chntext, "     Channel(s):: ");
+      ircd_strncpy(chntext, "     Channel(s):: ", sizeof(chntext) - 1);
       for (lp = acptr->cli_user->channel; lp; lp = lp->next_channel) {
          chptr = lp->channel;
          if (len + strlen(chptr->chname) + mlen > BUFSIZE - 7) {
             send_reply(sptr, RPL_DATASTR, chntext);
             *chntext = '\0';
-            strcpy(chntext, "     Channel(s):: ");
+            ircd_strncpy(chntext, "     Channel(s):: ", sizeof(chntext) - 1);
             len = strlen(chntext);
          }
          if (IsDeaf(acptr))
@@ -580,10 +596,9 @@ void checkClient(struct Client *sptr, struct Client *acptr)
          if (len)
             *(chntext + len) = '\0';
 
-         strcpy(chntext + len, chptr->chname);
-         len += strlen(chptr->chname);
-         strcat(chntext + len, " ");
-         len++;
+         { size_t clen = strlen(chptr->chname); if (len + clen + 2 < sizeof(chntext)) { memcpy(chntext + len, chptr->chname, clen); len += clen; } }
+         if (len + 1 < sizeof(chntext)) chntext[len++] = ' ';
+         chntext[len] = '\0';
       }
 
       if (chntext[0] != '\0')
@@ -717,9 +732,9 @@ signed int checkHostmask(struct Client *sptr, char *hoststr, int flags) {
   char *p = NULL;
   struct irc_in_addr cidr_check;
 
-  strcpy(nickm,"*");
-  strcpy(userm,"*");
-  strcpy(hostm,"*");
+  ircd_strncpy(nickm, "*", sizeof(nickm) - 1);
+  ircd_strncpy(userm, "*", sizeof(userm) - 1);
+  ircd_strncpy(hostm, "*", sizeof(hostm) - 1);
 
   if (!strchr(hoststr, '!') && !strchr(hoststr, '@'))
     ircd_strncpy(hostm,hoststr,sizeof(hostm));
@@ -826,13 +841,13 @@ signed int checkHostmask(struct Client *sptr, char *hoststr, int flags) {
           int mlen = strlen(me.cli_name) + len + strlen(sptr->cli_name);
           *chntext = '\0';
 
-          strcpy(chntext, "      on channels: ");
+          ircd_strncpy(chntext, "      on channels: ", sizeof(chntext) - 1);
           for (lp = acptr->cli_user->channel; lp; lp = lp->next_channel) {
             chptr = lp->channel;
             if (len + strlen(chptr->chname) + mlen > BUFSIZE - 5) {
               send_reply(sptr, RPL_DATASTR, chntext);
               *chntext = '\0';
-              strcpy(chntext, "      on channels: ");
+              ircd_strncpy(chntext, "      on channels: ", sizeof(chntext) - 1);
               len = strlen(chntext);
             }
             if (IsDeaf(acptr))
@@ -850,10 +865,9 @@ signed int checkHostmask(struct Client *sptr, char *hoststr, int flags) {
             if (len)
               *(chntext + len) = '\0';
 
-            strcpy(chntext + len, chptr->chname);
-            len += strlen(chptr->chname);
-            strcat(chntext + len, " ");
-            len++;
+            { size_t clen = strlen(chptr->chname); if (len + clen + 2 < sizeof(chntext)) { memcpy(chntext + len, chptr->chname, clen); len += clen; } }
+            if (len + 1 < sizeof(chntext)) chntext[len++] = ' ';
+            chntext[len] = '\0';
           }
           if (chntext[0] != '\0')
             send_reply(sptr, RPL_DATASTR, chntext);

@@ -74,11 +74,11 @@ ENGINE_SRC = \
 	engine_select.c
 
 CRYPTO_SRC = \
-	ircd_md5.c \
 	ircd_crypt_plain.c \
-	ircd_crypt_smd5.c \
 	ircd_crypt_native.c \
-	ircd_crypt_bcrypt.c
+	ircd_crypt_bcrypt.c \
+	ircd_crypt_argon2.c \
+	ircd_crypt_sha.c
 
 UMKPASSWD_SRC = ${CRYPTO_SRC} \
 	ircd_alloc.c \
@@ -99,12 +99,14 @@ IRCD_SRC = \
 	hash.c \
 	ircd.c \
 	ircd_alloc.c \
+	ircd_batch.c \
 	ircd_cloaking.c \
 	ircd_crypt.c \
 	ircd_events.c \
 	ircd_features.c \
 	ircd_geoip.c \
 	ircd_log.c \
+	ircd_msgid.c \
 	ircd_relay.c \
 	ircd_reply.c \
 	ircd_res.c \
@@ -112,6 +114,7 @@ IRCD_SRC = \
 	ircd_signal.c \
 	ircd_snprintf.c \
 	ircd_string.c \
+	ircd_tags.c \
 	jupe.c \
 	lex.yy.c \
 	list.c \
@@ -121,9 +124,10 @@ IRCD_SRC = \
 	m_asll.c \
 	m_authenticate.c \
 	m_away.c \
-	m_bouncer_transfer.c \
+	m_batch.c \
 	m_burst.c \
 	m_cap.c \
+	m_chathistory.c \
 	m_check.c \
 	m_clearmode.c \
 	m_close.c \
@@ -134,6 +138,7 @@ IRCD_SRC = \
 	m_destruct.c \
 	m_desynch.c \
 	m_die.c \
+	m_dline.c \
 	m_endburst.c \
 	m_error.c \
 	m_fake.c \
@@ -150,13 +155,16 @@ IRCD_SRC = \
 	m_jupe.c \
 	m_kick.c \
 	m_kill.c \
+	m_knock.c \
 	m_links.c \
 	m_list.c \
 	m_lusers.c \
 	m_map.c \
 	m_mark.c \
+	m_markread.c \
 	m_mkpasswd.c \
 	m_mode.c \
+	m_monitor.c \
 	m_motd.c \
 	m_names.c \
 	m_nick.c \
@@ -176,6 +184,9 @@ IRCD_SRC = \
 	m_quit.c \
 	m_rehash.c \
 	m_remove.c \
+	m_rename.c \
+	m_redact.c \
+	m_register.c \
 	m_reset.c \
 	m_restart.c \
 	m_rping.c \
@@ -185,6 +196,9 @@ IRCD_SRC = \
 	m_server.c \
 	m_set.c \
 	m_sethost.c \
+	m_setname.c \
+	m_sa.c \
+	m_tagmsg.c \
 	m_settime.c \
 	m_shun.c \
 	m_silence.c \
@@ -193,15 +207,6 @@ IRCD_SRC = \
 	m_squit.c \
 	m_starttls.c \
 	m_stats.c \
-	m_svsident.c \
-	m_svsinfo.c \
-	m_svsjoin.c \
-	m_svsmode.c \
-	m_svsnick.c \
-	m_svsnoop.c \
-	m_svspart.c \
-	m_svsquit.c \
-	m_swhois.c \
 	m_tempshun.c \
 	m_time.c \
 	m_topic.c \
@@ -227,6 +232,7 @@ IRCD_SRC = \
 	match.c \
 	memdebug.c \
 	motd.c \
+	monitor.c \
 	msgq.c \
 	numnicks.c \
 	opercmds.c \
@@ -248,6 +254,7 @@ IRCD_SRC = \
 	send.c \
 	shun.c \
 	ssl.c \
+	s2s_crypto.c \
 	uping.c \
 	userload.c \
 	watch.c \
@@ -300,10 +307,30 @@ chattr.tab.c: table_gen
 	./table_gen > chattr.tab.c
 
 lex.yy.c: ircd_lexer.l y.tab.h
-	${LEX} ${srcdir}/ircd_lexer.l
+	@if test -f ${srcdir}/lex.yy.c && test ${srcdir}/lex.yy.c -nt ${srcdir}/ircd_lexer.l; then \
+	  echo "  lex.yy.c is up to date"; \
+	else \
+	  if test "x${LEX}" = "x:" || test -z "${LEX}"; then \
+	    echo "ERROR: flex is required to regenerate lex.yy.c from ircd_lexer.l"; \
+	    echo "  Install flex: apt install flex (Debian/Ubuntu) or yum install flex (RHEL)"; \
+	    exit 1; \
+	  fi; \
+	  echo "  Regenerating lex.yy.c from ircd_lexer.l ..."; \
+	  ${LEX} ${srcdir}/ircd_lexer.l; \
+	fi
 
 y.tab.c y.tab.h: ircd_parser.y
-	${YACC} -d ${srcdir}/ircd_parser.y
+	@if test -f ${srcdir}/y.tab.c && test ${srcdir}/y.tab.c -nt ${srcdir}/ircd_parser.y; then \
+	  echo "  y.tab.c is up to date"; \
+	else \
+	  if test "x${YACC}" = "x:" || test -z "${YACC}"; then \
+	    echo "ERROR: bison is required to regenerate y.tab.c from ircd_parser.y"; \
+	    echo "  Install bison: apt install bison (Debian/Ubuntu) or yum install bison (RHEL)"; \
+	    exit 1; \
+	  fi; \
+	  echo "  Regenerating y.tab.c from ircd_parser.y ..."; \
+	  ${YACC} -d ${srcdir}/ircd_parser.y; \
+	fi
 
 umkpasswd: ${UMKPASSWD_OBJS}
 	${CC} ${LDFLAGS} ${UMKPASSWD_OBJS} ${LIBS} -o $@
@@ -331,6 +358,12 @@ install-with-symlink: build mkbindir
 	${INSTALL} -s -m 700 -o ${IRCDOWN} -g ${IRCDGRP} umkpasswd ${BINDIR}
 	${INSTALL} -s -m 700 -o ${IRCDOWN} -g ${IRCDGRP} convert-conf ${BINDIR}
 	${INSTALL} -m 600 -o ${IRCDOWN} -g ${IRCDGRP} ${top_srcdir}/doc/example.conf ${DPATH}
+	@if [ ! -f ${DPATH}/ircd.conf ]; then \
+	  echo "Installing default ircd.conf (edit before starting!)"; \
+	  ${INSTALL} -m 600 -o ${IRCDOWN} -g ${IRCDGRP} ${top_srcdir}/doc/ircd.conf ${DPATH}; \
+	else \
+	  echo "ircd.conf already exists — not overwriting"; \
+	fi
 	${top_srcdir}/tools/makepem/makepem ${DPATH} ${top_srcdir}
 
 install-no-symlink: build mkbindir
@@ -346,6 +379,12 @@ install-no-symlink: build mkbindir
 	${INSTALL} -s -m 700 -o ${IRCDOWN} -g ${IRCDGRP} umkpasswd ${BINDIR}
 	${INSTALL} -s -m 700 -o ${IRCDOWN} -g ${IRCDGRP} convert-conf ${BINDIR}
 	${INSTALL} -m 600 -o ${IRCDOWN} -g ${IRCDGRP} ${top_srcdir}/doc/example.conf ${DPATH}
+	@if [ ! -f ${DPATH}/ircd.conf ]; then \
+	  echo "Installing default ircd.conf (edit before starting!)"; \
+	  ${INSTALL} -m 600 -o ${IRCDOWN} -g ${IRCDGRP} ${top_srcdir}/doc/ircd.conf ${DPATH}; \
+	else \
+	  echo "ircd.conf already exists — not overwriting"; \
+	fi
 	${top_srcdir}/tools/makepem/makepem ${DPATH} ${top_srcdir}
 
 uninstall:
@@ -356,12 +395,13 @@ uninstall:
 	@echo "Please remove the contents of ${DPATH} manually"
 
 clean:
-	${RM} -f *.o *.bak ircd umkpasswd convert-conf chattr.tab.c table_gen y.tab.* lex.yy.* version.c
+	${RM} -f *.o *.bak ircd umkpasswd convert-conf chattr.tab.c table_gen version.c
 
 distclean: clean
 	${RM} -f Makefile stamp-m
 
 maintainer-clean: distclean
+	${RM} -f y.tab.c y.tab.h lex.yy.c
 
 # If I read this right, this will only work with gcc.  Still, how many admins
 # are going to be doing "make depend"?
@@ -482,25 +522,28 @@ ircd_alloc.o: ircd_alloc.c ../config.h ../include/ircd_alloc.h \
   ../include/ircd_log.h ../include/ircd_string.h ../include/s_debug.h
 ircd_cloaking.o: ircd_cloaking.c ../config.h ../include/ircd_chattr.h \
   ../include/ircd_cloaking.h ../include/ircd_defs.h \
-  ../include/ircd_features.h ../include/ircd_md5.h \
   ../include/ircd_snprintf.h ../include/res.h
 ircd_crypt.o: ircd_crypt.c ../config.h ../include/ircd_crypt.h \
   ../include/ircd_alloc.h ../include/ircd_features.h ../include/ircd_log.h \
   ../include/ircd_string.h ../include/s_debug.h \
   ../include/ircd_crypt_native.h ../include/ircd_crypt_plain.h \
-  ../include/ircd_crypt_smd5.h ../include/ircd_crypt_bcrypt.h
+  ../include/ircd_crypt_sha.h ../include/send.h
 ircd_crypt_native.o: ircd_crypt_native.c ../config.h \
   ../include/ircd_crypt.h ../include/ircd_crypt_native.h \
   ../include/ircd_log.h ../include/s_debug.h ../include/ircd_alloc.h
 ircd_crypt_plain.o: ircd_crypt_plain.c ../config.h ../include/ircd_crypt.h \
   ../include/ircd_crypt_plain.h ../include/ircd_log.h ../include/s_debug.h \
   ../include/ircd_alloc.h
-ircd_crypt_smd5.o: ircd_crypt_smd5.c ../config.h ../include/ircd_crypt.h \
-  ../include/ircd_crypt_smd5.h ../include/ircd_log.h ../include/ircd_md5.h \
-  ../include/s_debug.h ../include/ircd_alloc.h
 ircd_crypt_bcrypt.o: ircd_crypt_bcrypt.c ../config.h ../include/ircd_crypt.h \
   ../include/ircd_crypt_bcrypt.h ../include/ircd_log.h ../include/s_debug.h \
   ../include/ircd_alloc.h
+ircd_crypt_sha.o: ircd_crypt_sha.c ../config.h ../include/ircd_crypt.h \
+  ../include/ircd_crypt_sha.h ../include/ircd_log.h ../include/s_debug.h \
+  ../include/ircd_alloc.h
+s2s_crypto.o: s2s_crypto.c ../config.h ../include/s2s_crypto.h \
+  ../include/channel.h ../include/client.h ../include/ircd_alloc.h \
+  ../include/ircd_log.h ../include/ircd_snprintf.h ../include/ircd_string.h \
+  ../include/ircd_crypto.h ../include/s_debug.h
 ircd_events.o: ircd_events.c ../config.h ../include/ircd_events.h \
   ../include/ircd.h ../include/ircd_alloc.h ../include/ircd_log.h \
   ../include/ircd_snprintf.h ../include/s_debug.h
@@ -522,7 +565,6 @@ ircd_log.o: ircd_log.c ../config.h ../include/ircd_log.h \
   ../include/ircd_snprintf.h ../include/ircd_string.h ../include/ircd.h \
   ../include/numeric.h ../include/s_debug.h ../include/send.h \
   ../include/struct.h
-ircd_md5.o: ircd_md5.c ../include/ircd_md5.h
 ircd_relay.o: ircd_relay.c ../config.h ../include/ircd_relay.h \
   ../include/channel.h ../include/client.h ../include/hash.h \
   ../include/ircd.h ../include/ircd_chattr.h ../include/ircd_features.h \
@@ -602,11 +644,6 @@ m_away.o: m_away.c ../config.h ../include/client.h ../include/ircd.h \
   ../include/ircd_alloc.h ../include/ircd_log.h ../include/ircd_reply.h \
   ../include/ircd_string.h ../include/msg.h ../include/numeric.h \
   ../include/numnicks.h ../include/s_user.h ../include/send.h
-m_bouncer_transfer.o: m_bouncer_transfer.c ../config.h ../include/channel.h \
-  ../include/client.h ../include/ircd.h ../include/ircd_log.h \
-  ../include/ircd_snprintf.h ../include/ircd_string.h ../include/msg.h \
-  ../include/numnicks.h ../include/s_debug.h ../include/s_misc.h \
-  ../include/send.h ../include/struct.h
 m_burst.o: m_burst.c ../config.h ../include/channel.h ../include/client.h \
   ../include/hash.h ../include/ircd.h ../include/ircd_alloc.h \
   ../include/ircd_features.h ../include/ircd_log.h ../include/ircd_reply.h \
@@ -780,7 +817,6 @@ m_mark.o: m_mark.c ../config.h ../include/client.h ../include/hash.h \
 m_mkpasswd.o: m_mkpasswd.c ../config.h ../include/client.h \
   ../include/hash.h ../include/ircd.h ../include/ircd_crypt.h \
   ../include/ircd_crypt_native.h ../include/ircd_crypt_plain.h \
-  ../include/ircd_crypt_smd5.h ../include/ircd_log.h \
   ../include/ircd_reply.h ../include/ircd_string.h ../include/msg.h \
   ../include/numeric.h ../include/numnicks.h ../include/send.h
 m_mode.o: m_mode.c ../config.h ../include/handlers.h ../include/channel.h \
@@ -972,54 +1008,6 @@ m_stats.o: m_stats.c ../config.h ../include/client.h ../include/ircd.h \
   ../include/ircd_string.h ../include/msg.h ../include/numeric.h \
   ../include/s_stats.h ../include/s_user.h ../include/send.h \
   ../include/struct.h
-m_svsident.o: m_svsident.c ../include/channel.h ../config.h \
-  ../include/client.h ../include/handlers.h ../include/hash.h \
-  ../include/ircd.h ../include/ircd_chattr.h ../include/ircd_defs.h \
-  ../include/ircd_features.h ../include/ircd_relay.h \
-  ../include/ircd_reply.h ../include/ircd_string.h \
-  ../include/ircd_snprintf.h ../include/ircd_alloc.h ../include/list.h \
-  ../include/msg.h ../include/numeric.h ../include/numnicks.h \
-  ../include/querycmds.h ../include/send.h ../include/s_conf.h \
-  ../include/s_user.h ../include/s_debug.h ../include/userload.h \
-  ../include/patchlevel.h
-m_svsinfo.o: m_svsinfo.c ../config.h ../include/client.h \
-  ../include/handlers.h ../include/ircd.h ../include/ircd_reply.h \
-  ../include/ircd_string.h ../include/msg.h ../include/numnicks.h \
-  ../include/send.h ../include/s_conf.h ../include/s_user.h
-m_svsjoin.o: m_svsjoin.c ../config.h ../include/channel.h \
-  ../include/client.h ../include/gline.h ../include/hash.h \
-  ../include/ircd.h ../include/ircd_chattr.h ../include/ircd_features.h \
-  ../include/ircd_log.h ../include/ircd_reply.h ../include/ircd_string.h \
-  ../include/msg.h ../include/numeric.h ../include/numnicks.h \
-  ../include/s_debug.h ../include/s_user.h ../include/send.h \
-  ../include/sys.h
-m_svsmode.o: m_svsmode.c ../config.h ../include/client.h ../include/hash.h \
-  ../include/ircd.h ../include/ircd_log.h ../include/ircd_reply.h \
-  ../include/ircd_string.h ../include/msg.h ../include/numeric.h \
-  ../include/numnicks.h ../include/send.h ../include/s_user.h
-m_svsnick.o: m_svsnick.c ../config.h ../include/client.h ../include/hash.h \
-  ../include/ircd.h ../include/ircd_features.h ../include/ircd_log.h \
-  ../include/ircd_reply.h ../include/ircd_string.h ../include/msg.h \
-  ../include/numeric.h ../include/numnicks.h ../include/send.h \
-  ../include/sys.h ../include/s_misc.h ../include/s_user.h
-m_svsnoop.o: m_svsnoop.c ../config.h ../include/client.h ../include/hash.h \
-  ../include/ircd.h ../include/ircd_log.h ../include/ircd_reply.h \
-  ../include/ircd_string.h ../include/msg.h ../include/numeric.h \
-  ../include/numnicks.h ../include/send.h ../include/s_conf.h
-m_svspart.o: m_svspart.c ../config.h ../include/channel.h \
-  ../include/client.h ../include/hash.h ../include/ircd.h \
-  ../include/ircd_log.h ../include/ircd_reply.h ../include/ircd_string.h \
-  ../include/msg.h ../include/numeric.h ../include/numnicks.h \
-  ../include/send.h
-m_svsquit.o: m_svsquit.c ../config.h ../include/client.h \
-  ../include/handlers.h ../include/ircd.h ../include/ircd_reply.h \
-  ../include/ircd_string.h ../include/msg.h ../include/numnicks.h \
-  ../include/send.h ../include/s_conf.h ../include/s_misc.h \
-  ../include/s_user.h
-m_swhois.o: m_swhois.c ../config.h ../include/client.h ../include/hash.h \
-  ../include/ircd.h ../include/ircd_log.h ../include/ircd_reply.h \
-  ../include/ircd_string.h ../include/msg.h ../include/numeric.h \
-  ../include/numnicks.h ../include/send.h ../include/version.h
 m_tempshun.o: m_tempshun.c ../config.h ../include/client.h ../include/hash.h \
   ../include/ircd.h ../include/ircd_features.h  ../include/ircd_log.h \
   ../include/ircd_reply.h ../include/msg.h ../include/numeric.h \
@@ -1183,7 +1171,6 @@ querycmds.o: querycmds.c ../config.h ../include/querycmds.h \
   ../include/client.h ../include/ircd_snprintf.h ../include/s_debug.h \
   ../include/send.h
 random.o: random.c ../config.h ../include/random.h ../include/client.h \
-  ../include/ircd_log.h ../include/ircd_md5.h ../include/ircd_reply.h \
   ../include/send.h
 s_auth.o: s_auth.c ../config.h ../include/s_auth.h ../include/class.h \
   ../include/client.h ../include/hash.h ../include/IPcheck.h \
@@ -1314,9 +1301,8 @@ ssl.o: ssl.c ../config.h ../include/client.h ../include/ircd_alloc.h \
 table_gen.o: table_gen.c ../config.h ../include/ircd_chattr.h
 umkpasswd.o: umkpasswd.c ../config.h ../include/ircd_alloc.h \
   ../include/ircd_log.h ../include/ircd_string.h ../include/umkpasswd.h \
-  ../include/s_debug.h ../include/ircd_md5.h ../include/ircd_crypt.h \
-  ../include/ircd_crypt_smd5.h ../include/ircd_crypt_native.h \
-  ../include/ircd_crypt_plain.h ../include/ircd_crypt_bcrypt.h
+  ../include/ircd_crypt_plain.h ../include/ircd_crypt_bcrypt.h \
+  ../include/ircd_crypt_sha.h
 uping.o: uping.c ../config.h ../include/uping.h ../include/client.h \
   ../include/ircd.h ../include/ircd_alloc.h ../include/ircd_events.h \
   ../include/ircd_log.h ../include/ircd_osdep.h ../include/ircd_string.h \

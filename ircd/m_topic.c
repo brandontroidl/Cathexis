@@ -202,6 +202,7 @@ int m_topic(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
       continue;
     }
 
+
     do_settopic(sptr,cptr,chptr,topic,0,NULL);
   }
   return 0;

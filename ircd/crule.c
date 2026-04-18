@@ -720,9 +720,10 @@ static int crule_parsearglist(CRuleNodePtr argrootp, int *next_tokp, const char*
         {
           if ((arglen + wordlen) < (CR_MAXARGLEN - 1))
           {
-            strcat(currarg, " ");
-            strcat(currarg, word);
+            currarg[arglen] = ' ';
+            memcpy(currarg + arglen + 1, word, wordlen);
             arglen += wordlen + 1;
+            currarg[arglen] = '\0';
           }
         }
         else

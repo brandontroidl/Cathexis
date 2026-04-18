@@ -28,6 +28,7 @@
 
 /* #include <assert.h> -- Now using assert in ircd_log.h */
 #include <string.h>
+#include <stdio.h>
 
 /** Array of Numeric replies, indexed by numeric. */
 static Numeric replyTable[] = {
@@ -48,7 +49,7 @@ static Numeric replyTable[] = {
 /* 007 */
   { 0 },
 /* 008 */
-  { RPL_SNOMASK, "%u :: Server notice mask (%#x)", "008" },
+  { RPL_SNOMASK, "%s :: Server notice mask (%#x)", "008" },
 /* 009 */
   { 0 },
 /* 010 */
@@ -734,7 +735,7 @@ static Numeric replyTable[] = {
 /* 350 */
   { 0 },
 /* 351 */
-  { RPL_VERSION, "%s+[%s].%s %s :%s", "351" },
+  { RPL_VERSION, "%s.%s %s :%s", "351" },
 /* 352 */
   { RPL_WHOREPLY, "%s", "352" },
 /* 353 */
@@ -1492,15 +1493,15 @@ static Numeric replyTable[] = {
 /* 729 */
   { 0 },
 /* 730 */
-  { 0 },
+  { RPL_MONONLINE, ":%s", "730" },
 /* 731 */
-  { 0 },
+  { RPL_MONOFFLINE, ":%s", "731" },
 /* 732 */
-  { 0 },
+  { RPL_MONLIST, ":%s", "732" },
 /* 733 */
-  { 0 },
+  { RPL_ENDOFMONLIST, ":End of MONITOR list", "733" },
 /* 734 */
-  { 0 },
+  { ERR_MONLISTFULL, "%d %s :Monitor list is full", "734" },
 /* 735 */
   { 0 },
 /* 736 */
@@ -1550,7 +1551,7 @@ static Numeric replyTable[] = {
 /* 758 */
   { 0 },
 /* 759 */
-  { 0 },
+  { ERR_SSLONLYPM, "%s :You must be connected via SSL to %s this user (+S)", "759" },
 /* 760 */
   { 0 },
 /* 761 */
@@ -1991,9 +1992,13 @@ static Numeric replyTable[] = {
  */
 const struct Numeric* get_error_numeric(int n)
 {
+  static Numeric fallback = { 0, ":Unknown error (%d)", "999" };
+
   assert(0 < n);
-  assert(n < ERR_LASTERROR);
-  assert(0 != replyTable[n].value);
+  if (n <= 0 || n >= ERR_LASTERROR || replyTable[n].value == 0) {
+    fallback.value = n;
+    return &fallback;
+  }
 
   return &replyTable[n];
 }
@@ -2008,8 +2013,10 @@ char* rpl_str(int n)
   Numeric* p;
 
   assert(0 < n);
-  assert(n < ERR_LASTERROR);
-  assert(0 != replyTable[n].value);
+  if (n <= 0 || n >= ERR_LASTERROR || replyTable[n].value == 0) {
+    snprintf(numbuff, sizeof(numbuff), "%%s %03d %%s :Unknown numeric %d", n, n);
+    return numbuff;
+  }
 
   p = &replyTable[n];
   strcpy(numbuff, ":%s 000 %s ");

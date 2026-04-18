@@ -241,7 +241,7 @@ add_local_domain(char* hname, size_t size)
       if ((strlen(irc_domain) + len + 2) < size)
       {
         hname[len++] = '.';
-        strcpy(hname + len, irc_domain);
+        ircd_strncpy(hname + len, irc_domain, sizeof(hname) - len - 1);
       }
     }
   }
@@ -756,7 +756,7 @@ proc_answer(struct reslist *request, HEADER* header, char* buf, char* eob)
          */
         log_write(LS_RESOLVER, L_ERROR, 0, "irc_res.c bogus type %d", type);
 
-        if ((char*)current + rd_length >= (char*)current)
+        if (rd_length > 0 && rd_length < 65536)
           current += rd_length;
         else
           return(0);

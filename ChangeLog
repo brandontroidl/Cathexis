@@ -1,3 +1,55 @@
+2026-03-27  Cathexis Development Team  <btroidl@gmail.com>
+
+	* Version 1.3.0 (Patchlevel 15)
+
+	New commands:
+	- KNOCK: Request invite to +i channels, blocked by +K
+	- MONITOR: IRCv3 online notification (modern WATCH replacement)
+	- DLINE/UNDLINE: Local IP-only deny lines
+	- KLINE/UNKLINE: Local host ban aliases for local GLINE
+	- LOCOPS: Message to local server operators only
+	- ACCEPT: CallerID accept list management
+	- HELPOP: Alias for /HELP
+	- CHATHISTORY: IRCv3 CHATHISTORY forwarding via XQUERY
+
+	New channel modes:
+	- +j n:t: Join throttle (max n joins per t seconds)
+	- +f: Flood protection with configurable action
+	- +K: No KNOCK (block knock requests)
+
+	New user mode:
+	- +G: CallerID (only ACCEPT list users can PM)
+
+	Extended bans (8 to 15):
+	- ~s (server), ~f (certfp), ~o (oper), ~R (registered)
+	- ~T (textban), ~C (no-ctcp), ~N (no-notice)
+
+	Server notice masks (20 to 28):
+	- S (shun), Z (zline), a (SASL auth), C (SA* commands)
+	- F (flood), T (TLS), R (account), P (spamfilter)
+	- SA* commands routed to SNO_SACMD instead of SNO_OLDSNO
+	- Shun ops routed to SNO_SHUN instead of SNO_GLINE
+	- Z-line ops routed to SNO_ZLINE instead of SNO_GLINE
+	- SASL auth success/failure logged to SNO_SASL
+
+	Help system:
+	- 114 entries, privilege-filtered (user/oper/admin)
+	- /HELPOP registered as alias
+	- Reference topics: USERMODES, CHANMODES, CHANPREFIXES, EXTBANS,
+	  SNOMASK, OPERLEVELS, FEATURES
+
+	Operator levels:
+	- oper_levels.h: LOCOP(1), OPER(2), ADMIN(3), NETADMIN(4), SERVICE(5)
+	- client_oper_level(), oper_outranks(), CanUseSACommands() macros
+
+	IRCv3 capabilities (15):
+	- 10 client caps + 5 S2S caps in capab_ircv3_ext.h
+	- chghost, invite-notify, monitor, standard-replies added
+
+	Feature toggles:
+	- KNOCK, JOINTHROTTLE, FLOODPROT, CALLERID, MONITOR
+	- 7 FEAT_EXTBAN_* toggles for new extban types
+
 2012-10-15  Michael Poole <mdpoole@troilus.org>
 
 	* include/IPcheck.h (IPcheck_connect_fail): Add new 'disconnect'

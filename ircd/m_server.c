@@ -32,6 +32,7 @@
 #include "ircd.h"
 #include "ircd_log.h"
 #include "ircd_features.h"
+#include "ircd_crypto.h"
 #include "ircd_reply.h"
 #include "ircd_string.h"
 #include "jupe.h"
@@ -608,6 +609,20 @@ int mr_server(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
                            "Access denied. No conf line for server %s", cli_name(cptr));
   }
 
+#ifdef USE_SSL
+  /* Enforce SSL requirement: if the Connect block has ssl = yes,
+   * reject incoming connections that are not over SSL.  This closes
+   * the gap where CONF_SSL was only checked for outgoing connections
+   * in completed_connection(). */
+  if ((aconf->flags & CONF_SSL) && !IsSSL(cptr)) {
+    ++ServerStats->is_ref;
+    sendto_opmask_butone(0, SNO_OLDSNO, "Access denied (SSL required) %s",
+                         cli_name(cptr));
+    return exit_client_msg(cptr, cptr, &me,
+                           "No Access (SSL required) %s", cli_name(cptr));
+  }
+#endif
+
   if (!verify_sslclifp(cptr, aconf)) {
     ++ServerStats->is_ref;
     sendto_opmask_butone(0, SNO_OLDSNO, "Access denied (SSL fingerprint mismatch) %s",
@@ -616,7 +631,7 @@ int mr_server(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
                            "No Access (SSL fingerprint mismatch) %s", cli_name(cptr));
   }
 
-  if (*aconf->passwd && !!strcmp(aconf->passwd, cli_passwd(cptr))) {
+  if (*aconf->passwd && !!ircd_constcmp(aconf->passwd, cli_passwd(cptr))) {
     ++ServerStats->is_ref;
     sendto_opmask_butone(0, SNO_OLDSNO, "Access denied (passwd mismatch) %s",
                          cli_name(cptr));

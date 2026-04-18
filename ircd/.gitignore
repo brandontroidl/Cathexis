@@ -1,16 +1,15 @@
+# Object files and build output
 *.o
 Makefile
 stamp-m
 version.c
 ircd
-ircd_lexer.c
-ircd_parser.c
-ircd_parser.h
-chkconf
-table_gen
 umkpasswd
 convert-conf
+chkconf
+table_gen
 chattr.tab.c
-lex.yy.c
-y.tab.c
-y.tab.h
+
+# NOTE: y.tab.c, y.tab.h, lex.yy.c are TRACKED (not ignored).
+# They are pre-generated parser files needed for builds without bison/flex.
+# Only regenerate with: bison -d -o y.tab.c ircd_parser.y && flex -o lex.yy.c ircd_lexer.l

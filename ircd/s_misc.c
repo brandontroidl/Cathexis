@@ -58,6 +58,8 @@
 #include "uping.h"
 #include "userload.h"
 #include "watch.h"
+#include "monitor.h"
+#include "handlers.h"
 
 /* #include <assert.h> -- Now using assert in ircd_log.h */
 #include <fcntl.h>
@@ -124,7 +126,7 @@ char *date(time_t clock)
   if (minswest < 0)
     minswest = -minswest;
 
-  sprintf(buf, "%s %s %d %d -- %02d:%02d %c%02d:%02d",
+  ircd_snprintf(0, buf, sizeof(buf), "%s %s %d %d -- %02d:%02d %c%02d:%02d",
       weekdays[lt->tm_wday], months[lt->tm_mon], lt->tm_mday,
       1900 + lt->tm_year, lt->tm_hour, lt->tm_min,
       plus, minswest / 60, minswest % 60);
@@ -145,7 +147,7 @@ char *myctime(time_t value)
   static char buf[28];
   char *p;
 
-  strcpy(buf, ctime(&value));
+  ircd_strncpy(buf, ctime(&value), sizeof(buf) - 1);
   if ((p = strchr(buf, '\n')) != NULL)
     *p = '\0';
 
@@ -228,6 +230,11 @@ static void exit_one_client(struct Client* bcptr, const char* comment)
       del_list_watch(bcptr);
     /* Notify Logout */
     check_status_watch(bcptr, RPL_LOGOFF);
+
+    /* IRCv3 MONITOR: clean up and notify */
+    if (MyUser(bcptr))
+      monitor_clear(bcptr);
+    monitor_notify_offline(cli_name(bcptr));
 
     /* Clean up snotice lists */
     if (MyUser(bcptr))
@@ -380,6 +387,9 @@ int exit_client(struct Client *cptr,
   {
     SetFlag(victim, FLAG_CLOSING);
 
+    /* Clean up any active multiline batch */
+    ml_client_exit(victim);
+
     if (feature_bool(FEAT_CONNEXIT_NOTICES) && IsUser(victim))
       sendto_opmask_butone_global(&me, SNO_CONNEXIT,
                            "Client exiting: %s (%s@%s) [%s] [%s] <%s%s>",
@@ -461,12 +471,12 @@ int exit_client(struct Client *cptr,
   if (IsServer(victim))
   {
     if (feature_bool(FEAT_HIS_NETSPLIT))
-      strcpy(comment1, "*.net *.split");
+      ircd_strncpy(comment1, "*.net *.split", sizeof(comment1) - 1);
     else
     {
-      strcpy(comment1, cli_name(cli_serv(victim)->up));
-      strcat(comment1, " ");
-      strcat(comment1, cli_name(victim));
+      ircd_strncpy(comment1, cli_name(cli_serv(victim)->up), sizeof(comment1) - 1);
+      strncat(comment1, " ", sizeof(comment1) - strlen(comment1) - 1);
+      strncat(comment1, cli_name(victim), sizeof(comment1) - strlen(comment1) - 1);
     }
 
     if (IsUser(killer))

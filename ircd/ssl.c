@@ -70,9 +70,7 @@ void binary_to_hex(unsigned char *bin, char *hex, int length);
 
 int ssl_init(void)
 {
-  SSL_library_init();
-  SSL_load_error_strings();
-  ERR_load_crypto_strings();
+  /* OpenSSL 1.1+ auto-initializes. No manual init calls needed. */
 
   Debug((DEBUG_NOTICE, "SSL: read %d bytes of randomness", RAND_load_file("/dev/urandom", 4096)));
 
@@ -121,7 +119,7 @@ SSL_CTX *ssl_init_server_ctx(void)
   SSL_CTX *server_ctx = NULL;
   int vrfyopts = SSL_VERIFY_PEER|SSL_VERIFY_CLIENT_ONCE;
 
-  server_ctx = SSL_CTX_new(SSLv23_server_method());
+  server_ctx = SSL_CTX_new(TLS_server_method());
   if (!server_ctx)
   {
     sslfail("Error creating new server context");
@@ -131,12 +129,16 @@ SSL_CTX *ssl_init_server_ctx(void)
   if (feature_bool(FEAT_SSL_REQUIRECLIENTCERT))
     vrfyopts |= SSL_VERIFY_FAIL_IF_NO_PEER_CERT;
 
-  if (feature_bool(FEAT_SSL_NOSSLV2))
-    SSL_CTX_set_options(server_ctx, SSL_OP_NO_SSLv2);
-  if (feature_bool(FEAT_SSL_NOSSLV3))
-    SSL_CTX_set_options(server_ctx, SSL_OP_NO_SSLv3);
-  if (feature_bool(FEAT_SSL_NOTLSV1))
-    SSL_CTX_set_options(server_ctx, SSL_OP_NO_TLSv1);
+  /* Enforce TLS 1.2 minimum — SSLv2, SSLv3, TLS 1.0, TLS 1.1 all disabled.
+   * TLS 1.3 is preferred when both endpoints support it. */
+  SSL_CTX_set_min_proto_version(server_ctx, TLS1_2_VERSION);
+
+  /* Security hardening options */
+  SSL_CTX_set_options(server_ctx,
+    SSL_OP_NO_COMPRESSION |            /* CRIME attack mitigation */
+    SSL_OP_NO_RENEGOTIATION |          /* Renegotiation attack mitigation */
+    SSL_OP_CIPHER_SERVER_PREFERENCE);  /* Server chooses cipher order */
+
   SSL_CTX_set_verify(server_ctx, vrfyopts, ssl_verify_callback);
   SSL_CTX_set_session_cache_mode(server_ctx, SSL_SESS_CACHE_OFF);
 
@@ -170,6 +172,38 @@ SSL_CTX *ssl_init_server_ctx(void)
     }
   }
 
+  /* TLS 1.3 ciphersuites (separate from TLS 1.2 cipher list).
+   * These control which symmetric ciphers are used in TLS 1.3.
+   * Default: AES-256-GCM and CHACHA20-POLY1305 (both quantum-safe symmetric). */
+#if OPENSSL_VERSION_NUMBER >= 0x10101000L
+  if (!EmptyString(feature_str(FEAT_SSL_CIPHERSUITES)))
+  {
+    if (SSL_CTX_set_ciphersuites(server_ctx, feature_str(FEAT_SSL_CIPHERSUITES)) == 0)
+    {
+      sslfail("Error setting TLS 1.3 ciphersuites");
+      SSL_CTX_free(server_ctx);
+      return NULL;
+    }
+  }
+#endif
+
+  /* Key exchange groups — controls ECDHE curves and post-quantum hybrids.
+   * When OpenSSL 3.5+ is available with ML-KEM support, setting this to
+   * "X25519MLKEM768:X25519:P-256" enables post-quantum hybrid key exchange.
+   * The first group listed is preferred. Clients that don't support ML-KEM
+   * will fall back to X25519 or P-256 automatically. */
+#if OPENSSL_VERSION_NUMBER >= 0x10101000L
+  if (!EmptyString(feature_str(FEAT_SSL_GROUPS)))
+  {
+    if (SSL_CTX_set1_groups_list(server_ctx, feature_str(FEAT_SSL_GROUPS)) == 0)
+    {
+      sslfail("Error setting TLS key exchange groups");
+      SSL_CTX_free(server_ctx);
+      return NULL;
+    }
+  }
+#endif
+
   if (!EmptyString(feature_str(FEAT_SSL_CACERTFILE)))
   {
     if (!SSL_CTX_load_verify_locations(server_ctx, feature_str(FEAT_SSL_CACERTFILE), NULL))
@@ -180,13 +214,7 @@ SSL_CTX *ssl_init_server_ctx(void)
     }
   }
 
-#if defined(SSL_CTX_set_ecdh_auto)
-  SSL_CTX_set_ecdh_auto(server_ctx, 1);
-#elif OPENSSL_VERSION_NUMBER < 0x10100000L
-  SSL_CTX_set_tmp_ecdh(server_ctx, EC_KEY_new_by_curve_name(NID_X9_62_prime256v1));
-#else
-#endif
-  SSL_CTX_set_options(server_ctx, SSL_OP_SINGLE_ECDH_USE|SSL_OP_SINGLE_DH_USE);
+  /* ECDH auto-selection is default in OpenSSL 1.1+. No manual setup needed. */
 
   return server_ctx;
 }
@@ -195,19 +223,20 @@ SSL_CTX *ssl_init_client_ctx(void)
 {
   SSL_CTX *client_ctx = NULL;
 
-  client_ctx = SSL_CTX_new(SSLv23_client_method());
+  client_ctx = SSL_CTX_new(TLS_client_method());
   if (!client_ctx)
   {
     sslfail("Error creating new client context");
     return NULL;
   }
 
-  if (feature_bool(FEAT_SSL_NOSSLV2))
-    SSL_CTX_set_options(client_ctx, SSL_OP_NO_SSLv2);
-  if (feature_bool(FEAT_SSL_NOSSLV3))
-    SSL_CTX_set_options(client_ctx, SSL_OP_NO_SSLv3);
-  if (feature_bool(FEAT_SSL_NOTLSV1))
-    SSL_CTX_set_options(client_ctx, SSL_OP_NO_TLSv1);
+  /* Enforce TLS 1.2 minimum for S2S links */
+  SSL_CTX_set_min_proto_version(client_ctx, TLS1_2_VERSION);
+
+  SSL_CTX_set_options(client_ctx,
+    SSL_OP_NO_COMPRESSION |
+    SSL_OP_NO_RENEGOTIATION);
+
   SSL_CTX_set_session_cache_mode(client_ctx, SSL_SESS_CACHE_OFF);
 
   if (SSL_CTX_use_certificate_chain_file(client_ctx, feature_str(FEAT_SSL_CERTFILE)) <= 0)
@@ -251,6 +280,11 @@ int ssl_verify_callback(int preverify_ok, X509_STORE_CTX *cert)
     return preverify_ok;
   }
 
+  /* Default: accept but log if verification would have failed */
+  if (!preverify_ok && err != 0) {
+    Debug((DEBUG_NOTICE, "SSL: accepting unverified cert (error %d) - "
+           "enable FEAT_SSL_VERIFYCERT for production", err));
+  }
   return 1;
 }
 
@@ -508,6 +542,11 @@ IOResult ssl_sendv(struct Socket *socketh, struct Client *cptr, struct MsgQ* buf
 int ssl_send(struct Client *cptr, const char *buf, unsigned int len)
 {
   char fmt[16];
+
+  /* Guard against async callbacks (e.g. DNSBL) firing after
+   * the client's connection has been freed */
+  if (!cptr || !cli_connect(cptr))
+    return -1;
 
   if (!cli_socket(cptr).ssl)
     return write(cli_fd(cptr), buf, len);

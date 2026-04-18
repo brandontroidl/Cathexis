@@ -173,6 +173,7 @@ static void dealloc_connection(struct Connection* con)
   if (con_listener(con))
     release_listener(con_listener(con));
 
+
   --connections.inuse;
 
   con_next(con) = connectionFreeList;
@@ -227,7 +228,7 @@ struct Client* make_client(struct Client *from, int status)
   cli_magic(cptr) = CLIENT_MAGIC;
   cli_status(cptr) = status;
   cli_hnext(cptr) = cptr;
-  strcpy(cli_username(cptr), "unknown");
+  ircd_strncpy(cli_username(cptr), "unknown", USERLEN);
 
   return cptr;
 }
