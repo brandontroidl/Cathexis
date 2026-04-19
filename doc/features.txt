@@ -57,6 +57,20 @@ PQ_POSTURE / PQ_KEYFILE / PQ_PEER_KEYDIR (post-quantum cryptography)
   PQ_KEYFILE points to our server's dual keypair file (mode 0600).
   PQ_PEER_KEYDIR contains peer public keys as <numeric>.pub files.
 
+SSL_HARDENED (TLS hardening for user connections)
+  Cathexis 1.6.0+ adds belt-and-suspenders TLS defenses that are safe
+  for all TLS 1.2+ clients. When TRUE (default):
+    - Explicit SSL_OP_NO_{SSLv2,SSLv3,TLSv1,TLSv1_1} bans
+    - SSL_OP_NO_TICKET — no stateless session resumption (eliminates
+      ticket-key compromise risk; TLS 1.3 PSK resumption still works)
+    - SSL_OP_SINGLE_DH_USE + SSL_OP_SINGLE_ECDH_USE — fresh ephemeral
+      keys per handshake
+    - OpenSSL security level 2 — rejects <112-bit security (e.g. RSA-1024)
+  The tightened SSL_CIPHERS default also bans SHA-1 MAC, CBC modes, RSA
+  key-exchange, PSK, SRP, EXPORT, and LOW/MEDIUM ciphers.
+  Set to FALSE only if you hit an edge-case TLS 1.2 client that fails
+  to connect (extremely rare; anything post-2015 passes).
+
 CAP_STS_ENABLED / CAP_STS_PORT / CAP_STS_DURATION / CAP_STS_PRELOAD
   Advertises the IRCv3 STS (Strict Transport Security) capability to
   clients on CAP LS 302+. Tells compliant clients to remember the TLS

@@ -133,11 +133,35 @@ SSL_CTX *ssl_init_server_ctx(void)
    * TLS 1.3 is preferred when both endpoints support it. */
   SSL_CTX_set_min_proto_version(server_ctx, TLS1_2_VERSION);
 
-  /* Security hardening options */
-  SSL_CTX_set_options(server_ctx,
-    SSL_OP_NO_COMPRESSION |            /* CRIME attack mitigation */
-    SSL_OP_NO_RENEGOTIATION |          /* Renegotiation attack mitigation */
-    SSL_OP_CIPHER_SERVER_PREFERENCE);  /* Server chooses cipher order */
+  /* Security hardening options. SSL_HARDENED adds belt-and-suspenders
+   * defenses that are safe for all TLS 1.2+ clients — no compat cost. */
+  {
+    long opts =
+      SSL_OP_NO_COMPRESSION |            /* CRIME attack mitigation */
+      SSL_OP_NO_RENEGOTIATION |          /* Renegotiation attack mitigation */
+      SSL_OP_CIPHER_SERVER_PREFERENCE;   /* Server chooses cipher order */
+
+    if (feature_bool(FEAT_SSL_HARDENED)) {
+      opts |=
+        SSL_OP_NO_SSLv2 |                /* Belt-and-suspenders — already dead */
+        SSL_OP_NO_SSLv3 |
+        SSL_OP_NO_TLSv1 |
+        SSL_OP_NO_TLSv1_1 |
+        SSL_OP_NO_TICKET |               /* No stateless resumption — eliminates
+                                          * ticket-key compromise risk. TLS 1.3
+                                          * PSK resumption still works. */
+        SSL_OP_SINGLE_DH_USE |           /* Fresh DH params per handshake */
+        SSL_OP_SINGLE_ECDH_USE;          /* Fresh ECDH keys per handshake */
+    }
+    SSL_CTX_set_options(server_ctx, opts);
+  }
+
+  /* OpenSSL 3.x security level floor. Level 2 rejects anything weaker than
+   * 112-bit security (RSA-2048 equivalent). Modern clients pass; nothing
+   * from the post-2015 era is excluded. */
+  if (feature_bool(FEAT_SSL_HARDENED)) {
+    SSL_CTX_set_security_level(server_ctx, 2);
+  }
 
   SSL_CTX_set_verify(server_ctx, vrfyopts, ssl_verify_callback);
   SSL_CTX_set_session_cache_mode(server_ctx, SSL_SESS_CACHE_OFF);
@@ -233,9 +257,27 @@ SSL_CTX *ssl_init_client_ctx(void)
   /* Enforce TLS 1.2 minimum for S2S links */
   SSL_CTX_set_min_proto_version(client_ctx, TLS1_2_VERSION);
 
-  SSL_CTX_set_options(client_ctx,
-    SSL_OP_NO_COMPRESSION |
-    SSL_OP_NO_RENEGOTIATION);
+  {
+    long opts =
+      SSL_OP_NO_COMPRESSION |
+      SSL_OP_NO_RENEGOTIATION;
+
+    if (feature_bool(FEAT_SSL_HARDENED)) {
+      opts |=
+        SSL_OP_NO_SSLv2 |
+        SSL_OP_NO_SSLv3 |
+        SSL_OP_NO_TLSv1 |
+        SSL_OP_NO_TLSv1_1 |
+        SSL_OP_NO_TICKET |
+        SSL_OP_SINGLE_DH_USE |
+        SSL_OP_SINGLE_ECDH_USE;
+    }
+    SSL_CTX_set_options(client_ctx, opts);
+  }
+
+  if (feature_bool(FEAT_SSL_HARDENED)) {
+    SSL_CTX_set_security_level(client_ctx, 2);
+  }
 
   SSL_CTX_set_session_cache_mode(client_ctx, SSL_SESS_CACHE_OFF);
 

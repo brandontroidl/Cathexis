@@ -867,13 +867,19 @@ static struct FeatureDesc {
   F_B(SSL_VERIFYCERT, 0, 0, 0),
   F_B(SSL_NOSELFSIGNED, 0, 0, 0),
   F_B(SSL_REQUIRECLIENTCERT, 0, 0, 0),
-  F_S(SSL_CIPHERS, FEAT_NULL, "ECDHE+AESGCM:ECDHE+CHACHA20:!aNULL:!eNULL:!MD5:!DSS:!RC4:!3DES:!SEED:!IDEA", 0),
+  F_S(SSL_CIPHERS, FEAT_NULL, "ECDHE+AESGCM:ECDHE+CHACHA20:!aNULL:!eNULL:!MD5:!SHA1:!DSS:!RC4:!3DES:!SEED:!IDEA:!RSA:!PSK:!SRP:!EXPORT:!LOW:!MEDIUM:!NULL:!CBC", 0),
   F_S(SSL_CIPHERSUITES, FEAT_NULL, "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256", 0),
   /* Post-quantum hybrid TLS key exchange (Cathexis 1.6.0+).
    * X25519MLKEM768 is the NIST-recommended hybrid; listed first so it's
    * preferred. X25519 and P-256 provide classical fallback for clients
    * that don't speak ML-KEM yet. OpenSSL 3.5+ supports all three. */
   F_S(SSL_GROUPS, FEAT_NULL, "X25519MLKEM768:X25519:P-256", 0),
+  /* SSL_HARDENED enables belt-and-suspenders TLS defenses safe for all
+   * TLS 1.2+ clients: explicit SSLv2/SSLv3/TLS1.0/1.1 bans, NO_TICKET
+   * (eliminates ticket-key compromise risk), SINGLE_{DH,ECDH}_USE, and
+   * OpenSSL security level 2. Set to FALSE if you hit an edge case with
+   * a legitimate TLS 1.2 client that fails to connect. */
+  F_B(SSL_HARDENED, 0, 1, 0),
 
   /* ZLINE FEAT_'s */
   F_B(DISABLE_ZLINES, 0, 0, 0),
