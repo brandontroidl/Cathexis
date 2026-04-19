@@ -7471,8 +7471,24 @@ $as_echo "no" >&6; }
 
   { $as_echo "$as_me:${as_lineno-$LINENO}: checking for liboqs (Open Quantum Safe)" >&5
 $as_echo_n "checking for liboqs (Open Quantum Safe)... " >&6; }
+
+  # Try pkg-config first; liboqs installs /usr/local/lib/pkgconfig/liboqs.pc
+  OQS_CFLAGS=""
+  OQS_LIBS=""
+  if command -v pkg-config >/dev/null 2>&1; then
+    OQS_CFLAGS=`pkg-config --cflags liboqs 2>/dev/null`
+    OQS_LIBS=`pkg-config --libs liboqs 2>/dev/null`
+  fi
+  if test -z "$OQS_LIBS"; then
+    OQS_LIBS="-loqs"
+  fi
+
+  # Static liboqs needs -lcrypto AFTER -loqs and -lpthread in the chain.
+  save_CFLAGS=$CFLAGS
   save_LIBS=$LIBS
-  LIBS="$LIBS -loqs"
+  CFLAGS="$CFLAGS $OQS_CFLAGS"
+  LIBS="$OQS_LIBS -lcrypto -lpthread $LIBS"
+
   cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 #include <oqs/oqs.h>
@@ -7488,11 +7504,16 @@ _ACEOF
 $as_echo "yes" >&6; }
     $as_echo "#define HAVE_LIBOQS /**/" >>confdefs.h
     $as_echo "#define USE_PQ /**/" >>confdefs.h
+    CFLAGS="$save_CFLAGS $OQS_CFLAGS"
+    LIBS="$OQS_LIBS -lpthread $save_LIBS"
   else
+    CFLAGS=$save_CFLAGS
     LIBS=$save_LIBS
     { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
 $as_echo "no" >&6; }
-    as_fn_error $? "Cathexis 1.6.0 requires liboqs for post-quantum s2s signatures. Install liboqs-dev or build from https://github.com/open-quantum-safe/liboqs. The dual-signature scheme (ML-DSA-87 + SLH-DSA-SHAKE-256f) provides defense-in-depth across cryptographic assumption families." "$LINENO" 5
+    as_fn_error $? "Cathexis 1.6.0 requires liboqs for post-quantum s2s signatures. Install liboqs-dev or build from https://github.com/open-quantum-safe/liboqs. The dual-signature scheme (ML-DSA-87 + SLH-DSA-SHAKE-256f) provides defense-in-depth across cryptographic assumption families.
+
+Debugging tip: run ./configure with CFLAGS=\"-I/usr/local/include\" LDFLAGS=\"-L/usr/local/lib\" if liboqs is under /usr/local, and inspect config.log for the actual link error (search for 'liboqs')." "$LINENO" 5
   fi
   rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
 fi

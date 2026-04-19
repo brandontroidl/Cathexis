@@ -782,8 +782,28 @@ if test x"$unet_cv_enable_ssl" = xyes; then
   CPPFLAGS=$save_CPPFLAGS
 
   AC_MSG_CHECKING([for liboqs (Open Quantum Safe)])
+
+  dnl ── Try pkg-config first (liboqs installs /usr/local/lib/pkgconfig/liboqs.pc)
+  OQS_CFLAGS=""
+  OQS_LIBS=""
+  if test -n "$PKG_CONFIG" || command -v pkg-config >/dev/null 2>&1; then
+    OQS_CFLAGS=`pkg-config --cflags liboqs 2>/dev/null`
+    OQS_LIBS=`pkg-config --libs liboqs 2>/dev/null`
+  fi
+
+  dnl ── If pkg-config didn't yield anything, fall back to -loqs
+  if test -z "$OQS_LIBS"; then
+    OQS_LIBS="-loqs"
+  fi
+
+  dnl ── Link-order for static liboqs: liboqs.a must come BEFORE -lcrypto so
+  dnl     the linker resolves crypto symbols it pulls in. We also need
+  dnl     -lpthread because liboqs uses threading internally.
+  save_CFLAGS=$CFLAGS
   save_LIBS=$LIBS
-  LIBS="$LIBS -loqs"
+  CFLAGS="$CFLAGS $OQS_CFLAGS"
+  LIBS="$OQS_LIBS -lcrypto -lpthread $LIBS"
+
   AC_LINK_IFELSE([AC_LANG_PROGRAM([[
 #include <oqs/oqs.h>
 ]], [[
@@ -795,10 +815,15 @@ return 0;
   [AC_MSG_RESULT([yes])
    AC_DEFINE([HAVE_LIBOQS], , [Define if liboqs is available])
    AC_DEFINE([USE_PQ], , [Define to enable post-quantum cryptography])
-   LIBS="$save_LIBS -loqs"],
-  [LIBS=$save_LIBS
+   dnl keep OQS_CFLAGS / OQS_LIBS in effect
+   CFLAGS="$save_CFLAGS $OQS_CFLAGS"
+   LIBS="$OQS_LIBS -lpthread $save_LIBS"],
+  [CFLAGS=$save_CFLAGS
+   LIBS=$save_LIBS
    AC_MSG_RESULT([no])
-   AC_MSG_ERROR([Cathexis 1.6.0 requires liboqs for post-quantum s2s signatures. Install liboqs-dev from your distribution or build from https://github.com/open-quantum-safe/liboqs. The dual-signature scheme (ML-DSA-87 + SLH-DSA-SHAKE-256f) provides defense-in-depth across cryptographic assumption families.])])
+   AC_MSG_ERROR([Cathexis 1.6.0 requires liboqs for post-quantum s2s signatures. Install liboqs-dev from your distribution or build from https://github.com/open-quantum-safe/liboqs. The dual-signature scheme (ML-DSA-87 + SLH-DSA-SHAKE-256f) provides defense-in-depth across cryptographic assumption families.
+
+Debugging tip: run ./configure with CFLAGS=\"-I/usr/local/include\" LDFLAGS=\"-L/usr/local/lib\" if liboqs is installed under /usr/local, and inspect config.log for the actual link error (search for \"liboqs\").])])
 fi
 
 dnl **
