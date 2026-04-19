@@ -1,24 +1,29 @@
-makefile
+# Build artifacts
 Makefile
+makefile
 config.log
 config.h
-stamp-h
 config.status
 config.cache
-.deps/
-.project
-ircu.tags
-autom4te.cache
+stamp-h
 stamp-h1
+autom4te.cache/
 include/patchlist.h
+.deps/
+
+# Editor/IDE
+.project
+.*.sw?
 .orig
+.vscode/
+
+# Tools build output
 tools/sidconvert/sid2num
 tools/sidconvert/num2sid
 !tools/sidconvert/Makefile
-.*.sw?
-
-# iauthd-ts build artifacts
 tools/iauthd-ts/dist/
 tools/iauthd-ts/node_modules/
-.claude/settings.local.json
-build/
+
+# Tags
+ircu.tags
+TAGS

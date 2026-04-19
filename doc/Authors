@@ -247,11 +247,11 @@ Cathexis IRCd (2026-present)
 Cathexis is a security-hardened, IRCv3-compliant fork of Nefarious2
 with end-to-end encryption. Licensed under GPL v3 or later.
 
-The current maintainer is Brandon Troidl.
+The current maintainer is Cathexis Development Team.
 
 Security audit, hardening, E2EE, and IRCv3 implementation by:
 
-Brandon Troidl <btroidl@gmail.com>
+Cathexis Development Team <admin@dexterousnetworkllc.org>
 
 Cathexis contributions include:
   - Three-phase security audit (blue team / red team / remediation)

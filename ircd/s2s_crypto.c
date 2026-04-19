@@ -1,6 +1,6 @@
 /*
  * IRC - Internet Relay Chat, ircd/s2s_crypto.c
- * Copyright (C) 2026 Brandon Troidl
+ * Copyright (C) 2026 Cathexis Development Team
 
  *
  * This program is free software; you can redistribute it and/or modify

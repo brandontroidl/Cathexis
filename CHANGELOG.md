@@ -1,5 +1,13 @@
 # Cathexis IRCd Changelog
 
+## 1.5.2 (2026-04-19)
+
+### Security
+- **WHO mark output buffer overflow (`ircd/whocmds.c`)** — Stack buffer overflow in the marks-output path of the WHO reply. The truncation arithmetic was wrong: `strncpy` was bounded by the *remaining* space after the current mark, while the destination pointer advanced by the mark's *full* length, writing past `markbuf[128]` when cumulative marks neared the buffer size. Rewrote the loop to check `p2 + marklen + 2 > pend` before each copy, use `memcpy` with the source length, and use `ircd_strncpy` for the `*ManyMarks*` overflow fallback (previously a raw `strncpy` with no guaranteed NUL termination). Reachable by any user with `+M` who accumulates marks long enough.
+
+### Crypto
+- **S2S HMAC key zeroization (`ircd/s_serv.c`)** — Replaced `memset(&tmpkey, 0, sizeof(tmpkey))` on the stack-scoped `struct S2SKey` with `OPENSSL_cleanse(&tmpkey, sizeof(tmpkey))`. The memset was subject to dead-store elimination because `tmpkey` goes out of scope immediately after; HMAC key material could remain on the stack after link establishment. Matches the pattern already used in `ircd/ircd_cloaking.c`.
+
 ## 1.5.1 (2026-04-12)
 
 ### IRCv3

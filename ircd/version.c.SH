@@ -94,7 +94,7 @@ const char *infotext[] = {
     "Obnoxious, Andromeda",
     "",
     "Cathexis 1.0.0 - Security Hardening and IRCv3 Modernization:",
-    "Brandon Troidl                  <btroidl@gmail.com>",
+    "Cathexis Development Team                  <admin@dexterousnetworkllc.org>",
     "",
     "Cathexis 1.4.1 features:",
     "  - Full IRCv3.2+ compliance (21 ratified specifications)",

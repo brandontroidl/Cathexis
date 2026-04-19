@@ -285,15 +285,19 @@ void do_who(struct Client* sptr, struct Client* acptr, struct Channel* repchan,
     if (IsMarked(acptr)) {
       char markbuf[128];
       char *p2 = (char *)&markbuf;
-      int len = 0;
+      char *pend = markbuf + sizeof(markbuf);
+      int overflow = 0;
       struct SLink* dp = NULL;
 
       for (dp = cli_marks(acptr); dp; dp = dp->next) {
-        len += strlen(dp->value.cp) + 1;
-        if (len > 128)
+        int marklen = strlen(dp->value.cp);
+        /* Need room for mark + ',' + terminating NUL */
+        if (p2 + marklen + 2 > pend) {
+          overflow = 1;
           break;
-        strncpy(p2, dp->value.cp, 128-len);
-        p2 += strlen(dp->value.cp);
+        }
+        memcpy(p2, dp->value.cp, marklen);
+        p2 += marklen;
         *p2++ = ',';
       }
       if (p2 > (char *)&markbuf)
@@ -301,8 +305,9 @@ void do_who(struct Client* sptr, struct Client* acptr, struct Channel* repchan,
       else
         *p2 = '\0';    /* Empty string if no marks */
 
-      if (len > 128)
-        strncpy((char *)&markbuf, "*ManyMarks*", 12);
+      if (overflow) {
+        ircd_strncpy(markbuf, "*ManyMarks*", sizeof(markbuf));
+      }
 
       p2 = (char *)&markbuf;
       while ((*p2) && (*(p1++) = *(p2++)));

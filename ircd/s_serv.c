@@ -173,8 +173,8 @@ int server_estab(struct Client *cptr, struct ConfItem *aconf)
         "S2S-HMAC: WARNING — key derivation failed for link to %s",
         cli_name(cptr));
     }
-    /* Clear temporary key material */
-    memset(&tmpkey, 0, sizeof(tmpkey));
+    /* Clear temporary key material (OPENSSL_cleanse is not optimized out) */
+    OPENSSL_cleanse(&tmpkey, sizeof(tmpkey));
   }
 
 /*    nextping = CurrentTime; */

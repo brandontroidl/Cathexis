@@ -44,7 +44,7 @@ LAYER 3: Nefarious IRCu / Nefarious2 (2004-2015)
   Note: See doc/Authors.nefarious for complete contributor list.
 
 LAYER 4: Cathexis IRCd (2026-present)
-  Copyright (C) 2026 Brandon Troidl
+  Copyright (C) 2026 Cathexis Development Team
   License: GNU General Public License v3 or later
   New files authored for Cathexis (all GPL v3+):
     ircd/ircd_encrypt.c      ircd/m_encrypt.c      include/ircd_encrypt.h
