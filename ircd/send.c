@@ -510,9 +510,15 @@ void sendcmdto_serv_butone(struct Client *from, const char *cmd,
         rawlen--;
       msgbuf[rawlen] = '\0';
 
-      /* Build temporary key from stored material */
-      memcpy(tmpkey.hmac_key, cli_serv(dest)->s2s_hmac_key, 32);
-      tmpkey.active = 1;
+      /* Build temporary key from stored material. 1.6.0+ uses 64-byte
+       * SHA3-512 keys; sizeof the source handles either width. */
+      memcpy(tmpkey.hmac_key, cli_serv(dest)->s2s_hmac_key,
+             sizeof(cli_serv(dest)->s2s_hmac_key));
+      memset(tmpkey.sacert_key, 0, sizeof(tmpkey.sacert_key));
+      memset(tmpkey.peer_pqfp, 0, sizeof(tmpkey.peer_pqfp));
+      tmpkey.active      = 1;
+      tmpkey.pq_active   = cli_serv(dest)->s2s_pq_active;
+      tmpkey.pq_required = cli_serv(dest)->s2s_pq_required;
 
       if (s2s_sign_message(signed_buf, sizeof(signed_buf), msgbuf, &tmpkey) > 0)
       {

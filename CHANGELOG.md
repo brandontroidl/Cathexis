@@ -6,7 +6,7 @@ Major release. Introduces NIST-standardized post-quantum authentication on serve
 
 ### Build requirements (BREAKING)
 - **OpenSSL >= 3.5.0** required (for native ML-KEM hybrid TLS key exchange and ML-DSA signatures). Hard-requirement in `configure.in` + `configure`.
-- **liboqs (Open Quantum Safe)** required (for ML-DSA-87 + SLH-DSA-SHAKE-256f dual signatures in the s2s layer). Install `liboqs-dev` on Debian/Ubuntu, or build from <https://github.com/open-quantum-safe/liboqs> with `-DOQS_ENABLE_SIG_ML_DSA_87=ON -DOQS_ENABLE_SIG_SPHINCS=ON`.
+- **liboqs (Open Quantum Safe)** required (for ML-DSA-87 + SLH-DSA-SHAKE-256f dual signatures in the s2s layer). Install `liboqs-dev` on Debian/Ubuntu, or build from <https://github.com/open-quantum-safe/liboqs> with `-DOQS_ENABLE_SIG_ML_DSA_87=ON -DOQS_ENABLE_SIG_SLH_DSA=ON`.
 - Existing OpenSSL 3.0.x / 1.1.x deployments will fail configure with a clear error message directing them to upgrade.
 
 ### Post-quantum cryptography

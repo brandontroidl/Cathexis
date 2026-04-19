@@ -49,7 +49,7 @@ static const char *pq_alg_name(uint16_t alg)
   switch (alg) {
     case PQ_ALG_ML_DSA_65:    return OQS_SIG_alg_ml_dsa_65;
     case PQ_ALG_ML_DSA_87:    return OQS_SIG_alg_ml_dsa_87;
-    case PQ_ALG_SLH_DSA_256F: return OQS_SIG_alg_sphincs_shake_256f_simple;
+    case PQ_ALG_SLH_DSA_256F: return OQS_SIG_alg_slh_dsa_pure_shake_256f;
     case PQ_ALG_FALCON_1024:  return OQS_SIG_alg_falcon_1024;
     default:                  return NULL;
   }
@@ -101,10 +101,10 @@ int pq_init(void)
               "Rebuild liboqs with -DOQS_ENABLE_SIG_ML_DSA_87=ON.");
     return -1;
   }
-  if (!OQS_SIG_alg_is_enabled(OQS_SIG_alg_sphincs_shake_256f_simple)) {
+  if (!OQS_SIG_alg_is_enabled(OQS_SIG_alg_slh_dsa_pure_shake_256f)) {
     log_write(LS_SYSTEM, L_CRIT, 0,
               "PQ: liboqs missing SLH-DSA-SHAKE-256f-simple (required). "
-              "Rebuild liboqs with -DOQS_ENABLE_SIG_SPHINCS=ON.");
+              "Rebuild liboqs with -DOQS_ENABLE_SIG_SLH_DSA=ON.");
     return -1;
   }
 

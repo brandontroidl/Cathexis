@@ -151,31 +151,64 @@ int server_estab(struct Client *cptr, struct ConfItem *aconf)
   Count_unknownbecomesserver(UserStats);
   SetBurst(cptr);
 
-  /* Cathexis 1.2.0+: Derive S2S cryptographic keys from the link password.
-   * S2S HMAC is enforced per-link: the Connect block must have hmac = yes
-   * AND the global S2S_HMAC feature must be TRUE.
-   * Links without hmac = yes skip HMAC — this allows mixed networks
-   * where some servers (e.g., Acid) support per-message HMAC and
-   * others (e.g., Synaxis/x3) do not. */
+  /* S2S cryptographic authentication.
+   *
+   * Cathexis 1.6.0: HMAC-SHA3-512 (64-byte key) derived via HKDF-SHA3-512.
+   * Per-link `hmac = yes` in the Connect block enables it; global
+   * FEAT_S2S_HMAC must also be TRUE. The PQ dual-signature layer on
+   * top of the MAC is attempted when FEAT_PQ_POSTURE != DISABLED and
+   * our PQ keypair is loaded. */
   cli_serv(cptr)->s2s_active = 0;
+  cli_serv(cptr)->s2s_pq_active = 0;
+  cli_serv(cptr)->s2s_pq_required = 0;
+  memset(cli_serv(cptr)->s2s_peer_pqfp, 0,
+         sizeof(cli_serv(cptr)->s2s_peer_pqfp));
+
   if (feature_bool(FEAT_S2S_HMAC) && (aconf->flags & CONF_HMAC)
       && aconf->passwd && *aconf->passwd) {
     struct S2SKey tmpkey;
     if (s2s_derive_keys(&tmpkey, aconf->passwd) == 0) {
-      memcpy(cli_serv(cptr)->s2s_hmac_key, tmpkey.hmac_key, 32);
-      memcpy(cli_serv(cptr)->s2s_sacert_key, tmpkey.sacert_key, 32);
+      size_t keylen = sizeof(cli_serv(cptr)->s2s_hmac_key);
+      memcpy(cli_serv(cptr)->s2s_hmac_key,   tmpkey.hmac_key,   keylen);
+      memcpy(cli_serv(cptr)->s2s_sacert_key, tmpkey.sacert_key, keylen);
       cli_serv(cptr)->s2s_active = 1;
       sendto_opmask_butone(0, SNO_NETWORK,
-        "S2S-HMAC: Cryptographic authentication active on link to %s",
+        "S2S-HMAC: %s authentication active on link to %s",
+#ifdef USE_PQ
+        "HMAC-SHA3-512",
+#else
+        "HMAC-SHA256",
+#endif
         cli_name(cptr));
     } else {
       sendto_opmask_butone(0, SNO_NETWORK,
         "S2S-HMAC: WARNING — key derivation failed for link to %s",
         cli_name(cptr));
     }
-    /* Clear temporary key material (OPENSSL_cleanse is not optimized out) */
     OPENSSL_cleanse(&tmpkey, sizeof(tmpkey));
   }
+
+#ifdef USE_PQ
+  /* PQ posture check. If REQUIRED, the link MUST complete PQ handshake
+   * (that wiring lands in mr_pass/mr_server in a follow-on patch); if
+   * PREFERRED, we attempt PQ but continue if peer lacks it.
+   *
+   * For 1.6.0: we record posture and the PQ keypair availability on the
+   * link. Actual PQ challenge-response during registration is wired in
+   * the next patch. A link without peer PQ keys cannot flip s2s_pq_active
+   * regardless of posture — the user operator must populate PQ_PEER_KEYDIR
+   * with peer public keys before REQUIRED posture can accept them. */
+  {
+    int posture = feature_int(FEAT_PQ_POSTURE);
+    if (posture == 2 /* REQUIRED */)
+      cli_serv(cptr)->s2s_pq_required = 1;
+    if (posture != 0 /* not DISABLED */) {
+      Debug((DEBUG_DEBUG,
+             "PQ: link to %s posture=%d pq_required=%d (handshake pending in follow-on)",
+             cli_name(cptr), posture, cli_serv(cptr)->s2s_pq_required));
+    }
+  }
+#endif
 
 /*    nextping = CurrentTime; */
 

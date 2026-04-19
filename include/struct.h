@@ -62,12 +62,18 @@ struct Server {
   char *last_error_msg;         /**< Allocated memory with last message receive with an ERROR */
   char by[NICKLEN + 1];         /**< Numnick of client who requested the link */
 
-  /** S2S cryptographic authentication keys (Cathexis 1.2.0+).
-   * Derived from the link password using HMAC-SHA256 as KDF.
-   * When active, every S2S message is HMAC-signed and verified. */
-  unsigned char s2s_hmac_key[32];   /**< HMAC key for per-message auth */
-  unsigned char s2s_sacert_key[32]; /**< HMAC key for SA* command signing */
-  int           s2s_active;         /**< 1 if S2S crypto is active on this link */
+  /** S2S cryptographic authentication keys.
+   * Cathexis 1.2.0+: HMAC-SHA256 derived from link password via HMAC-SHA256 KDF.
+   * Cathexis 1.6.0+: HMAC-SHA3-512 derived from link password via HKDF-SHA3-512.
+   *                   Post-quantum dual-signature (ML-DSA-87 + SLH-DSA-SHAKE-256f)
+   *                   negotiated via PASS-line extension during registration.
+   * When active, every S2S message is MAC-signed and verified. */
+  unsigned char s2s_hmac_key[64];   /**< HMAC key for per-message auth (64 for SHA3-512) */
+  unsigned char s2s_sacert_key[64]; /**< HMAC key for SA* command signing */
+  int           s2s_active;         /**< 1 if S2S MAC is active on this link */
+  int           s2s_pq_active;      /**< 1 if peer completed PQ dual-sig handshake */
+  int           s2s_pq_required;    /**< 1 if this link mandates PQ (posture REQUIRED) */
+  unsigned char s2s_peer_pqfp[32];  /**< SHA3-256 fingerprint of peer PQ public keys (zero when no PQ) */
 };
 
 /** Describes a user on the network. */

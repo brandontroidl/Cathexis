@@ -1622,10 +1622,19 @@ int parse_server(struct Client *cptr, char *buffer, char *bufend)
     struct S2SKey tmpkey;
     const char *verified_content = NULL;
 
-    /* Build a temporary key struct from the stored key material */
-    memcpy(tmpkey.hmac_key, cli_serv(cptr)->s2s_hmac_key, 32);
-    memcpy(tmpkey.sacert_key, cli_serv(cptr)->s2s_sacert_key, 32);
-    tmpkey.active = 1;
+    /* Build a temporary key struct from the stored key material.
+     * Cathexis 1.6.0+ keys are 64 bytes (SHA3-512); pre-1.6.0 used 32.
+     * sizeof the source field handles either case; the destination
+     * struct S2SKey already sizes its fields to 64 bytes. */
+    memcpy(tmpkey.hmac_key, cli_serv(cptr)->s2s_hmac_key,
+           sizeof(cli_serv(cptr)->s2s_hmac_key));
+    memcpy(tmpkey.sacert_key, cli_serv(cptr)->s2s_sacert_key,
+           sizeof(cli_serv(cptr)->s2s_sacert_key));
+    memcpy(tmpkey.peer_pqfp, cli_serv(cptr)->s2s_peer_pqfp,
+           sizeof(cli_serv(cptr)->s2s_peer_pqfp));
+    tmpkey.active       = 1;
+    tmpkey.pq_active    = cli_serv(cptr)->s2s_pq_active;
+    tmpkey.pq_required  = cli_serv(cptr)->s2s_pq_required;
 
     if (!s2s_verify_message(buffer, &tmpkey, &verified_content))
     {
