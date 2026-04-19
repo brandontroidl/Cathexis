@@ -67,6 +67,9 @@
 #ifdef HAVE_CRYPT_H
 #include <crypt.h>
 #endif
+#ifdef HAVE_ARGON2
+#include <argon2.h>      /* ARGON2_OK and friends */
+#endif
 
 /* evil global */
 crypt_mechs_t* crypt_mechs_root;
