@@ -1,5 +1,18 @@
 # Cathexis IRCd Changelog
 
+## 1.5.5 (2026-04-19)
+
+### Removed — orphan headers and dead utf8 module
+Deleted four header files and one source file that had zero callers anywhere in the tree — dead code shipping in `include/` and `ircd/`. All removals verified by a full build with the pruned tree (`./configure && make`) which produced a working `ircd` binary.
+
+- `include/capab_ircv3_ext.h` — defined `CAP_CHATHISTORY`, `CAP_READMARKER`, `CAP_PREAWAY` macros that were never referenced outside the header itself. The real CAP bits are in `m_cap.c`.
+- `include/ircd_botmode.h` — header with a comment block listing "integration points" (`client.h`, `s_user.c`, `whocmds.c`, `s_misc.c`, `m_cap.c`, `send.c`) that were never actually integrated. Zero external callers.
+- `include/oper_levels.h` — defined `OPER_LEVEL_*` constants (0-5) and `CanUseSACommands` macro. No code referenced the symbols. Oper hierarchy is handled via the existing `FLAG_*` macros in `client.h`.
+- `include/ircd_utf8.h` + `ircd/ircd_utf8.c` — exported `ircd_is_valid_utf8()` which had exactly zero callers. The UTF-8 validation never got wired into message processing; the function was a self-contained orphan.
+
+### Rationale
+These files were stub work that got written but never integrated. Shipping them in the tree misleads anyone auditing the build because `#include "ircd_botmode.h"` and `#include "ircd_utf8.h"` imply those features exist when they don't. Cleaner to remove them than to leave broken scaffolding.
+
 ## 1.5.4 (2026-04-19)
 
 ### Docs / Config

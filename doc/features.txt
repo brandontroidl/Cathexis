@@ -1,4 +1,4 @@
-Cathexis IRCd 1.5.4 — Feature Reference
+Cathexis IRCd 1.5.5 — Feature Reference
 =========================================
 
 S2S_HMAC (server-to-server HMAC authentication)
