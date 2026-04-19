@@ -277,8 +277,8 @@ int m_webirc(struct Client* cptr, struct Client* sptr, int parc, char* parv[])
             SetAccount(sptr);
             ircd_strncpy(cli_user(sptr)->account, optval, ACCOUNTLEN + 1);
 
-            if ((feature_int(FEAT_HOST_HIDING_STYLE) == 1) ||
-                (feature_int(FEAT_HOST_HIDING_STYLE) == 3)) {
+            if ((feature_effective_host_hiding_style() == 1) ||
+                (feature_effective_host_hiding_style() == 3)) {
               SetHiddenHost(sptr);
             }
           } else

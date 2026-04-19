@@ -604,6 +604,14 @@ struct Client;
 #define TOK_TAGMSG	"TAGMSG"
 #define CMD_TAGMSG	MSG_TAGMSG, TOK_TAGMSG
 
+/* Cathexis 1.6.0: S2S channel-state synchronization.
+ * Post-EOB each server emits CHASH #chan <hex-sha3-512> for each channel
+ * in its burst. Peers compare against their local hash and request
+ * re-burst (CHASH with empty hash arg) if mismatched. */
+#define MSG_CHASH	"CHASH"
+#define TOK_CHASH	"CH"
+#define CMD_CHASH	MSG_CHASH, TOK_CHASH
+
 /*
  * Structures
  */

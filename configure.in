@@ -759,6 +759,49 @@ if test x"$unet_cv_enable_ssl" = xyes; then
 fi
 
 dnl **
+dnl **  Post-Quantum Cryptography — required for Cathexis 1.6.0+
+dnl **  Requires OpenSSL 3.5+ (for ML-KEM hybrid KEX and ML-DSA in TLS)
+dnl **  Requires liboqs (Open Quantum Safe) for the s2s PQ signature layer
+dnl **  (ML-DSA-87 + SLH-DSA-SHAKE-256f dual signatures).
+dnl **
+if test x"$unet_cv_enable_ssl" = xyes; then
+  AC_MSG_CHECKING([for OpenSSL >= 3.5.0 (required for post-quantum TLS)])
+  save_CPPFLAGS=$CPPFLAGS
+  CPPFLAGS="-I$unet_cv_with_openssl_inc_prefix"
+  AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+#include <openssl/opensslv.h>
+]], [[
+#if OPENSSL_VERSION_NUMBER < 0x30500000L
+#error "OpenSSL 3.5.0 or newer required for post-quantum cryptography"
+#endif
+  ]])],
+  [AC_MSG_RESULT([yes])
+   AC_DEFINE([HAVE_OPENSSL_35], , [Define if OpenSSL >= 3.5.0 is available])],
+  [AC_MSG_RESULT([no])
+   AC_MSG_ERROR([Cathexis 1.6.0 requires OpenSSL 3.5.0 or newer for post-quantum TLS support (ML-KEM hybrid key exchange, ML-DSA signatures). Please upgrade OpenSSL or use --disable-ssl (not recommended — disables s2s link security).])])
+  CPPFLAGS=$save_CPPFLAGS
+
+  AC_MSG_CHECKING([for liboqs (Open Quantum Safe)])
+  save_LIBS=$LIBS
+  LIBS="$LIBS -loqs"
+  AC_LINK_IFELSE([AC_LANG_PROGRAM([[
+#include <oqs/oqs.h>
+]], [[
+OQS_SIG *sig = OQS_SIG_new(OQS_SIG_alg_ml_dsa_87);
+if (!sig) return 1;
+OQS_SIG_free(sig);
+return 0;
+  ]])],
+  [AC_MSG_RESULT([yes])
+   AC_DEFINE([HAVE_LIBOQS], , [Define if liboqs is available])
+   AC_DEFINE([USE_PQ], , [Define to enable post-quantum cryptography])
+   LIBS="$save_LIBS -loqs"],
+  [LIBS=$save_LIBS
+   AC_MSG_RESULT([no])
+   AC_MSG_ERROR([Cathexis 1.6.0 requires liboqs for post-quantum s2s signatures. Install liboqs-dev from your distribution or build from https://github.com/open-quantum-safe/liboqs. The dual-signature scheme (ML-DSA-87 + SLH-DSA-SHAKE-256f) provides defense-in-depth across cryptographic assumption families.])])
+fi
+
+dnl **
 dnl **  GeoIP checks — Legacy libGeoIP removed in Cathexis 1.4.0
 dnl **  Only MaxMindDB (libmaxminddb) is supported now.
 dnl **  The --disable-geoip flag controls FEAT_GEOIP_ENABLE at runtime.

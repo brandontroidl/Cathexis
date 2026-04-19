@@ -24,12 +24,46 @@ S2S_HMAC (server-to-server HMAC authentication)
   when S2S_HMAC is globally TRUE. This allows mixed networks.
 
 S2S_CSYNC (channel state synchronization)
-  Enables channel state hashing for cross-server consistency checks.
+  After BURST/EOB, each server emits a CHASH message per channel containing
+  SHA3-512 hex hash of local channel state (name, modes, key, limit, topic,
+  bans, members with status). Peers compare against their local hash and log
+  a warning on mismatch. Rate-limited via S2S_CSYNC_MAX_PER_SECOND.
 
 HOST_HIDING / HOST_HIDING_HMAC
-  HMAC-SHA256 based host cloaking. Requires three 64-character hex keys:
+  HMAC-SHA3-512 based host cloaking (as of Cathexis 1.6.0).
+  HOST_HIDING_HMAC = TRUE forces HOST_HIDING_STYLE = 2 (HMAC cloaking)
+  regardless of the raw HOST_HIDING_STYLE setting — this is the documented
+  default for modern deployments. Requires three 64-character hex keys:
     HOST_HIDING_KEY1, HOST_HIDING_KEY2, HOST_HIDING_KEY3
   Generate with: openssl rand -hex 32
+
+PQ_POSTURE / PQ_KEYFILE / PQ_PEER_KEYDIR (post-quantum cryptography)
+  Cathexis 1.6.0+ supports NIST-standardized post-quantum authentication
+  on server-to-server links using a dual-signature scheme:
+    Primary:   ML-DSA-87 (FIPS 204, lattice-based)
+    Secondary: SLH-DSA-SHAKE-256f (FIPS 205, hash-based)
+  Both signatures must verify — defense-in-depth across disjoint
+  cryptographic assumption families.
+
+  PQ_POSTURE controls policy:
+    0 = DISABLED  (no PQ, emergency only, NOT recommended)
+    1 = PREFERRED (negotiate PQ; fall back to HMAC-SHA3-512 — default)
+    2 = REQUIRED  (reject peers without valid dual signatures)
+
+  Transport-layer PQ (TLS hybrid key exchange) is controlled separately
+  via SSL_GROUPS; default is "X25519MLKEM768:X25519:P-256" for hybrid
+  TLS 1.3 with classical fallback. Requires OpenSSL 3.5+.
+
+  PQ_KEYFILE points to our server's dual keypair file (mode 0600).
+  PQ_PEER_KEYDIR contains peer public keys as <numeric>.pub files.
+
+CAP_STS_ENABLED / CAP_STS_PORT / CAP_STS_DURATION / CAP_STS_PRELOAD
+  Advertises the IRCv3 STS (Strict Transport Security) capability to
+  clients on CAP LS 302+. Tells compliant clients to remember the TLS
+  port and refuse to fall back to plaintext for CAP_STS_DURATION seconds.
+  Default port is 6697, duration 30 days, preload off. Cathexis refuses
+  plaintext user connections anyway; STS exists to prevent client
+  downgrade against hostile networks.
 
 OWNERPROTECT
   Enables +q (channel owner) and +a (channel admin/protect) modes.
@@ -45,9 +79,12 @@ LOGIN_ON_CONNECT
 
 DNSBL
   DNS-based blacklist checking. Supports up to 3 DNSBL zones.
+  Emits extended MARK messages with zone list (1.5.6+): "DNSBL|zone1|zone2"
+  so services (Noesis Sentinel) can apply weighted scoring across zones.
 
 IRCv3 Capabilities
   CAP_sasl, CAP_multi_prefix, CAP_away_notify, CAP_account_notify,
   CAP_server_time, CAP_echo_message, CAP_batch, CAP_labeled_response,
   CAP_extended_join, CAP_userhost_in_names, CAP_account_tag,
-  CAP_message_tags, CAP_tls
+  CAP_message_tags, CAP_tls, CAP_sts, and 17 draft specs.
+

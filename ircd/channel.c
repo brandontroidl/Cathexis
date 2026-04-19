@@ -421,8 +421,8 @@ struct Ban *find_ban(struct Client *cptr, struct Ban *banlist, int extbantype, i
   ircd_snprintf(0, nu, sizeof(nu), "%s!%s",
                 cli_name(cptr), cli_user(cptr)->username);
   ircd_ntoa_r(iphost, &cli_ip(cptr));
-  if (IsAccount(cptr) && ((feature_int(FEAT_HOST_HIDING_STYLE) == 1) ||
-      (feature_int(FEAT_HOST_HIDING_STYLE) == 3)))
+  if (IsAccount(cptr) && ((feature_effective_host_hiding_style() == 1) ||
+      (feature_effective_host_hiding_style() == 3)))
   {
     ircd_snprintf(0, tmphost, HOSTLEN, "%s.%s",
                   cli_user(cptr)->account, (feature_bool(FEAT_OPERHOST_HIDING) &&

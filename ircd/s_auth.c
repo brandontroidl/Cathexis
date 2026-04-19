@@ -112,8 +112,10 @@ struct AuthRequest {
   unsigned int        cookie;     /**< cookie the user must PONG */
   unsigned short      port;       /**< client's remote port number */
   int                 dnsbl_pending; /**< number of DNSBL queries still pending */
-  int                 dnsbl_listed;  /**< 1 if any DNSBL matched */
-  char                dnsbl_host[64]; /**< which DNSBL zone matched */
+  int                 dnsbl_listed;  /**< count of DNSBL zones that matched */
+  char                dnsbl_host[64]; /**< first DNSBL zone that matched (legacy, for exit reason) */
+  char                dnsbl_zones[3][64]; /**< all zones that matched (up to 3) */
+  int                 dnsbl_zones_count; /**< number of zones in dnsbl_zones[] */
 };
 
 /** Array of message text (with length) pairs for AUTH status
@@ -1162,8 +1164,18 @@ static void dnsbl_callback(void *vptr, const struct irc_in_addr *addr,
 
   if (addr) {
     /* Listed! addr is typically 127.0.0.x */
-    auth->dnsbl_listed = 1;
-    ircd_strncpy(auth->dnsbl_host, query->zone, sizeof(auth->dnsbl_host) - 1);
+    /* First match sets dnsbl_host for the existing exit-message path */
+    if (auth->dnsbl_listed == 0)
+      ircd_strncpy(auth->dnsbl_host, query->zone, sizeof(auth->dnsbl_host) - 1);
+    auth->dnsbl_listed++;
+
+    /* Record each matching zone for later mark propagation. Capped at the
+     * 3-zone ceiling — matches the config cap so we can't overflow. */
+    if (auth->dnsbl_zones_count < 3) {
+      ircd_strncpy(auth->dnsbl_zones[auth->dnsbl_zones_count], query->zone,
+                   sizeof(auth->dnsbl_zones[0]) - 1);
+      auth->dnsbl_zones_count++;
+    }
 
     if (IsUserPort(auth->client))
       sendheader(auth->client, REPORT_FAIL_DNSBL);
@@ -1186,11 +1198,29 @@ static void dnsbl_callback(void *vptr, const struct irc_in_addr *addr,
 
     /* Handle the result */
     if (auth->dnsbl_listed) {
-      const char *mark = feature_str(FEAT_DNSBL_MARK);
+      const char *mark_base = feature_str(FEAT_DNSBL_MARK);
 
-      /* Apply mark regardless of reject setting */
-      if (mark && mark[0]) {
-        add_mark(auth->client, mark);
+      /* Build an extended mark of the form "MARK|zone1|zone2|zone3" so
+       * downstream services (Noesis/Sentinel) can do weighted scoring per
+       * zone. Falls back to the plain mark if mark_base is unset. Pipe
+       * separator is used because commas and colons appear in some zone
+       * names and configurations. */
+      if (mark_base && mark_base[0]) {
+        char ext_mark[256];
+        int written;
+        int zi;
+
+        written = ircd_snprintf(0, ext_mark, sizeof(ext_mark), "%s", mark_base);
+        for (zi = 0; zi < auth->dnsbl_zones_count &&
+                     written + 1 < (int)sizeof(ext_mark); zi++) {
+          int n = ircd_snprintf(0, ext_mark + written,
+                                sizeof(ext_mark) - written,
+                                "|%s", auth->dnsbl_zones[zi]);
+          if (n <= 0 || n >= (int)(sizeof(ext_mark) - written))
+            break;
+          written += n;
+        }
+        add_mark(auth->client, ext_mark);
         SetMarked(auth->client);
       }
 
@@ -1254,6 +1284,7 @@ static void start_dnsbl_lookup(struct AuthRequest *auth)
     auth->dnsbl_pending = count;
     auth->dnsbl_listed = 0;
     auth->dnsbl_host[0] = '\0';
+    auth->dnsbl_zones_count = 0;
     FlagSet(&auth->flags, AR_DNSBL_PENDING);
     sendheader(auth->client, REPORT_DO_DNSBL);
   }

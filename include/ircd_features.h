@@ -71,6 +71,24 @@ enum Feature {
   FEAT_DNSBL_MARK,
   FEAT_CRYPT_ALLOW_PLAIN,
 
+  /* Cathexis 1.6.0: post-quantum cryptography */
+  FEAT_PQ_POSTURE,
+  FEAT_PQ_KEYFILE,
+  FEAT_PQ_PEER_KEYDIR,
+
+  /* Cathexis 1.6.0: modern host cloaking default */
+  FEAT_HOST_HIDING_HMAC,
+
+  /* Cathexis 1.6.0: post-EOB channel state synchronization */
+  FEAT_S2S_CSYNC,
+  FEAT_S2S_CSYNC_MAX_PER_SECOND,
+
+  /* Cathexis 1.6.0: IRCv3 STS capability */
+  FEAT_CAP_STS_ENABLED,
+  FEAT_CAP_STS_DURATION,
+  FEAT_CAP_STS_PORT,
+  FEAT_CAP_STS_PRELOAD,
+
   /* features that probably should not be touched */
   FEAT_KILLCHASETIMELIMIT,
   FEAT_MAXCHANNELSPERUSER,
@@ -386,5 +404,10 @@ extern void feature_report(struct Client* to, const struct StatDesc* sd,
 extern int feature_int(enum Feature feat);
 extern int feature_bool(enum Feature feat);
 extern const char *feature_str(enum Feature feat);
+
+/** Effective host-hiding style, with HOST_HIDING_HMAC override applied.
+ *  Returns 2 when HOST_HIDING_HMAC is TRUE, else feature_int(FEAT_HOST_HIDING_STYLE).
+ *  Prefer this over feature_int(FEAT_HOST_HIDING_STYLE) in new code. */
+extern int feature_effective_host_hiding_style(void);
 
 #endif /* INCLUDED_features_h */

@@ -586,6 +586,45 @@ static struct FeatureDesc {
   F_S(DNSBL_MARK, 0, "DNSBL", 0),
   F_B(CRYPT_ALLOW_PLAIN, 0, 0, 0),
 
+  /* Post-quantum cryptography (Cathexis 1.6.0+).
+   *
+   * PQ_POSTURE selects the policy for s2s link authentication:
+   *   0 = DISABLED  (no PQ, emergency only — NOT recommended)
+   *   1 = PREFERRED (negotiate PQ; fall back to HMAC-SHA3-512 if peer lacks PQ — default)
+   *   2 = REQUIRED  (reject peers that don't present valid dual signatures)
+   *
+   * PQ_KEYFILE points to the file produced by cathexis-pqkeygen(1). The file
+   * holds both the ML-DSA-87 keypair and the SLH-DSA-SHAKE-256f keypair
+   * used in the dual-signature scheme. Permissions must be 0600.
+   *
+   * PQ_PEER_KEYDIR is where we look for peer public keys: each peer's
+   * public-half file is named <peer-numeric>.pub there. */
+  F_I(PQ_POSTURE, 0, 1 /* PQ_POSTURE_PREFERRED */, 0),
+  F_S(PQ_KEYFILE, FEAT_CASE | FEAT_MYOPER | FEAT_READ, "pq_keys.cathexis", 0),
+  F_S(PQ_PEER_KEYDIR, FEAT_CASE | FEAT_MYOPER | FEAT_READ, "pq_peers", 0),
+
+  /* HOST_HIDING_HMAC — when TRUE, forces HOST_HIDING_STYLE to 2
+   * (HMAC-SHA3-512 cloaking) regardless of HOST_HIDING_STYLE setting.
+   * This is the documented default for modern Cathexis deployments and
+   * replaces the ad-hoc style=2 config ritual. */
+  F_B(HOST_HIDING_HMAC, 0, 1, 0),
+
+  /* S2S_CSYNC — when TRUE, servers exchange SHA3-512 hashes of channel
+   * state via CHASH messages after BURST/EOB. Mismatches log a warning
+   * and trigger re-burst of the affected channel. */
+  F_B(S2S_CSYNC, 0, 1, 0),
+  F_I(S2S_CSYNC_MAX_PER_SECOND, 0, 50, 0),
+
+  /* IRCv3 STS (Strict Transport Security) capability.
+   * Advertises to clients that TLS is required and the correct TLS port,
+   * preventing downgrade attacks by hostile networks. Cathexis refuses
+   * plaintext user connections anyway, so this mostly exists to tell
+   * compliant clients not to auto-retry on :6667. */
+  F_B(CAP_STS_ENABLED, 0, 1, 0),
+  F_I(CAP_STS_DURATION, 0, 2592000 /* 30 days */, 0),
+  F_I(CAP_STS_PORT, 0, 6697, 0),
+  F_B(CAP_STS_PRELOAD, 0, 0, 0),
+
   /* features that probably should not be touched */
   F_I(KILLCHASETIMELIMIT, 0, 30, 0),
   F_I(MAXCHANNELSPERUSER, 0, 20, set_isupport_maxchannels),
@@ -830,7 +869,11 @@ static struct FeatureDesc {
   F_B(SSL_REQUIRECLIENTCERT, 0, 0, 0),
   F_S(SSL_CIPHERS, FEAT_NULL, "ECDHE+AESGCM:ECDHE+CHACHA20:!aNULL:!eNULL:!MD5:!DSS:!RC4:!3DES:!SEED:!IDEA", 0),
   F_S(SSL_CIPHERSUITES, FEAT_NULL, "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256", 0),
-  F_S(SSL_GROUPS, FEAT_NULL, 0, 0),
+  /* Post-quantum hybrid TLS key exchange (Cathexis 1.6.0+).
+   * X25519MLKEM768 is the NIST-recommended hybrid; listed first so it's
+   * preferred. X25519 and P-256 provide classical fallback for clients
+   * that don't speak ML-KEM yet. OpenSSL 3.5+ supports all three. */
+  F_S(SSL_GROUPS, FEAT_NULL, "X25519MLKEM768:X25519:P-256", 0),
 
   /* ZLINE FEAT_'s */
   F_B(DISABLE_ZLINES, 0, 0, 0),
@@ -1376,6 +1419,25 @@ feature_int(enum Feature feat)
   assert((features[feat].flags & FEAT_MASK) == FEAT_INT);
 
   return features[feat].v_int;
+}
+
+/** Return the effective host-hiding style, honoring HOST_HIDING_HMAC.
+ *
+ * When HOST_HIDING_HMAC is TRUE (the default), this returns style 2
+ * regardless of the raw HOST_HIDING_STYLE value. This ensures Cathexis
+ * uses HMAC-SHA3-512 cloaking by default while still letting operators
+ * flip back to a legacy style by setting HOST_HIDING_HMAC=FALSE and
+ * HOST_HIDING_STYLE=<old value>.
+ *
+ * All code that needs the cloaking style should call this helper rather
+ * than feature_int(FEAT_HOST_HIDING_STYLE) directly.
+ */
+int
+feature_effective_host_hiding_style(void)
+{
+  if (features[FEAT_HOST_HIDING_HMAC].v_int)
+    return 2;
+  return features[FEAT_HOST_HIDING_STYLE].v_int;
 }
 
 /** Return a feature's boolean value.

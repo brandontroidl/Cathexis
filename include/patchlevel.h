@@ -15,7 +15,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
-#define PATCHLEVEL "1.5.5"
+#define PATCHLEVEL "1.6.0"
 
 #define RELEASE ""
 

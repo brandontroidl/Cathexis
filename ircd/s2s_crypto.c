@@ -40,6 +40,12 @@
 #include "send.h"
 #include "list.h"
 
+#ifdef USE_PQ
+#include "pq_crypto.h"
+#include <openssl/evp.h>
+#endif
+
+#include <stdint.h>
 #include <string.h>
 #include <stdio.h>
 
@@ -97,24 +103,71 @@ static int hex_to_bin(unsigned char *bin, const char *hex, size_t binlen)
  * @param[in]  datalen Data length.
  * @return 0 on success, -1 on failure.
  */
+/** Compute the link MAC over a message.
+ *
+ *  Cathexis 1.6.0+ with USE_PQ: HMAC-SHA3-512 (64 bytes output).
+ *  Pre-1.6.0 / !USE_PQ:          HMAC-SHA256    (32 bytes output).
+ *
+ *  The MAC width is chosen at compile time; mac_out must be at least
+ *  s2s_mac_len() bytes (64 or 32).
+ *
+ * @param[out] mac     Buffer for MAC output (caller sizes using s2s_mac_len).
+ * @param[in]  key     HMAC key (64 bytes of derived key material).
+ * @param[in]  keylen  Key length actually consumed (64 for SHA3, 32 for SHA256).
+ * @param[in]  data    Data to authenticate.
+ * @param[in]  datalen Data length.
+ * @return 0 on success, -1 on failure.
+ */
+static int compute_link_mac(unsigned char *mac,
+                            const unsigned char *key, size_t keylen,
+                            const unsigned char *data, size_t datalen)
+{
+#ifdef USE_PQ
+  /* Modern path: HMAC-SHA3-512 produces 64-byte MAC.
+   * keylen is the HMAC key length; we pass the full 64-byte derived key. */
+  return pq_hmac_sha3_512(key, keylen, data, datalen, mac);
+#else
+  return ircd_hmac_sha256(key, keylen, data, datalen, mac);
+#endif
+}
+
+/** Return the MAC byte width for the active compile-time cipher suite. */
+static size_t s2s_mac_len(void)
+{
+#ifdef USE_PQ
+  return 64;  /* SHA3-512 */
+#else
+  return 32;  /* SHA256 */
+#endif
+}
+
+/** Return the hex-encoded MAC length (2 * byte width). */
+static size_t s2s_mac_hexlen(void)
+{
+  return s2s_mac_len() * 2;
+}
+
+/* Legacy shim — keep the old name for any internal callers. */
 static int compute_hmac_sha256(unsigned char *mac,
                                const unsigned char *key, size_t keylen,
                                const unsigned char *data, size_t datalen)
 {
-  return ircd_hmac_sha256(key, keylen, data, datalen, mac);
+  return compute_link_mac(mac, key, keylen, data, datalen);
 }
 
 /* ================================================================
  * Key Derivation
  * ================================================================ */
 
-/** Derive S2S keys from link password using HMAC-SHA256 as KDF.
+/** Derive S2S keys from the link password.
  *
- * hmac_key   = HMAC-SHA256(password, "cathexis-s2s-hmac-v1")
- * sacert_key = HMAC-SHA256(password, "cathexis-s2s-sacert-v1")
+ * Cathexis 1.6.0+ (USE_PQ): HKDF-SHA3-512 with fresh labels that include
+ *   the version suffix "-v2". This prevents accidental key reuse with
+ *   the pre-1.6.0 HMAC-SHA256 derivation, and the wider 64-byte output
+ *   saturates HMAC-SHA3-512's block size.
  *
- * This is a simple but sound KDF: HMAC with distinct labels produces
- * independent keys. The link password provides the entropy.
+ * Pre-1.6.0: HMAC-SHA256 KDF with v1 labels for backward compatibility.
+ *   Only reached if Cathexis is built with --disable-ssl or without liboqs.
  */
 int s2s_derive_keys(struct S2SKey *key, const char *passwd)
 {
@@ -123,18 +176,52 @@ int s2s_derive_keys(struct S2SKey *key, const char *passwd)
     return -1;
   }
 
+  memset(key->hmac_key, 0, sizeof(key->hmac_key));
+  memset(key->sacert_key, 0, sizeof(key->sacert_key));
+  memset(key->peer_pqfp, 0, sizeof(key->peer_pqfp));
+  key->pq_active = 0;
+  key->pq_required = 0;
+
+#ifdef USE_PQ
+  /* Modern path: HKDF-SHA3-512, 64-byte keys.
+   * Labels are distinct per-subkey AND distinct from the v1 labels so
+   * an attacker who knew a pre-1.6.0 key cannot reuse it here. */
+  {
+    static const uint8_t label_hmac[]   = "cathexis-s2s-hmac-sha3-v2";
+    static const uint8_t label_sacert[] = "cathexis-s2s-sacert-sha3-v2";
+    if (pq_hkdf_sha3_512((const uint8_t *)passwd, strlen(passwd),
+                         NULL, 0,
+                         label_hmac, sizeof(label_hmac) - 1,
+                         key->hmac_key, 64) != 0)
+      return -1;
+    if (pq_hkdf_sha3_512((const uint8_t *)passwd, strlen(passwd),
+                         NULL, 0,
+                         label_sacert, sizeof(label_sacert) - 1,
+                         key->sacert_key, 64) != 0)
+      return -1;
+  }
+#else
+  /* Classical fallback — this code path is dead in a 1.6.0 production
+   * build (PQ is hard-required by configure), but remains for --disable-ssl
+   * or auditors wanting to read the pre-upgrade derivation. */
   if (compute_hmac_sha256(key->hmac_key,
       (const unsigned char *)passwd, strlen(passwd),
       (const unsigned char *)"cathexis-s2s-hmac-v1", 20) < 0)
     return -1;
-
   if (compute_hmac_sha256(key->sacert_key,
       (const unsigned char *)passwd, strlen(passwd),
       (const unsigned char *)"cathexis-s2s-sacert-v1", 22) < 0)
     return -1;
+#endif
 
   key->active = 1;
-  Debug((DEBUG_DEBUG, "s2s_derive_keys: keys derived successfully"));
+  Debug((DEBUG_DEBUG, "s2s_derive_keys: %s keys derived",
+#ifdef USE_PQ
+         "HMAC-SHA3-512"
+#else
+         "HMAC-SHA256"
+#endif
+         ));
   return 0;
 }
 
@@ -145,24 +232,26 @@ int s2s_derive_keys(struct S2SKey *key, const char *passwd)
 int s2s_sign_message(char *out, size_t outlen,
                      const char *msg, const struct S2SKey *key)
 {
-  unsigned char mac[32];
-  char hexmac[65];
+  unsigned char mac[64];         /* Largest possible: SHA3-512 */
+  char hexmac[129];              /* Largest possible hex + NUL */
+  size_t maclen, hexlen;
   size_t taglen, msglen;
 
   if (!key || !key->active)
     return -1;
 
+  maclen = s2s_mac_len();
+  hexlen = s2s_mac_hexlen();
   msglen = strlen(msg);
 
-  /* Compute HMAC-SHA256 over the raw message */
-  if (compute_hmac_sha256(mac, key->hmac_key, 32,
+  if (compute_link_mac(mac, key->hmac_key, maclen,
       (const unsigned char *)msg, msglen) < 0)
     return -1;
 
-  bin_to_hex(hexmac, mac, 32);
+  bin_to_hex(hexmac, mac, maclen);
 
-  /* Format: @hmac=<64hex> <message>\r\n */
-  taglen = 6 + 64 + 1; /* "@hmac=" + hex + " " */
+  /* Format: @hmac=<hex> <message> */
+  taglen = 6 + hexlen + 1; /* "@hmac=" + hex + " " */
   if (taglen + msglen + 1 > outlen)
     return -1;
 
@@ -173,8 +262,9 @@ int s2s_sign_message(char *out, size_t outlen,
 int s2s_verify_message(const char *tagged, const struct S2SKey *key,
                        const char **content)
 {
-  unsigned char expected[32], received[32];
+  unsigned char expected[64], received[64];
   const char *hexstart, *msgstart;
+  size_t maclen, hexlen;
 
   if (!key || !key->active) {
     /* No key = no verification (legacy link) */
@@ -182,44 +272,41 @@ int s2s_verify_message(const char *tagged, const struct S2SKey *key,
     return 1;
   }
 
+  maclen = s2s_mac_len();
+  hexlen = s2s_mac_hexlen();
+
   /* Check for @hmac= prefix */
   if (strncmp(tagged, S2S_HMAC_TAG, 6) != 0) {
-    /* No HMAC tag on a link that requires it */
     Debug((DEBUG_DEBUG, "s2s_verify: missing HMAC tag"));
     *content = tagged;
     return 0;
   }
 
-  hexstart = tagged + 6; /* skip "@hmac=" */
+  hexstart = tagged + 6;
 
-  /* Verify hex length */
-  if (strlen(hexstart) < 64 + 1) { /* 64 hex + space */
+  if (strlen(hexstart) < hexlen + 1) {
     Debug((DEBUG_DEBUG, "s2s_verify: truncated HMAC tag"));
     return 0;
   }
 
-  /* Parse the hex HMAC */
-  if (hex_to_bin(received, hexstart, 32) < 0) {
+  if (hex_to_bin(received, hexstart, maclen) < 0) {
     Debug((DEBUG_DEBUG, "s2s_verify: invalid hex in HMAC tag"));
     return 0;
   }
 
-  /* Message content starts after the tag + space */
-  msgstart = hexstart + 64;
+  msgstart = hexstart + hexlen;
   if (*msgstart != ' ') {
     Debug((DEBUG_DEBUG, "s2s_verify: char after hex is '%c' (0x%02x), not space",
            *msgstart, (unsigned char)*msgstart));
     return 0;
   }
-  msgstart++; /* skip the space */
+  msgstart++;
 
-  /* Compute expected HMAC over the message content */
-  if (compute_hmac_sha256(expected, key->hmac_key, 32,
+  if (compute_link_mac(expected, key->hmac_key, maclen,
       (const unsigned char *)msgstart, strlen(msgstart)) < 0)
     return 0;
 
-  /* Constant-time comparison */
-  if (CRYPTO_memcmp(expected, received, 32) != 0) {
+  if (CRYPTO_memcmp(expected, received, maclen) != 0) {
     Debug((DEBUG_DEBUG, "s2s_verify: HMAC mismatch — message rejected"));
     return 0;
   }
@@ -235,17 +322,24 @@ int s2s_verify_message(const char *tagged, const struct S2SKey *key,
 int s2s_sign_sacmd(char *out, size_t outlen,
                    const char *cmd, const struct S2SKey *key)
 {
-  unsigned char mac[32];
-  char hexmac[65];
+  unsigned char mac[64];
+  char hexmac[129];
+  size_t maclen, hexlen;
 
   if (!key || !key->active)
     return -1;
 
-  if (compute_hmac_sha256(mac, key->sacert_key, 32,
+  maclen = s2s_mac_len();
+  hexlen = s2s_mac_hexlen();
+
+  if (compute_link_mac(mac, key->sacert_key, maclen,
       (const unsigned char *)cmd, strlen(cmd)) < 0)
     return -1;
 
-  bin_to_hex(hexmac, mac, 32);
+  bin_to_hex(hexmac, mac, maclen);
+
+  if (8 + hexlen + 1 + strlen(cmd) + 1 > outlen)
+    return -1;
 
   ircd_snprintf(0, out, outlen, "%s%s %s", S2S_SACERT_TAG, hexmac, cmd);
   return strlen(out);
@@ -254,13 +348,17 @@ int s2s_sign_sacmd(char *out, size_t outlen,
 int s2s_verify_sacmd(const char *tagged, const struct S2SKey *key,
                      const char **content)
 {
-  unsigned char expected[32], received[32];
+  unsigned char expected[64], received[64];
   const char *hexstart, *cmdstart;
+  size_t maclen, hexlen;
 
   if (!key || !key->active) {
     *content = tagged;
     return 0; /* No key = cannot verify = reject */
   }
+
+  maclen = s2s_mac_len();
+  hexlen = s2s_mac_hexlen();
 
   if (strncmp(tagged, S2S_SACERT_TAG, 8) != 0) {
     Debug((DEBUG_DEBUG, "s2s_verify_sacmd: missing sacert tag"));
@@ -269,22 +367,22 @@ int s2s_verify_sacmd(const char *tagged, const struct S2SKey *key,
   }
 
   hexstart = tagged + 8;
-  if (strlen(hexstart) < 64 + 1)
+  if (strlen(hexstart) < hexlen + 1)
     return 0;
 
-  if (hex_to_bin(received, hexstart, 32) < 0)
+  if (hex_to_bin(received, hexstart, maclen) < 0)
     return 0;
 
-  cmdstart = hexstart + 64;
+  cmdstart = hexstart + hexlen;
   if (*cmdstart != ' ')
     return 0;
   cmdstart++;
 
-  if (compute_hmac_sha256(expected, key->sacert_key, 32,
+  if (compute_link_mac(expected, key->sacert_key, maclen,
       (const unsigned char *)cmdstart, strlen(cmdstart)) < 0)
     return 0;
 
-  if (CRYPTO_memcmp(expected, received, 32) != 0) {
+  if (CRYPTO_memcmp(expected, received, maclen) != 0) {
     Debug((DEBUG_DEBUG, "s2s_verify_sacmd: HMAC mismatch — SA* command rejected"));
     return 0;
   }
@@ -314,53 +412,55 @@ int s2s_verify_sacmd(const char *tagged, const struct S2SKey *key,
 int s2s_channel_hash(char *hexhash, const struct Channel *chptr)
 {
   EVP_MD_CTX *ctx;
-  unsigned char hash[32];
+  unsigned char hash[64];        /* SHA3-512 output */
   char buf[512];
   struct Membership *member;
   int len;
+  const EVP_MD *md;
+  size_t hashlen;
 
   if (!chptr) return -1;
 
   ctx = EVP_MD_CTX_new();
   if (!ctx) return -1;
 
-  EVP_DigestInit_ex(ctx, EVP_sha256(), NULL);
+#ifdef USE_PQ
+  md = EVP_sha3_512();
+  hashlen = 64;
+#else
+  md = EVP_sha256();
+  hashlen = 32;
+#endif
 
-  /* Channel name */
+  if (EVP_DigestInit_ex(ctx, md, NULL) != 1) {
+    EVP_MD_CTX_free(ctx);
+    return -1;
+  }
+
   len = ircd_snprintf(0, buf, sizeof(buf), "NAME:%s\n", chptr->chname);
   EVP_DigestUpdate(ctx, buf, len);
 
-  /* Channel modes (numeric representation for determinism) */
   len = ircd_snprintf(0, buf, sizeof(buf), "MODE:%u\n", chptr->mode.mode);
   EVP_DigestUpdate(ctx, buf, len);
 
-  /* Extended modes */
   len = ircd_snprintf(0, buf, sizeof(buf), "EXMODE:%u\n", chptr->mode.exmode);
   EVP_DigestUpdate(ctx, buf, len);
 
-  /* Channel key */
   if (chptr->mode.key[0]) {
     len = ircd_snprintf(0, buf, sizeof(buf), "KEY:%s\n", chptr->mode.key);
     EVP_DigestUpdate(ctx, buf, len);
   }
 
-  /* Channel limit */
   if (chptr->mode.limit) {
     len = ircd_snprintf(0, buf, sizeof(buf), "LIMIT:%u\n", chptr->mode.limit);
     EVP_DigestUpdate(ctx, buf, len);
   }
 
-  /* Topic */
   if (chptr->topic[0]) {
     len = ircd_snprintf(0, buf, sizeof(buf), "TOPIC:%s\n", chptr->topic);
     EVP_DigestUpdate(ctx, buf, len);
   }
 
-  /* Ban list — hash each entry. Note: for true determinism across
-   * servers with different ban ordering, we should sort. For the
-   * initial implementation, we hash in list order and accept that
-   * different ordering = different hash = resync trigger. This is
-   * conservative (may cause unnecessary resyncs) but always safe. */
   {
     struct Ban *ban;
     for (ban = chptr->banlist; ban; ban = ban->next) {
@@ -369,7 +469,6 @@ int s2s_channel_hash(char *hexhash, const struct Channel *chptr)
     }
   }
 
-  /* Members — hash nick:status pairs */
   for (member = chptr->members; member; member = member->next_member) {
     unsigned int status = member->status;
     len = ircd_snprintf(0, buf, sizeof(buf), "MEMBER:%s:%u\n",
@@ -380,23 +479,140 @@ int s2s_channel_hash(char *hexhash, const struct Channel *chptr)
   EVP_DigestFinal_ex(ctx, hash, NULL);
   EVP_MD_CTX_free(ctx);
 
-  bin_to_hex(hexhash, hash, 32);
+  bin_to_hex(hexhash, hash, hashlen);
   return 0;
 }
 
 int s2s_channel_verify(const struct Channel *chptr, const char *remote_hash)
 {
-  char local_hash[65];
+  char local_hash[129];
+  size_t hexlen;
 
   if (s2s_channel_hash(local_hash, chptr) < 0)
     return 0;
 
-  /* Constant-time comparison */
-  if (strlen(remote_hash) != 64)
+#ifdef USE_PQ
+  hexlen = 128;  /* SHA3-512 */
+#else
+  hexlen = 64;   /* SHA256 */
+#endif
+
+  if (strlen(remote_hash) != hexlen)
     return 0;
 
-  return (CRYPTO_memcmp(local_hash, remote_hash, 64) == 0);
+  return (CRYPTO_memcmp(local_hash, remote_hash, hexlen) == 0);
 }
+
+/* ================================================================
+ * Post-Quantum Link Authentication (Cathexis 1.6.0+)
+ * ================================================================ */
+
+#ifdef USE_PQ
+
+/* base64 encode helper — EVP_EncodeBlock, NUL-terminate output. */
+static int s2s_b64_encode(const uint8_t *in, size_t inlen,
+                           char *out, size_t outcap)
+{
+  int n;
+  if (!in || !out) return -1;
+  n = EVP_EncodeBlock((unsigned char *)out, in, (int)inlen);
+  if (n < 0 || (size_t)(n + 1) > outcap) return -1;
+  out[n] = '\0';
+  return n;
+}
+
+static int s2s_b64_decode(const char *in, uint8_t *out, size_t outcap,
+                           size_t *written)
+{
+  int n;
+  size_t inlen;
+  if (!in || !out) return -1;
+  inlen = strlen(in);
+  n = EVP_DecodeBlock(out, (const unsigned char *)in, (int)inlen);
+  if (n < 0) return -1;
+  /* Account for '=' padding */
+  while (inlen > 0 && in[inlen - 1] == '=') {
+    n--;
+    inlen--;
+  }
+  if ((size_t)n > outcap) return -1;
+  if (written) *written = (size_t)n;
+  return 0;
+}
+
+int s2s_pq_sign_challenge(char *b64out, size_t b64outlen,
+                          const struct PQKeypair *kp,
+                          const unsigned char *challenge,
+                          size_t challen)
+{
+  uint8_t raw[16384];
+  size_t rawlen = sizeof(raw);
+
+  if (!b64out || !kp || !kp->active || !challenge) return -1;
+
+  if (pq_sign_dual(raw, &rawlen, kp, challenge, challen) != 0) {
+    log_write(LS_SYSTEM, L_CRIT, 0,
+              "s2s_pq_sign_challenge: pq_sign_dual failed (buffer too small? rawlen=%zu)",
+              rawlen);
+    return -1;
+  }
+
+  if (s2s_b64_encode(raw, rawlen, b64out, b64outlen) < 0) {
+    log_write(LS_SYSTEM, L_CRIT, 0,
+              "s2s_pq_sign_challenge: base64 encode failed (rawlen=%zu b64cap=%zu)",
+              rawlen, b64outlen);
+    return -1;
+  }
+  return 0;
+}
+
+int s2s_pq_verify_challenge(const char *b64sig,
+                             const struct PQKeypair *peer_kp,
+                             const unsigned char *challenge,
+                             size_t challen)
+{
+  uint8_t raw[16384];
+  size_t rawlen;
+
+  if (!b64sig || !peer_kp || !challenge) return 0;
+
+  if (s2s_b64_decode(b64sig, raw, sizeof(raw), &rawlen) < 0) {
+    Debug((DEBUG_DEBUG, "s2s_pq_verify: base64 decode failed"));
+    return 0;
+  }
+
+  return pq_verify_dual(raw, rawlen, peer_kp, challenge, challen) == 1;
+}
+
+int s2s_pq_fingerprint(unsigned char fp_out[32],
+                       const struct PQKeypair *kp)
+{
+  EVP_MD_CTX *ctx;
+  const EVP_MD *md;
+  unsigned int outlen = 32;
+
+  if (!fp_out || !kp) return -1;
+
+  md = EVP_sha3_256();
+  if (!md) return -1;
+
+  ctx = EVP_MD_CTX_new();
+  if (!ctx) return -1;
+
+  /* Hash the concatenation of both public keys in a stable order. */
+  if (EVP_DigestInit_ex(ctx, md, NULL) != 1 ||
+      EVP_DigestUpdate(ctx, kp->primary_pub,   kp->primary_pub_len)   != 1 ||
+      EVP_DigestUpdate(ctx, kp->secondary_pub, kp->secondary_pub_len) != 1 ||
+      EVP_DigestFinal_ex(ctx, fp_out, &outlen) != 1) {
+    EVP_MD_CTX_free(ctx);
+    return -1;
+  }
+
+  EVP_MD_CTX_free(ctx);
+  return (outlen == 32) ? 0 : -1;
+}
+
+#endif /* USE_PQ */
 
 #else /* !USE_SSL */
 

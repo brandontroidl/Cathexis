@@ -738,6 +738,14 @@ struct Message msgtab[] = {
     ""
   },
   {
+    MSG_CHASH,
+    TOK_CHASH,
+    0, MAXPARA, MFLG_SLOW, 0, NULL,
+    /* UNREG, CLIENT, SERVER, OPER, SERVICE */
+    { m_ignore, m_ignore, ms_chash, m_ignore, m_ignore },
+    "CHASH — server-only channel state verification (Cathexis 1.6.0+)."
+  },
+  {
     MSG_HASH,
     TOK_HASH,
     0, MAXPARA, MFLG_SLOW, 0, NULL,

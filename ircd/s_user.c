@@ -1152,15 +1152,15 @@ hide_hostmask(struct Client *cptr)
   if (!IsHiddenHost(cptr))
     return 0;
   if (!IsFakeHost(cptr) && !IsSetHost(cptr)) {
-    if ((feature_int(FEAT_HOST_HIDING_STYLE) < 0) ||
-        (feature_int(FEAT_HOST_HIDING_STYLE) > 3))
+    if ((feature_effective_host_hiding_style() < 0) ||
+        (feature_effective_host_hiding_style() > 3))
       return 0;
-    if ((feature_int(FEAT_HOST_HIDING_STYLE) == 1) && !IsAccount(cptr))
+    if ((feature_effective_host_hiding_style() == 1) && !IsAccount(cptr))
       return 0;
   }
 
-  if (!IsCloakHost(cptr) && ((feature_int(FEAT_HOST_HIDING_STYLE) == 2) ||
-      (feature_int(FEAT_HOST_HIDING_STYLE) == 3)))
+  if (!IsCloakHost(cptr) && ((feature_effective_host_hiding_style() == 2) ||
+      (feature_effective_host_hiding_style() == 3)))
     user_setcloaked(cptr);
 
   /* Select the new host to change to. */
@@ -1174,16 +1174,16 @@ hide_hostmask(struct Client *cptr)
       ircd_strncpy(newhost, cli_user(cptr)->sethost, HOSTLEN + 1);
   } else if (IsFakeHost(cptr)) {
     ircd_strncpy(newhost, cli_user(cptr)->fakehost, HOSTLEN + 1);
-  } else if ((feature_int(FEAT_HOST_HIDING_STYLE) == 1) ||
-      ((feature_int(FEAT_HOST_HIDING_STYLE) == 3) && IsAccount(cptr))) {
+  } else if ((feature_effective_host_hiding_style() == 1) ||
+      ((feature_effective_host_hiding_style() == 3) && IsAccount(cptr))) {
     if (IsAnOper(cptr) && !IsHideOper(cptr) && feature_bool(FEAT_OPERHOST_HIDING))
       ircd_snprintf(0, newhost, HOSTLEN, "%s.%s",
                     cli_user(cptr)->account, feature_str(FEAT_HIDDEN_OPERHOST));
     else
       ircd_snprintf(0, newhost, HOSTLEN, "%s.%s",
                     cli_user(cptr)->account, feature_str(FEAT_HIDDEN_HOST));
-  } else if (IsCloakHost(cptr) && ((feature_int(FEAT_HOST_HIDING_STYLE) == 2) ||
-             (feature_int(FEAT_HOST_HIDING_STYLE) == 3))) {
+  } else if (IsCloakHost(cptr) && ((feature_effective_host_hiding_style() == 2) ||
+             (feature_effective_host_hiding_style() == 3))) {
     ircd_strncpy(newhost, cli_user(cptr)->cloakhost, HOSTLEN + 1);
   } else {
     ircd_strncpy(newhost, cli_user(cptr)->realhost, HOSTLEN + 1);
@@ -1641,8 +1641,8 @@ int set_user_mode(struct Client *cptr, struct Client *sptr, int parc,
           SetHiddenHost(acptr);
         } else {
           if (feature_bool(FEAT_ALLOWRMX) ||
-              (feature_int(FEAT_HOST_HIDING_STYLE) == 2) ||
-              (feature_int(FEAT_HOST_HIDING_STYLE) == 3)) {
+              (feature_effective_host_hiding_style() == 2) ||
+              (feature_effective_host_hiding_style() == 3)) {
             ClearHiddenHost(acptr);
           }
         }
@@ -1758,7 +1758,7 @@ int set_user_mode(struct Client *cptr, struct Client *sptr, int parc,
     if (!(feature_bool(FEAT_OPER_XTRAOP) && HasPriv(acptr, PRIV_XTRAOP)) && IsXtraOp(acptr))
       ClearXtraOp(acptr);
     if (!FlagHas(&setflags, FLAG_HIDDENHOST) && IsHiddenHost(acptr) &&
-        !(feature_bool(FEAT_HOST_HIDING) && (feature_int(FEAT_HOST_HIDING_STYLE) > 0)))
+        !(feature_bool(FEAT_HOST_HIDING) && (feature_effective_host_hiding_style() > 0)))
       ClearHiddenHost(acptr);
   }
   if (MyConnect(acptr))
@@ -1888,9 +1888,9 @@ int set_user_mode(struct Client *cptr, struct Client *sptr, int parc,
     if (FlagHas(&setflags, FLAG_SETHOST) && !IsSetHost(acptr)) {
       FlagClr(&setflags, FLAG_SETHOST); /* Dont let the user see -h */
       if (IsHiddenHost(acptr) && !IsFakeHost(acptr)) {
-        if ((feature_int(FEAT_HOST_HIDING_STYLE) == 0) ||
-            ((feature_int(FEAT_HOST_HIDING_STYLE) == 1) && !IsAccount(acptr)) ||
-            (feature_int(FEAT_HOST_HIDING_STYLE) > 3))
+        if ((feature_effective_host_hiding_style() == 0) ||
+            ((feature_effective_host_hiding_style() == 1) && !IsAccount(acptr)) ||
+            (feature_effective_host_hiding_style() > 3))
           ClearHiddenHost(acptr);
         else
           do_host_hiding = 1;
@@ -2448,8 +2448,8 @@ user_setcloaked(struct Client *cptr)
 {
   int components = 0;
 
-  if ((feature_int(FEAT_HOST_HIDING_STYLE) != 2) &&
-      (feature_int(FEAT_HOST_HIDING_STYLE) != 3))
+  if ((feature_effective_host_hiding_style() != 2) &&
+      (feature_effective_host_hiding_style() != 3))
     return;
 
   components = client_get_hidehostcomponents(cptr);

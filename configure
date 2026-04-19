@@ -7440,6 +7440,63 @@ $as_echo "#define USE_SSL /**/" >>confdefs.h
   fi
 fi
 
+# Post-quantum cryptography — required for Cathexis 1.6.0+
+# Requires OpenSSL 3.5+ (ML-KEM hybrid KEX, ML-DSA TLS) and liboqs (dual-sig s2s).
+if test x"$unet_cv_enable_ssl" = xyes; then
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for OpenSSL >= 3.5.0 (required for post-quantum TLS)" >&5
+$as_echo_n "checking for OpenSSL >= 3.5.0 (required for post-quantum TLS)... " >&6; }
+  save_CPPFLAGS=$CPPFLAGS
+  CPPFLAGS="-I$unet_cv_with_openssl_inc_prefix"
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+#include <openssl/opensslv.h>
+int main(void) {
+#if OPENSSL_VERSION_NUMBER < 0x30500000L
+#error "OpenSSL 3.5.0 or newer required for post-quantum cryptography"
+#endif
+  return 0;
+}
+_ACEOF
+  if ac_fn_c_try_compile "$LINENO"; then :
+    { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+$as_echo "yes" >&6; }
+    $as_echo "#define HAVE_OPENSSL_35 /**/" >>confdefs.h
+  else
+    { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+    as_fn_error $? "Cathexis 1.6.0 requires OpenSSL 3.5.0 or newer for post-quantum TLS (ML-KEM hybrid key exchange, ML-DSA signatures). Please upgrade OpenSSL." "$LINENO" 5
+  fi
+  rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+  CPPFLAGS=$save_CPPFLAGS
+
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for liboqs (Open Quantum Safe)" >&5
+$as_echo_n "checking for liboqs (Open Quantum Safe)... " >&6; }
+  save_LIBS=$LIBS
+  LIBS="$LIBS -loqs"
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+#include <oqs/oqs.h>
+int main(void) {
+  OQS_SIG *sig = OQS_SIG_new(OQS_SIG_alg_ml_dsa_87);
+  if (!sig) return 1;
+  OQS_SIG_free(sig);
+  return 0;
+}
+_ACEOF
+  if ac_fn_c_try_link "$LINENO"; then :
+    { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+$as_echo "yes" >&6; }
+    $as_echo "#define HAVE_LIBOQS /**/" >>confdefs.h
+    $as_echo "#define USE_PQ /**/" >>confdefs.h
+  else
+    LIBS=$save_LIBS
+    { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+    as_fn_error $? "Cathexis 1.6.0 requires liboqs for post-quantum s2s signatures. Install liboqs-dev or build from https://github.com/open-quantum-safe/liboqs. The dual-signature scheme (ML-DSA-87 + SLH-DSA-SHAKE-256f) provides defense-in-depth across cryptographic assumption families." "$LINENO" 5
+  fi
+  rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+
 # Legacy GeoIP (libGeoIP) removed in Cathexis 1.4.0. Only MaxMindDB supported.
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether to enable MaxMindDB support" >&5
 $as_echo_n "checking whether to enable MaxMindDB support... " >&6; }

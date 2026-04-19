@@ -255,6 +255,7 @@ IRCD_SRC = \
 	shun.c \
 	ssl.c \
 	s2s_crypto.c \
+	pq_crypto.c \
 	uping.c \
 	userload.c \
 	watch.c \
@@ -544,6 +545,9 @@ s2s_crypto.o: s2s_crypto.c ../config.h ../include/s2s_crypto.h \
   ../include/channel.h ../include/client.h ../include/ircd_alloc.h \
   ../include/ircd_log.h ../include/ircd_snprintf.h ../include/ircd_string.h \
   ../include/ircd_crypto.h ../include/s_debug.h
+pq_crypto.o: pq_crypto.c ../config.h ../include/pq_crypto.h \
+  ../include/ircd_crypto.h ../include/ircd_log.h ../include/ircd_string.h \
+  ../include/s_debug.h
 ircd_events.o: ircd_events.c ../config.h ../include/ircd_events.h \
   ../include/ircd.h ../include/ircd_alloc.h ../include/ircd_log.h \
   ../include/ircd_snprintf.h ../include/s_debug.h

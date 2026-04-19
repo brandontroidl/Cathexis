@@ -85,13 +85,19 @@
 #include "client.h"
 #include "hash.h"
 #include "ircd.h"
+#include "ircd_features.h"
 #include "ircd_log.h"
 #include "ircd_reply.h"
 #include "ircd_string.h"
 #include "msg.h"
 #include "numeric.h"
 #include "numnicks.h"
+#include "s_debug.h"
 #include "send.h"
+
+#ifdef USE_SSL
+#include "s2s_crypto.h"
+#endif
 
 /* #include <assert.h> -- Now using assert in ircd_log.h */
 
@@ -133,6 +139,47 @@ int ms_end_of_burst(struct Client* cptr, struct Client* sptr, int parc, char* pa
    } else
       chan->mode.mode &= ~MODE_BURSTADDED;
   }
+
+#ifdef USE_SSL
+  /* S2S_CSYNC (Cathexis 1.6.0+): after cleaning up BURSTADDED flags, emit
+   * one CHASH line per populated channel so the originating peer can
+   * compare against its own hash. This runs only on locally-connected
+   * peers (MyConnect) so a chained burst through multiple hops doesn't
+   * re-emit hashes at every forward. */
+  if (MyConnect(sptr) && feature_bool(FEAT_S2S_CSYNC)) {
+    char hexhash[129];
+    int emitted = 0;
+    int limit = feature_int(FEAT_S2S_CSYNC_MAX_PER_SECOND);
+    if (limit <= 0) limit = 50;
+
+    for (chan = GlobalChannelList; chan; chan = chan->next) {
+      /* Skip empty channels — nothing to synchronize */
+      if (!chan->members)
+        continue;
+      /* Skip local-only channels (& prefix) — they aren't network state */
+      if (chan->chname[0] == '&')
+        continue;
+      if (emitted >= limit) {
+        /* Defer remaining hashes to avoid overwhelming the peer. A
+         * follow-on pass after the current second can pick them up; for
+         * now this is a conservative circuit-breaker. */
+        sendto_opmask_butone(0, SNO_NETWORK,
+          "CHASH: emitted %d hashes to %C, deferring %s remaining channels (rate-limit)",
+          emitted, sptr, chan->chname);
+        break;
+      }
+      if (s2s_channel_hash(hexhash, chan) < 0)
+        continue;
+      sendcmdto_one(&me, CMD_CHASH, sptr, "%s %s", chan->chname, hexhash);
+      emitted++;
+    }
+
+    if (emitted > 0) {
+      Debug((DEBUG_DEBUG, "CHASH: sent %d channel hashes to %s",
+             emitted, cli_name(sptr)));
+    }
+  }
+#endif
 
   return 0;
 }

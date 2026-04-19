@@ -255,8 +255,8 @@ int ms_account(struct Client* cptr, struct Client* sptr, int parc,
         }
       }
 
-      if (((feature_int(FEAT_HOST_HIDING_STYLE) == 1) ||
-           (feature_int(FEAT_HOST_HIDING_STYLE) == 3)) &&
+      if (((feature_effective_host_hiding_style() == 1) ||
+           (feature_effective_host_hiding_style() == 3)) &&
           IsHiddenHost(acptr))
         hide_hostmask(acptr);
       return 0;
@@ -310,8 +310,8 @@ int ms_account(struct Client* cptr, struct Client* sptr, int parc,
           cli_user(acptr)->acc_create = atoi(parv[4]);
         }
 
-        if ((feature_int(FEAT_HOST_HIDING_STYLE) == 1) ||
-            (feature_int(FEAT_HOST_HIDING_STYLE) == 3)) {
+        if ((feature_effective_host_hiding_style() == 1) ||
+            (feature_effective_host_hiding_style() == 3)) {
           SetHiddenHost(acptr);
         }
       }
@@ -370,8 +370,8 @@ int ms_account(struct Client* cptr, struct Client* sptr, int parc,
                                            "%s", cli_user(acptr)->account);
     monitor_notify_account(acptr); /* IRCv3 extended-monitor */
 
-    if (((feature_int(FEAT_HOST_HIDING_STYLE) == 1) ||
-         (feature_int(FEAT_HOST_HIDING_STYLE) == 3)) &&
+    if (((feature_effective_host_hiding_style() == 1) ||
+         (feature_effective_host_hiding_style() == 3)) &&
         IsHiddenHost(acptr))
       hide_hostmask(acptr);
 

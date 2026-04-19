@@ -228,6 +228,7 @@ extern int ms_create(struct Client*, struct Client*, int, char*[]);
 extern int ms_destruct(struct Client*, struct Client*, int, char*[]);
 extern int ms_desynch(struct Client*, struct Client*, int, char*[]);
 extern int ms_end_of_burst(struct Client*, struct Client*, int, char*[]);
+extern int ms_chash(struct Client*, struct Client*, int, char*[]);
 extern int ms_end_of_burst_ack(struct Client*, struct Client*, int, char*[]);
 extern int ms_error(struct Client*, struct Client*, int, char*[]);
 extern int ms_fake(struct Client*, struct Client*, int, char*[]);

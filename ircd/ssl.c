@@ -259,6 +259,41 @@ SSL_CTX *ssl_init_client_ctx(void)
     return NULL;
   }
 
+  /* Cipher selection — mirror server policy so outgoing s2s links negotiate
+   * the same AEAD+curve set that incoming peers see from us. */
+  if (!EmptyString(feature_str(FEAT_SSL_CIPHERS)))
+  {
+    if (SSL_CTX_set_cipher_list(client_ctx, feature_str(FEAT_SSL_CIPHERS)) == 0)
+    {
+      sslfail("Error setting cipher list on client context");
+      SSL_CTX_free(client_ctx);
+      return NULL;
+    }
+  }
+
+  if (!EmptyString(feature_str(FEAT_SSL_CIPHERSUITES)))
+  {
+    if (SSL_CTX_set_ciphersuites(client_ctx, feature_str(FEAT_SSL_CIPHERSUITES)) == 0)
+    {
+      sslfail("Error setting TLS 1.3 ciphersuites on client context");
+      SSL_CTX_free(client_ctx);
+      return NULL;
+    }
+  }
+
+  /* Post-quantum hybrid KEX on outgoing s2s links (1.6.0+).
+   * Same X25519MLKEM768:X25519:P-256 list used for the server context —
+   * if peer supports hybrid, we negotiate it; else fall back. */
+  if (!EmptyString(feature_str(FEAT_SSL_GROUPS)))
+  {
+    if (SSL_CTX_set1_groups_list(client_ctx, feature_str(FEAT_SSL_GROUPS)) == 0)
+    {
+      sslfail("Error setting TLS groups on client context");
+      SSL_CTX_free(client_ctx);
+      return NULL;
+    }
+  }
+
   return client_ctx;
 }
 

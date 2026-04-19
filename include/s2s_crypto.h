@@ -39,22 +39,38 @@
 struct Client;
 struct Channel;
 
-/** Maximum hex-encoded HMAC length (SHA-256 = 32 bytes = 64 hex chars). */
-#define S2S_HMAC_HEXLEN  64
+/** Maximum hex-encoded HMAC length.
+ *  Pre-1.6.0: HMAC-SHA256 = 32 bytes = 64 hex chars
+ *  1.6.0+:    HMAC-SHA3-512 = 64 bytes = 128 hex chars
+ *  We use the larger size for both paths so buffers never truncate. */
+#define S2S_HMAC_HEXLEN  128
 /** S2S HMAC tag prefix in IRCv3 format. */
 #define S2S_HMAC_TAG     "@hmac="
 /** SA* authorization tag prefix. */
 #define S2S_SACERT_TAG   "@sacert="
-/** Channel state hash length (SHA-256 = 64 hex chars). */
-#define S2S_HASH_HEXLEN  64
+/** Channel state hash length (SHA3-512 = 128 hex chars post-1.6.0). */
+#define S2S_HASH_HEXLEN  128
 
-/** Derived key for a server-to-server link.
+/** PQ dual-signature tag prefix. Present when both peers are PQ-capable
+ *  and posture >= PREFERRED. The value is base64-encoded binary containing
+ *  the concatenated ML-DSA-87 + SLH-DSA-SHAKE-256f signatures as produced
+ *  by pq_sign_dual(). Because the dual signature is ~8KB, it is only used
+ *  on link authentication, oper commands, and SA* commands — not on every
+ *  message. Per-message HMAC-SHA3-512 still protects normal traffic. */
+#define S2S_PQSIG_TAG    "@pqsig="
+
+/** Derived key material for a server-to-server link.
  * Stored in the server's Client structure after link establishment.
+ * Grown in Cathexis 1.6.0 to hold SHA3-512 keys and the peer's PQ
+ * public-key fingerprint.
  */
 struct S2SKey {
-  unsigned char hmac_key[32];    /**< HMAC-SHA256 key for message auth */
-  unsigned char sacert_key[32];  /**< HMAC-SHA256 key for SA* signing */
-  int           active;          /**< 1 if keys are derived and active */
+  unsigned char hmac_key[64];        /**< HMAC-SHA3-512 key (64B in 1.6.0+, 32B effective pre-1.6.0) */
+  unsigned char sacert_key[64];      /**< HMAC-SHA3-512 key for SA* and link-auth signing */
+  unsigned char peer_pqfp[32];       /**< SHA3-256 fingerprint of peer's dual-sig public keys (0 if not PQ) */
+  int           active;              /**< 1 if keys are derived and active */
+  int           pq_active;           /**< 1 if peer negotiated PQ, 0 if classical-only */
+  int           pq_required;         /**< 1 if this link requires PQ (posture REQUIRED or peer demanded) */
 };
 
 /* ================================================================
@@ -147,5 +163,67 @@ extern int s2s_channel_hash(char *hexhash, const struct Channel *chptr);
  */
 extern int s2s_channel_verify(const struct Channel *chptr,
                               const char *remote_hash);
+
+/* ================================================================
+ * Post-Quantum Link Authentication (Cathexis 1.6.0+)
+ * ================================================================
+ *
+ * The PQ layer provides two things on top of the classical HMAC:
+ *
+ *   1. Dual signature (ML-DSA-87 + SLH-DSA-SHAKE-256f) on link
+ *      authentication and privileged (SA*) commands. Both signatures
+ *      MUST verify.
+ *
+ *   2. HMAC-SHA3-512 replaces HMAC-SHA256 for per-message authentication
+ *      and channel state hashing.
+ *
+ * Posture (runtime feature FEAT_PQ_POSTURE):
+ *   PQ_POSTURE_DISABLED  — no PQ negotiated or enforced (emergency only)
+ *   PQ_POSTURE_PREFERRED — negotiate PQ; fall back to HMAC-SHA3-512-only
+ *                          with a warning if peer doesn't support PQ (default)
+ *   PQ_POSTURE_REQUIRED  — reject peers that don't negotiate PQ
+ *
+ * During link registration, each side announces its PQ capability via a
+ * PASS-line extension "+pq87shk" (ML-DSA-87 + SLH-DSA-SHAKE-256f). If
+ * both announce it, the link is PQ-enabled; both sides sign a challenge
+ * with their private PQ keys, and s2s_link_verify_pq() validates the
+ * peer's response using the peer's public keys loaded from the Connect
+ * block's PQ key-file path.
+ */
+
+#ifdef USE_PQ
+struct PQKeypair; /* from pq_crypto.h */
+
+/** Sign a server-link challenge with our PQ dual keypair.
+ *  @param[out] b64out     Base64-encoded dual signature (NUL-terminated).
+ *  @param[in]  b64outlen  Capacity of b64out (recommend 16384 bytes).
+ *  @param[in]  kp         Our PQ keypair.
+ *  @param[in]  challenge  The peer's challenge nonce.
+ *  @param[in]  challen    Length of challenge.
+ *  @return 0 on success, -1 on failure. */
+extern int s2s_pq_sign_challenge(char *b64out, size_t b64outlen,
+                                  const struct PQKeypair *kp,
+                                  const unsigned char *challenge,
+                                  size_t challen);
+
+/** Verify a peer's PQ-signed challenge response.
+ *  @param[in] b64sig    Base64-encoded dual signature from peer.
+ *  @param[in] peer_kp   Peer's public keypair (primary_pub/secondary_pub set).
+ *  @param[in] challenge The challenge we sent.
+ *  @param[in] challen   Length of challenge.
+ *  @return 1 if verified, 0 otherwise. */
+extern int s2s_pq_verify_challenge(const char *b64sig,
+                                    const struct PQKeypair *peer_kp,
+                                    const unsigned char *challenge,
+                                    size_t challen);
+
+/** Compute a stable 32-byte fingerprint of a peer's PQ public keys.
+ *  Used in logging and optional pinning.
+ *  @param[out] fp_out   32 bytes of SHA3-256 output.
+ *  @param[in]  kp       Keypair with public keys populated.
+ *  @return 0 on success, -1 on failure. */
+extern int s2s_pq_fingerprint(unsigned char fp_out[32],
+                               const struct PQKeypair *kp);
+#endif /* USE_PQ */
 
 #endif /* INCLUDED_s2s_crypto_h */

@@ -79,8 +79,8 @@ static struct capabilities {
   _CAP(BATCH, 0, "batch", FEAT_CAP_batch),
   _CAP(LABELEDRESP, 0, "labeled-response", FEAT_CAP_labeled_response),
   _CAP(STDREPLIES, 0, "standard-replies", FEAT_CAP_standard_replies),
-  /* Cathexis extensions */
-  _CAP(STS, CAPFL_PROHIBIT, "sts", 0),
+  /* IRCv3 STS — see FEAT_CAP_STS_ENABLED / _PORT / _DURATION / _PRELOAD */
+  _CAP(STS, 0, "sts", FEAT_CAP_STS_ENABLED),
   /* IRCv3 ratified — additional */
   _CAP(MSGID, 0, "message-ids", FEAT_CAP_message_ids),
   _CAP(MONITOR, 0, "monitor", FEAT_CAP_monitor),
@@ -226,18 +226,23 @@ send_caplist(struct Client *sptr, const struct CapSet *set,
     len = capab_list[i].namelen + pfx_len; /* how much we'd add... */
 
     /* IRCv3 STS: generate value dynamically from features.
-     * Format: sts=port=<port>,duration=<seconds>
-     * Only advertised on CAP LS (not REQ), only with 302+ */
-    static char sts_value[64];
+     * Format: sts=port=<port>,duration=<seconds>[,preload]
+     * Only advertised on CAP LS (not REQ), only with 302+, only when
+     * FEAT_CAP_STS_ENABLED is true. */
+    static char sts_value[96];
     const char *effective_value = capab_list[i].value;
 
     if (capab_list[i].cap == CAP_STS && MyConnect(sptr) &&
-        con_capver(cli_connect(sptr)) >= 302) {
-      int sts_port = feature_int(FEAT_STS_PORT);
-      int sts_dur  = feature_int(FEAT_STS_DURATION);
+        con_capver(cli_connect(sptr)) >= 302 &&
+        feature_bool(FEAT_CAP_STS_ENABLED)) {
+      int sts_port = feature_int(FEAT_CAP_STS_PORT);
+      int sts_dur  = feature_int(FEAT_CAP_STS_DURATION);
+      int preload  = feature_bool(FEAT_CAP_STS_PRELOAD);
       if (sts_port > 0) {
         ircd_snprintf(0, sts_value, sizeof(sts_value),
-                       "port=%d,duration=%d", sts_port, sts_dur);
+                       "port=%d,duration=%d%s",
+                       sts_port, sts_dur,
+                       preload ? ",preload" : "");
         effective_value = sts_value;
       }
     }
