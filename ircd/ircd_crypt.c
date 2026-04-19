@@ -67,7 +67,7 @@
 #ifdef HAVE_CRYPT_H
 #include <crypt.h>
 #endif
-#ifdef HAVE_ARGON2
+#ifdef HAVE_ARGON2_H
 #include <argon2.h>      /* ARGON2_OK and friends */
 #endif
 

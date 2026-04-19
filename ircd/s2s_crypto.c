@@ -147,7 +147,9 @@ static size_t s2s_mac_hexlen(void)
   return s2s_mac_len() * 2;
 }
 
-/* Legacy shim — keep the old name for any internal callers. */
+/* Legacy shim — keep the old name for any internal callers.
+ * Tagged unused so -Wunused-function doesn't fire when no caller remains. */
+__attribute__((unused))
 static int compute_hmac_sha256(unsigned char *mac,
                                const unsigned char *key, size_t keylen,
                                const unsigned char *data, size_t datalen)
@@ -215,13 +217,11 @@ int s2s_derive_keys(struct S2SKey *key, const char *passwd)
 #endif
 
   key->active = 1;
-  Debug((DEBUG_DEBUG, "s2s_derive_keys: %s keys derived",
 #ifdef USE_PQ
-         "HMAC-SHA3-512"
+  Debug((DEBUG_DEBUG, "s2s_derive_keys: HMAC-SHA3-512 keys derived"));
 #else
-         "HMAC-SHA256"
+  Debug((DEBUG_DEBUG, "s2s_derive_keys: HMAC-SHA256 keys derived"));
 #endif
-         ));
   return 0;
 }
 
