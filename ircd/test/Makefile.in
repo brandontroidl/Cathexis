@@ -2,8 +2,9 @@ top_srcdir = @top_srcdir@
 srcdir = @srcdir@
 VPATH = @srcdir@
 CPPFLAGS = -I${top_srcdir}/include -I../..
-CFLAGS   = -g -Wall
-LDFLAGS  =
+CFLAGS   = -g -Wall @CFLAGS@
+LDFLAGS  = @LDFLAGS@
+LIBS     = @LIBS@
 CC = @CC@
 
 TESTPROGS = \
@@ -37,19 +38,22 @@ install:
 
 IRCD_CHATTR_T_OBJS = ircd_chattr_t.o test_stub.o ../ircd_string.o
 ircd_chattr_t: $(IRCD_CHATTR_T_OBJS)
-	${CC} -o $@ $(LDFLAGS) $(IRCD_CHATTR_T_OBJS)
+	${CC} -o $@ $(LDFLAGS) $(IRCD_CHATTR_T_OBJS) $(LIBS)
 
-IRCD_IN_ADDR_T_OBJS = ircd_in_addr_t.o test_stub.o ../ircd_alloc.o ../ircd_string.o ../match.o ../numnicks.o
+# numnicks.o references dbg_malloc_zero when built with -DMDEBUG, so memdebug.o
+# must be linked here as well. Safe to include unconditionally; memdebug.c is
+# an empty translation unit unless MDEBUG is defined at compile time.
+IRCD_IN_ADDR_T_OBJS = ircd_in_addr_t.o test_stub.o ../ircd_alloc.o ../ircd_string.o ../match.o ../numnicks.o ../memdebug.o
 ircd_in_addr_t: $(IRCD_IN_ADDR_T_OBJS)
-	${CC} -o $@ $(LDFLAGS) $(IRCD_IN_ADDR_T_OBJS)
+	${CC} -o $@ $(LDFLAGS) $(IRCD_IN_ADDR_T_OBJS) $(LIBS)
 
 IRCD_MATCH_T_OBJS = ircd_match_t.o test_stub.o ../ircd_string.o ../match.o
 ircd_match_t: $(IRCD_MATCH_T_OBJS)
-	${CC} -o $@ $(LDFLAGS) $(IRCD_MATCH_T_OBJS)
+	${CC} -o $@ $(LDFLAGS) $(IRCD_MATCH_T_OBJS) $(LIBS)
 
 IRCD_STRING_T_OBJS = ircd_string_t.o test_stub.o ../ircd_string.o
 ircd_string_t: $(IRCD_STRING_T_OBJS)
-	${CC} -o $@ $(LDFLAGS) $(IRCD_STRING_T_OBJS)
+	${CC} -o $@ $(LDFLAGS) $(IRCD_STRING_T_OBJS) $(LIBS)
 
 .c.o:
 	${CC} ${CFLAGS} ${CPPFLAGS} -c $< -o $@

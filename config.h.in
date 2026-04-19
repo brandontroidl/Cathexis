@@ -24,9 +24,9 @@
 /* Force inlining for a few critical functions */
 #undef FORCEINLINE
 
-/* Path name used as a base for the GeoIP include files. */
+/* Path name used as a base for the MaxMindDB include files. */
 
-/* Path name used as a base for the GeoIP lib files. */
+/* Path name used as a base for the MaxMindDB lib files. */
 
 /* Define to 1 if you have the <crypt.h> header file. */
 #undef HAVE_CRYPT_H

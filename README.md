@@ -1,6 +1,6 @@
 # Cathexis IRCd
 
-**Version 1.5.2** — A modern IRC daemon based on the ircu/P10 protocol family.
+**Version 1.5.4** — A modern IRC daemon based on the ircu/P10 protocol family.
 
 Copyright (c) Cathexis Development
 

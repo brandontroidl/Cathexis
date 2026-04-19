@@ -1,5 +1,16 @@
 # Cathexis IRCd Changelog
 
+## 1.5.4 (2026-04-19)
+
+### Docs / Config
+- **Stale `--with-geoip` mentions purged** — Cathexis dropped legacy libGeoIP support in 1.4.0 (MMDB-only since), but the `ircd.conf`, `doc/ircd.conf`, and `config.h.in` still referenced the old flag/paths. Updated the three breadcrumbs so nobody reading the shipped docs expects a `--with-geoip` option that no longer exists. No code or build behavior change.
+
+## 1.5.3 (2026-04-19)
+
+### Build
+- **`--with-leak-detect` against modern libgc (`ircd/memdebug.c`)** — The leak-detector path was written against a patched Boehm GC 6.0 from 2001 (documented in the source comment) whose `GC_set_leak_handler()` symbol does not exist in modern libgc 7.x/8.x. Any build with `--with-leak-detect` (or `-DMDEBUG`) failed to link `umkpasswd` with `undefined reference to GC_set_leak_handler`. Changed the forward declaration to be elided and the single call site to use a function-local `__attribute__((weak))` reference, so modern libgc links cleanly (handler not installed, `GC_find_leak = 1` alone still produces leak reports) and the historical patched gc6.0 path still works if present.
+- **Test binary link with `-DMDEBUG` (`ircd/test/Makefile.in`)** — When `--with-leak-detect` is active, global `CFLAGS` picks up `-DMDEBUG`, so `numnicks.o` (linked into `ircd_in_addr_t`) references `dbg_malloc_zero` from `memdebug.o`. The test Makefile didn't link `memdebug.o`, causing `undefined reference to dbg_malloc_zero`. Added `../memdebug.o` to `IRCD_IN_ADDR_T_OBJS` and forwarded the top-level `CFLAGS`, `LDFLAGS`, and `LIBS` to the test binaries so they link against `-lgc` when needed.
+
 ## 1.5.2 (2026-04-19)
 
 ### Security

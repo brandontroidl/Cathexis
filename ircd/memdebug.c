@@ -25,7 +25,9 @@
 
 void *GC_malloc(size_t size);
 void GC_free(void *ptr);
-void GC_set_leak_handler(void (*)(void*, int));
+/* GC_set_leak_handler is declared weak at its use site in mem_dbg_initialise()
+ * so that we link cleanly against both the patched gc6.0 (which exports it)
+ * and modern libgc (which does not). */
 void GC_gcollect(void);
 extern int GC_find_leak;
 
@@ -229,7 +231,18 @@ void
 mem_dbg_initialise(void)
 {
   GC_find_leak = 1;
-  GC_set_leak_handler(dbg_memory_leaked);
+  /* GC_set_leak_handler() was only in the patched gc6.0 tree referenced above.
+   * Modern libgc (7.x/8.x) reports leaks via GC_find_leak alone, printing to
+   * stderr on each GC cycle. We attempt the handler call only if the symbol
+   * is present at link time via a weak reference. */
+#if defined(__GNUC__) || defined(__clang__)
+  {
+    extern void GC_set_leak_handler(void (*)(void *, int))
+      __attribute__((weak));
+    if (GC_set_leak_handler)
+      GC_set_leak_handler(dbg_memory_leaked);
+  }
+#endif
 }
 
 #endif
